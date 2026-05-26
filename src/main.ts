@@ -101,7 +101,16 @@ type YouTubeWindow = Window & {
 
 type CharacterRig = {
   root: AssimpNode
+  nodes: RigNode[]
   clips: Record<CharacterMode, CharacterClip>
+}
+
+type RigNode = {
+  name: string
+  parent: number
+  helper: boolean
+  transform: Mat4
+  origin: Vec3
 }
 
 type CharacterMode = 'stand' | 'run'
@@ -1601,6 +1610,7 @@ async function loadCharacterRig(): Promise<CharacterRig> {
   ])
   const rig = {
     root: stand.rootnode,
+    nodes: createRigNodes(stand.rootnode),
     clips: {
       stand: createCharacterClip(stand, 'stand.fbx'),
       run: createCharacterClip(run, 'run.fbx'),
@@ -2073,6 +2083,31 @@ function collectNodeNames(node: AssimpNode, names: Set<string>) {
   return names
 }
 
+function createRigNodes(root: AssimpNode) {
+  const nodes: RigNode[] = []
+  const add = (node: AssimpNode, parent: number) => {
+    const transform = nodeTransform(node)
+    const index = nodes.length
+    const helper = isAssimpHelper(node)
+
+    nodes.push({
+      name: node.name,
+      parent,
+      helper,
+      transform,
+      origin: transformOrigin(transform),
+    })
+
+    for (const child of node.children ?? []) {
+      add(child, index)
+    }
+  }
+
+  add(root, -1)
+
+  return nodes
+}
+
 function updateCharacterMesh(time: number) {
   if (!characterRig) {
     return 0
@@ -2298,30 +2333,28 @@ function sampleBasePose(rig: CharacterRig, time: number): SampledPose {
 function sampleClipPose(rig: CharacterRig, clip: CharacterClip, time: number) {
   const tick = (time * clip.ticksPerSecond) % clip.duration
   const pose = new Map<string, Vec3>()
+  const world = new Array<Mat4>(rig.nodes.length)
 
-  sampleNodePose(rig.root, identity(), clip, tick, pose)
+  for (let i = 0; i < rig.nodes.length; i++) {
+    const node = rig.nodes[i]!
+    const parent = node.parent < 0 ? identity() : world[node.parent]!
+    const channel = clip.channels.get(node.name)
+    const local = channel ? sampleChannelTransform(node, channel, tick) : node.transform
+    const matrix = node.helper ? parent : multiply(parent, local)
+
+    world[i] = matrix
+
+    if (!node.helper && characterPoseJointSet.has(node.name)) {
+      pose.set(node.name, transformOrigin(matrix))
+    }
+  }
 
   return pose
 }
 
-function sampleNodePose(node: AssimpNode, parent: Mat4, clip: CharacterClip, tick: number, pose: Map<string, Vec3>) {
-  const helper = isAssimpHelper(node)
-  const channel = clip.channels.get(node.name)
-  const local = channel ? sampleChannelTransform(node, channel, tick) : nodeTransform(node)
-  const world = helper ? parent : multiply(parent, local)
-
-  if (!helper && characterPoseJointSet.has(node.name)) {
-    pose.set(node.name, transformOrigin(world))
-  }
-
-  for (const child of node.children ?? []) {
-    sampleNodePose(child, world, clip, tick, pose)
-  }
-}
-
-function sampleChannelTransform(node: AssimpNode, channel: AssimpChannel, tick: number) {
+function sampleChannelTransform(node: RigNode, channel: AssimpChannel, tick: number) {
   return compose(
-    sampleVec3(channel.positionkeys, tick, transformOrigin(nodeTransform(node))),
+    sampleVec3(channel.positionkeys, tick, node.origin),
     sampleQuat(channel.rotationkeys, tick, [1, 0, 0, 0]),
     sampleVec3(channel.scalingkeys, tick, [1, 1, 1]),
   )
