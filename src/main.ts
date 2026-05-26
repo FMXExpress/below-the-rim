@@ -129,6 +129,16 @@ type PlayerStyle = {
   hairColorIndex: number
 }
 
+type ResolvedPlayerStyle = {
+  topMode: TopMode
+  bottomMode: BottomMode
+  shirt: Vec3
+  shirtLight: Vec3
+  pants: Vec3
+  shoe: Vec3
+  hairColor: Vec3
+}
+
 type PlayerDestination = {
   position: Vec3
   lookAt?: Vec3
@@ -142,6 +152,7 @@ type Player = {
   nextDecision: number
   destination: PlayerDestination
   style: PlayerStyle
+  resolvedStyle: ResolvedPlayerStyle
   seed: number
 }
 
@@ -149,6 +160,8 @@ type SampledPose = {
   stand: Map<string, Vec3>
   run: Map<string, Vec3>
 }
+
+type PoseBlendCache = Map<number, Map<string, Vec3>>
 
 type StrobeLight = {
   id: number
@@ -1403,6 +1416,22 @@ const characterParts: CharacterPart[] = [
   { from: 'mixamorig:RightFoot', to: 'mixamorig:RightToe_End', width: 0.095, depth: 0.055, color: shoe, start: -0.06,
     end: 1.05 },
 ]
+const characterPoseJoints = [
+  ...new Set([
+    ...characterGroundJoints,
+    ...characterParts.flatMap(part => [part.from, part.to]),
+    'mixamorig:Spine2',
+    'mixamorig:Neck',
+    'mixamorig:Hips',
+    'mixamorig:LeftUpLeg',
+    'mixamorig:RightUpLeg',
+    'mixamorig:LeftLeg',
+    'mixamorig:RightLeg',
+    'mixamorig:Head',
+    'mixamorig:HeadTop_End',
+  ]),
+]
+const characterPoseJointSet = new Set(characterPoseJoints)
 
 async function loadCharacterRig(): Promise<CharacterRig> {
   const ajs = await assimpjs({
@@ -1911,10 +1940,11 @@ function updateCharacterMesh(time: number) {
 
   const view = playerView()
   const npcPose = sampleBasePose(characterRig, Math.floor(time * 12) / 12)
+  const npcBlendCache: PoseBlendCache = new Map()
 
   for (const player of players) {
     if (playerInView(player, view)) {
-      addRenderedCharacter(target, player, time, false, npcPose)
+      addRenderedCharacter(target, player, time, false, npcPose, npcBlendCache)
     }
   }
 
@@ -1992,13 +2022,20 @@ function playerInView(player: Player, view: ReturnType<typeof playerView>) {
 
 function addRenderedCharacter(
   target: Vertex[],
-  player: { position: Vec3; turn: number; motionBlend: number; style: PlayerStyle },
+  player: {
+    position: Vec3
+    turn: number
+    motionBlend: number
+    style: PlayerStyle
+    resolvedStyle?: ResolvedPlayerStyle
+  },
   time: number,
   detailedHair: boolean,
   basePose?: SampledPose,
+  blendCache?: PoseBlendCache,
 ) {
-  const pose = sampleCharacterPose(characterRig!, time, player, basePose)
-  const style = playerStyle(player.style)
+  const pose = sampleCharacterPose(characterRig!, time, player, basePose, blendCache)
+  const style = player.resolvedStyle ?? playerStyle(player.style)
   const localReflection = detailedHair
 
   for (const part of characterParts) {
@@ -2045,19 +2082,31 @@ function sampleCharacterPose(
   time: number,
   player: { position: Vec3; turn: number; motionBlend: number },
   basePose = sampleBasePose(rig, time),
+  blendCache?: PoseBlendCache,
 ) {
+  const blendKey = Math.round(player.motionBlend * 12)
+  const blend = blendCache ? blendKey / 12 : player.motionBlend
+  const cached = blendCache?.get(blendKey)
+
+  if (cached) {
+    return placeCharacterPose(cached, player.position, player.turn)
+  }
+
   const { stand, run } = basePose
   const pose = new Map<string, Vec3>()
 
-  for (const [name, point] of stand) {
+  for (const name of characterPoseJoints) {
+    const point = stand.get(name)!
     const next = run.get(name)!
 
     pose.set(name, [
-      mix(point[0], next[0], player.motionBlend),
-      mix(point[1], next[1], player.motionBlend),
-      mix(point[2], next[2], player.motionBlend),
+      mix(point[0], next[0], blend),
+      mix(point[1], next[1], blend),
+      mix(point[2], next[2], blend),
     ])
   }
+
+  blendCache?.set(blendKey, pose)
 
   return placeCharacterPose(pose, player.position, player.turn)
 }
@@ -2084,7 +2133,7 @@ function sampleNodePose(node: AssimpNode, parent: Mat4, clip: CharacterClip, tic
   const local = channel ? sampleChannelTransform(node, channel, tick) : nodeTransform(node)
   const world = helper ? parent : multiply(parent, local)
 
-  if (!helper) {
+  if (!helper && characterPoseJointSet.has(node.name)) {
     pose.set(node.name, transformOrigin(world))
   }
 
@@ -2300,7 +2349,11 @@ function addLitTriangle(target: Vertex[], a: Vec3, b: Vec3, c: Vec3, color: Vec3
   const normal = normalize(cross(subtract(c, a), subtract(b, a)))
   const shade = addLocalReflection(color, center, normal)
 
-  target.push(pack(a, shade, glow), pack(b, shade, glow), pack(c, shade, glow))
+  target.push(
+    [a[0], a[1], a[2], shade[0], shade[1], shade[2], glow, 0, 0, 0, 0],
+    [b[0], b[1], b[2], shade[0], shade[1], shade[2], glow, 0, 0, 0, 0],
+    [c[0], c[1], c[2], shade[0], shade[1], shade[2], glow, 0, 0, 0, 0],
+  )
 }
 
 function addSunLitTriangle(target: Vertex[], a: Vec3, b: Vec3, c: Vec3, color: Vec3) {
@@ -2338,7 +2391,11 @@ function addSunLitTriangle(target: Vertex[], a: Vec3, b: Vec3, c: Vec3, color: V
     clamp(color[2] * baseLight * warmth[2] + blueLight * electricNavy[2], 0, 1),
   ]
 
-  target.push(pack(a, shade, 0), pack(b, shade, 0), pack(c, shade, 0))
+  target.push(
+    [a[0], a[1], a[2], shade[0], shade[1], shade[2], 0, 0, 0, 0, 0],
+    [b[0], b[1], b[2], shade[0], shade[1], shade[2], 0, 0, 0, 0, 0],
+    [c[0], c[1], c[2], shade[0], shade[1], shade[2], 0, 0, 0, 0, 0],
+  )
 }
 
 function addCharacterBox(
@@ -2353,22 +2410,58 @@ function addCharacterBox(
   localReflection: boolean,
   strobe = 0,
 ) {
-  const direction = normalize(subtract(b, a))
-  const vertical = Math.abs(direction[1]) > 0.82
-  const side = vertical
-    ? scale([Math.cos(turn), 0, -Math.sin(turn)], width * 0.5)
-    : scale(normalize(cross(direction, [0, 1, 0])), width * 0.5)
-  const up = vertical
-    ? scale([Math.sin(turn), 0, Math.cos(turn)], depth * 0.5)
-    : scale(normalize(cross(side, direction)), depth * 0.5)
-  const a0 = subtract(subtract(a, side), up)
-  const a1 = add(subtract(a, up), side)
-  const a2 = add(add(a, side), up)
-  const a3 = add(subtract(a, side), up)
-  const b0 = subtract(subtract(b, side), up)
-  const b1 = add(subtract(b, up), side)
-  const b2 = add(add(b, side), up)
-  const b3 = add(subtract(b, side), up)
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const dz = b[2] - a[2]
+  const length = Math.hypot(dx, dy, dz)
+  const nx = dx / length
+  const ny = dy / length
+  const nz = dz / length
+  const vertical = Math.abs(ny) > 0.82
+  let sideX = 0
+  let sideY = 0
+  let sideZ = 0
+  let upX = 0
+  let upY = 0
+  let upZ = 0
+
+  if (vertical) {
+    sideX = Math.cos(turn)
+    sideZ = -Math.sin(turn)
+    upX = Math.sin(turn)
+    upZ = Math.cos(turn)
+  }
+  else {
+    const sideLength = Math.hypot(-nz, nx)
+
+    sideX = -nz / sideLength
+    sideZ = nx / sideLength
+    upX = -sideZ * ny
+    upY = sideZ * nx - sideX * nz
+    upZ = sideX * ny
+
+    const upLength = Math.hypot(upX, upY, upZ)
+
+    upX /= upLength
+    upY /= upLength
+    upZ /= upLength
+  }
+
+  sideX *= width * 0.5
+  sideY *= width * 0.5
+  sideZ *= width * 0.5
+  upX *= depth * 0.5
+  upY *= depth * 0.5
+  upZ *= depth * 0.5
+
+  const a0: Vec3 = [a[0] - sideX - upX, a[1] - sideY - upY, a[2] - sideZ - upZ]
+  const a1: Vec3 = [a[0] + sideX - upX, a[1] + sideY - upY, a[2] + sideZ - upZ]
+  const a2: Vec3 = [a[0] + sideX + upX, a[1] + sideY + upY, a[2] + sideZ + upZ]
+  const a3: Vec3 = [a[0] - sideX + upX, a[1] - sideY + upY, a[2] - sideZ + upZ]
+  const b0: Vec3 = [b[0] - sideX - upX, b[1] - sideY - upY, b[2] - sideZ - upZ]
+  const b1: Vec3 = [b[0] + sideX - upX, b[1] + sideY - upY, b[2] + sideZ - upZ]
+  const b2: Vec3 = [b[0] + sideX + upX, b[1] + sideY + upY, b[2] + sideZ + upZ]
+  const b3: Vec3 = [b[0] - sideX + upX, b[1] - sideY + upY, b[2] - sideZ + upZ]
   const shadeA = scale(color, 0.65)
   const shadeB = scale(color, 0.82)
 
@@ -2613,7 +2706,8 @@ function placeCharacterPose(pose: Map<string, Vec3>, position: Vec3, turn: numbe
   const sin = Math.sin(turn)
   const cos = Math.cos(turn)
 
-  for (const [name, point] of pose) {
+  for (const name of characterPoseJoints) {
+    const point = pose.get(name)!
     const x = point[0] * characterScale
     const y = (point[1] - ground) * characterScale
     const z = point[2] * characterScale
@@ -2969,6 +3063,12 @@ function createPlayers(count: number) {
       characterFloor,
       destination.position[2] + seededRange(seed, 11, -1.2, 1.2),
     ]
+    const style: PlayerStyle = {
+      topStyleIndex: Math.floor(seededRange(seed, 14, 0, jewelPalette.length * 2 + 2)),
+      bottomStyleIndex: Math.floor(seededRange(seed, 15, 0, jewelPalette.length * 2)),
+      hairIndex: Math.floor(seededRange(seed, 16, 0, 19)),
+      hairColorIndex: Math.floor(seededRange(seed, 17, 0, hairPalette.length)),
+    }
 
     next.push({
       position,
@@ -2977,12 +3077,8 @@ function createPlayers(count: number) {
       input: [0, 0, 0],
       nextDecision: seededRange(seed, 13, 0.3, 2.8),
       destination,
-      style: {
-        topStyleIndex: Math.floor(seededRange(seed, 14, 0, jewelPalette.length * 2 + 2)),
-        bottomStyleIndex: Math.floor(seededRange(seed, 15, 0, jewelPalette.length * 2)),
-        hairIndex: Math.floor(seededRange(seed, 16, 0, 19)),
-        hairColorIndex: Math.floor(seededRange(seed, 17, 0, hairPalette.length)),
-      },
+      style,
+      resolvedStyle: playerStyle(style),
       seed,
     })
   }
@@ -4514,8 +4610,14 @@ function addQuad(
   glow: number,
   strobe = 0,
 ) {
-  target.push(pack(a, color, glow, strobe), pack(b, color, glow, strobe), pack(c, color, glow, strobe))
-  target.push(pack(a, color, glow, strobe), pack(c, color, glow, strobe), pack(d, color, glow, strobe))
+  target.push(
+    [a[0], a[1], a[2], color[0], color[1], color[2], glow, strobe, 0, 0, 0],
+    [b[0], b[1], b[2], color[0], color[1], color[2], glow, strobe, 0, 0, 0],
+    [c[0], c[1], c[2], color[0], color[1], color[2], glow, strobe, 0, 0, 0],
+    [a[0], a[1], a[2], color[0], color[1], color[2], glow, strobe, 0, 0, 0],
+    [c[0], c[1], c[2], color[0], color[1], color[2], glow, strobe, 0, 0, 0],
+    [d[0], d[1], d[2], color[0], color[1], color[2], glow, strobe, 0, 0, 0],
+  )
 }
 
 function addGrassQuad(
