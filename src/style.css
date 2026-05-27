@@ -26,6 +26,8 @@ canvas {
 #dj-video {
   left: 0;
   top: 0;
+  mix-blend-mode: screen;
+  filter: saturate(1.15) contrast(1.08) brightness(0.9);
   transform-origin: 0 0;
   will-change: transform;
 }

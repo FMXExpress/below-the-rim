@@ -4,7 +4,7 @@ import { addBox, addDisc, addGrassQuad, addQuad, addTriangle, pack, packSmoke } 
 import { add, mix, scale, subtract } from './math.ts'
 import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, landscapeBounds, outsideBounds, outsideDjBooth,
   outsideCouches, outsideDjSpeakers, outsideHut, outsideHutBar, outsideHutBarStools, outsideHutDeckHeight,
-  roomBounds } from './scene-data.ts'
+  outsideVideoWall, roomBounds } from './scene-data.ts'
 import { strobeTarget } from './strobe-object.ts'
 import type { Bounds, StrobeLight, Vec3, Vertex, VideoZone } from './types.ts'
 
@@ -31,9 +31,22 @@ export function addRoom(target: Vertex[]) {
     0.04)
   addBox(target, backDoor.x, -2 + backDoor.height + 0.05, 4.035, backDoor.width + 0.2, 0.1, 0.08, [0.025, 0.035, 0.023],
     0.04)
+  addOutsideVideoBackdrop(target)
   addDoorPerimeterStripes(target)
   addBartenderBar(target)
   addDjBooth(target)
+}
+
+function addOutsideVideoBackdrop(target: Vertex[]) {
+  const wall = outsideVideoWall
+  const left = wall.x - wall.width / 2
+  const right = wall.x + wall.width / 2
+  const bottom = wall.y - wall.height / 2
+  const top = wall.y + wall.height / 2
+  const color: Vec3 = [0.001, 0.001, 0.001]
+  const z = wall.z - 0.5
+
+  addQuad(target, [right, bottom, z], [left, bottom, z], [left, top, z], [right, top, z], color, 0)
 }
 
 function addDoorPerimeterStripes(target: Vertex[]) {
