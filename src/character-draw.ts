@@ -3,6 +3,7 @@ import {
   addCharacterBox,
   addCharacterQuad,
   addFlatTriangle,
+  reserveFloats,
   resetVertexWriter,
   vertexWriterData,
 } from './character-geometry.ts'
@@ -56,7 +57,7 @@ export type CharacterDrawCache = {
   basePose?: SampledPose
   basePoses: Map<number, SampledPose>
   boxInstances: VertexWriter
-  hairInstances: number[]
+  hairInstances: VertexWriter
   npcBlendCache: PoseBlendCache
   poses: Vec3[][]
   usedBasePoseKeys: Set<number>
@@ -100,7 +101,7 @@ export function buildCharacterDrawData(options: BuildOptions) {
   const cache = options.drawCache
   const vertices = cache?.vertices ?? options.vertexWriter ?? { data: new Float32Array(0), length: 0 }
   const boxInstances = cache?.boxInstances ?? { data: new Float32Array(0), length: 0 }
-  const hairInstances = cache?.hairInstances ?? []
+  const hairInstances = cache?.hairInstances ?? { data: new Float32Array(0), length: 0 }
   const npcBlendCache = cache?.npcBlendCache ?? new Map()
   const poses = cache?.poses ?? []
   const basePoses = cache?.basePoses ?? new Map()
@@ -116,7 +117,7 @@ export function buildCharacterDrawData(options: BuildOptions) {
 
   resetVertexWriter(vertices)
   resetVertexWriter(boxInstances)
-  hairInstances.length = 0
+  resetVertexWriter(hairInstances)
   usedBasePoseKeys.clear()
   usedNpcBlendKeys.clear()
 
@@ -158,14 +159,14 @@ export function buildCharacterDrawData(options: BuildOptions) {
   return {
     vertices: vertexWriterData(vertices),
     boxInstances: vertexWriterData(boxInstances),
-    hairInstances,
+    hairInstances: vertexWriterData(hairInstances),
   }
 }
 
 function addRenderedCharacter(
   target: VertexWriter,
   boxInstances: VertexWriter,
-  hairInstances: number[],
+  hairInstances: VertexWriter,
   player: CharacterInput,
   options: BuildOptions,
   detailedHair: boolean,
@@ -229,7 +230,7 @@ function sampleAndCacheBasePose(
 }
 
 function addNpcHairInstance(
-  hairInstances: number[],
+  hairInstances: VertexWriter,
   pose: Vec3[],
   hair: HairMesh,
   player: { turn: number },
@@ -246,25 +247,28 @@ function addNpcHairInstance(
   const normalizedUpZ = upZ / upLength
   const sin = Math.sin(player.turn)
   const cos = Math.cos(player.turn)
+  reserveFloats(hairInstances, 16)
 
-  hairInstances.push(
-    hair.index,
-    head[0] - normalizedUpX * 0.035,
-    head[1] - normalizedUpY * 0.035,
-    head[2] - normalizedUpZ * 0.035,
-    cos,
-    0,
-    -sin,
-    normalizedUpX,
-    normalizedUpY,
-    normalizedUpZ,
-    sin,
-    0,
-    cos,
-    color[0],
-    color[1],
-    color[2],
-  )
+  const data = hairInstances.data
+  let offset = hairInstances.length
+
+  data[offset++] = hair.index
+  data[offset++] = head[0] - normalizedUpX * 0.035
+  data[offset++] = head[1] - normalizedUpY * 0.035
+  data[offset++] = head[2] - normalizedUpZ * 0.035
+  data[offset++] = cos
+  data[offset++] = 0
+  data[offset++] = -sin
+  data[offset++] = normalizedUpX
+  data[offset++] = normalizedUpY
+  data[offset++] = normalizedUpZ
+  data[offset++] = sin
+  data[offset++] = 0
+  data[offset++] = cos
+  data[offset++] = color[0]
+  data[offset++] = color[1]
+  data[offset++] = color[2]
+  hairInstances.length = offset
 }
 
 function addCharacterPart(

@@ -133,6 +133,7 @@ const roomSmokeCameraUp = gl.getUniformLocation(smokeProgram, 'cameraUp')
 const postScene = gl.getUniformLocation(postProgram, 'scene')
 const postBloom = gl.getUniformLocation(postProgram, 'bloom')
 const postBloomResolution = gl.getUniformLocation(postProgram, 'bloomResolution')
+const postRenderSky = gl.getUniformLocation(postProgram, 'renderSky')
 const postSkyForward = gl.getUniformLocation(postProgram, 'skyForward')
 const postSkyRight = gl.getUniformLocation(postProgram, 'skyRight')
 const postSkyUp = gl.getUniformLocation(postProgram, 'skyUp')
@@ -166,7 +167,7 @@ if (!viewProjection || !cameraEye || !renderZone || !treeShadowSampler || !chara
   || !characterBoxRenderZone || !lightTime || !lightSmokeMap || !lightRenderZone || !lightViewProjection
   || !strobeTime || !strobeSmokeMap || !strobeRenderZone || !strobeViewProjection || !hairViewProjection
   || !hairRenderZone || !roomSmokeTime || !roomSmokeMap || !roomSmokeViewProjection || !roomSmokeCameraRight
-  || !roomSmokeCameraUp || !postScene || !postBloom || !postBloomResolution
+  || !roomSmokeCameraUp || !postScene || !postBloom || !postBloomResolution || !postRenderSky
   || !postSkyForward || !postSkyRight || !postSkyUp || !array
   || !buffer || !lightArray || !lightBuffer || !strobeArray || !strobeGeometryBuffer || !strobeInstanceBuffer
   || !smokeArray || !smokeBuffer || !characterArray || !characterBuffer
@@ -290,7 +291,7 @@ const draw = (stamp: number) => {
   chatUi.update(projector, stamp)
 
   const outside = isOutside(characterPosition)
-  const sky = usesSkyBackground(camera)
+  const sky = outside && usesSkyBackground(camera)
 
   const characterCount = characterRenderSystem.update(stamp * 0.001)
 
@@ -334,6 +335,7 @@ const draw = (stamp: number) => {
       bloom: postBloom,
       bloomResolution: postBloomResolution,
       program: postProgram,
+      renderSky: postRenderSky,
       scene: postScene,
       skyForward: postSkyForward,
       skyRight: postSkyRight,

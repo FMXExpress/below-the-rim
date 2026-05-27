@@ -110,7 +110,7 @@ export function hairLocalPoint(point: Vec3): Vec3 {
 export function updateHairInstances(
   context: WebGL2RenderingContext,
   hairRenderMeshes: HairRenderMesh[],
-  hairInstances: number[],
+  hairInstances: Float32Array,
   cache?: HairInstanceUploadCache,
 ) {
   const uploadCache = cache ?? {

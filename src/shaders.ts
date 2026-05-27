@@ -455,6 +455,7 @@ precision highp float;
 uniform sampler2D scene;
 uniform sampler2D bloom;
 uniform vec2 bloomResolution;
+uniform int renderSky;
 uniform vec3 skyForward;
 uniform vec3 skyRight;
 uniform vec3 skyUp;
@@ -523,13 +524,13 @@ vec2 skyPoint(vec2 point) {
 void main() {
   vec4 source = texture(scene, uv);
   vec3 base = source.rgb;
-  float sky = 1.0 - smoothstep(0.02, 0.12, distance(base, vec3(0.28, 0.55, 0.92)));
   vec2 texel = 1.0 / bloomResolution;
   vec2 near = texel * 3.2;
   vec2 far = texel * 7.0;
   vec3 glow = bright(texture(bloom, uv)) * 0.72;
 
-  if (sky > 0.0) {
+  if (renderSky == 1) {
+    float sky = 1.0 - smoothstep(0.02, 0.12, distance(base, vec3(0.28, 0.55, 0.92)));
     vec2 skyUv = skyPoint(uv);
 
     base = mix(base, ${outsideMotif === 'night' ? 'nightSky(skyUv)' : 'afternoonSky(skyUv)'}, sky);

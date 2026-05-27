@@ -43,7 +43,7 @@ function resizeVertexBuffer(cache: VertexBufferCache, size: number) {
   return cache.data
 }
 
-function reserveFloats(writer: VertexWriter, count: number) {
+export function reserveFloats(writer: VertexWriter, count: number) {
   resizeVertexBuffer(writer, writer.length + count)
 }
 

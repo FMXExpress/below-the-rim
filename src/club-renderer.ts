@@ -81,6 +81,7 @@ export function renderClubFrame(options: {
     bloom: WebGLUniformLocation
     bloomResolution: WebGLUniformLocation
     program: WebGLProgram
+    renderSky: WebGLUniformLocation
     scene: WebGLUniformLocation
     skyForward: WebGLUniformLocation
     skyRight: WebGLUniformLocation
@@ -221,10 +222,13 @@ export function renderClubFrame(options: {
   gl.bindTexture(gl.TEXTURE_2D, options.bloomTarget.color)
   gl.uniform1i(options.post.bloom, 1)
   gl.uniform2f(options.post.bloomResolution, options.bloomTarget.width, options.bloomTarget.height)
-  gl.uniform3f(options.post.skyForward, mainCameraMatrix.forward[0], mainCameraMatrix.forward[1],
-    mainCameraMatrix.forward[2])
-  gl.uniform3f(options.post.skyRight, mainCameraMatrix.right[0], mainCameraMatrix.right[1], mainCameraMatrix.right[2])
-  gl.uniform3f(options.post.skyUp, mainCameraMatrix.up[0], mainCameraMatrix.up[1], mainCameraMatrix.up[2])
+  gl.uniform1i(options.post.renderSky, options.sky ? 1 : 0)
+  if (options.sky) {
+    gl.uniform3f(options.post.skyForward, mainCameraMatrix.forward[0], mainCameraMatrix.forward[1],
+      mainCameraMatrix.forward[2])
+    gl.uniform3f(options.post.skyRight, mainCameraMatrix.right[0], mainCameraMatrix.right[1], mainCameraMatrix.right[2])
+    gl.uniform3f(options.post.skyUp, mainCameraMatrix.up[0], mainCameraMatrix.up[1], mainCameraMatrix.up[2])
+  }
   gl.bindVertexArray(options.arrays.post)
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 }
