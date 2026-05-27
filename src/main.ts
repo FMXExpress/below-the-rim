@@ -24,6 +24,7 @@ import {
 import { electricNavy, outsideMotif } from './constants.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import { addQuad } from './geometry.ts'
+import { bindKeyboardInput, readMoveInput } from './input.ts'
 import {
   add,
   clamp,
@@ -42,6 +43,13 @@ import {
   subtract,
 } from './math.ts'
 import { projectedQuadTransform, projectWallPoint } from './projection.ts'
+import {
+  collideBuildingWalls,
+  collideRoom,
+  isOutside,
+  usesSkyBackground,
+  walkHeight,
+} from './scene.ts'
 import {
   backDoor,
   bartenderBar,
@@ -76,7 +84,6 @@ import { addTreeShadowReceiver, createTreeMeshes, treeCollision, uploadTreeShado
 import type {
   AssimpScene,
   BottomMode,
-  Bounds,
   CharacterMode,
   CharacterPart,
   CharacterRig,
@@ -91,7 +98,6 @@ import type {
   PoseBlendCache,
   ResolvedPlayerStyle,
   SampledPose,
-  StrobeLight,
   StrobeReflectionLight,
   TopMode,
   TreeMesh,
@@ -471,62 +477,14 @@ canvas.addEventListener('pointercancel', event => {
   canvas.releasePointerCapture(event.pointerId)
 })
 
-addEventListener('keydown', event => {
-  if (document.activeElement === chatInput) {
-    return
-  }
-
-  if (event.code === 'Space') {
-    event.preventDefault()
-    openChatInput()
-    return
-  }
-
-  if (event.key.toLowerCase() === 'q') {
-    cycleHair(-1)
-    return
-  }
-
-  if (event.key.toLowerCase() === 'w') {
-    cycleHair(1)
-    return
-  }
-
-  if (event.key === '1') {
-    cycleHairColor(-1)
-    return
-  }
-
-  if (event.key === '2') {
-    cycleHairColor(1)
-    return
-  }
-
-  if (event.key.toLowerCase() === 'a') {
-    cycleShirt(-1)
-    return
-  }
-
-  if (event.key.toLowerCase() === 's') {
-    cycleShirt(1)
-    return
-  }
-
-  if (event.key.toLowerCase() === 'z') {
-    cyclePants(-1)
-    return
-  }
-
-  if (event.key.toLowerCase() === 'x') {
-    cyclePants(1)
-    return
-  }
-
-  keys.add(event.key.toLowerCase())
-})
-
-addEventListener('keyup', event => {
-  keys.delete(event.key.toLowerCase())
+bindKeyboardInput({
+  activeInput: chatInput,
+  keys,
+  openChatInput,
+  cycleHair,
+  cycleHairColor,
+  cycleShirt,
+  cyclePants,
 })
 
 chatForm.addEventListener('submit', event => {
@@ -1651,11 +1609,7 @@ function syncCurrentVideoTime() {
 }
 
 function getInput() {
-  input[0] = Number(keys.has('l') || keys.has('arrowright')) - Number(keys.has('j') || keys.has('arrowleft'))
-  input[1] = 0
-  input[2] = Number(keys.has('i') || keys.has('arrowup')) - Number(keys.has('k') || keys.has('arrowdown'))
-
-  return input
+  return readMoveInput(keys, input)
 }
 
 function updateCharacter(delta: number) {
@@ -1674,7 +1628,7 @@ function updateCharacter(delta: number) {
 
     characterPosition[0] += direction[0] * delta * 5
     characterPosition[2] += direction[2] * delta * 5
-    collideRoom(characterPosition)
+    collideRoom(characterPosition, outsideTree)
     characterTurn = smoothAngle(characterTurn, Math.atan2(direction[0], direction[2]), 10, delta)
   }
   floorY = walkHeight(characterPosition[0], characterPosition[1], characterPosition[2])
@@ -1693,7 +1647,7 @@ function updateCharacter(delta: number) {
     }
   }
 
-  collideRoom(characterPosition)
+  collideRoom(characterPosition, outsideTree)
 }
 
 function createPlayers(count: number) {
@@ -1757,7 +1711,7 @@ function updatePlayers(delta: number, time: number) {
 
       player.position[0] += direction[0] * delta * 2.55
       player.position[2] += direction[2] * delta * 2.55
-      collideRoom(player.position)
+      collideRoom(player.position, outsideTree)
       player.turn = smoothAngle(player.turn, Math.atan2(direction[0], direction[2]), 8, delta)
     }
     else if (destination.lookAt) {
@@ -2188,134 +2142,7 @@ function djVideoFacesCamera(
   return dot(wall.normal, toCamera) > 0 && dot(forward, toVideo) > 0
 }
 
-function walkHeight(_x: number, _y: number, _z: number) {
-  return characterFloor
-}
 
-function isAtBackDoor(position: Vec3) {
-  return Math.abs(position[0] - backDoor.x) < backDoor.width * 0.5
-}
 
-function isOutside(position: Vec3) {
-  return position[0] < roomBounds.left || position[0] > roomBounds.right || position[2] < roomBounds.back
-    || position[2] > roomBounds.front
-}
 
-function usesSkyBackground(camera: ReturnType<typeof getCamera>) {
-  return true
-}
 
-function collideRoom(position: Vec3) {
-  const insideLeft = roomBounds.left + 0.8
-  const insideRight = roomBounds.right - 0.8
-  const insideBack = roomBounds.back + 0.8
-  const insideFront = roomBounds.front - 0.8
-  const outside = isOutside(position)
-
-  if (outside) {
-    position[0] = clamp(position[0], outsideBounds.left, outsideBounds.right)
-    position[2] = clamp(position[2], outsideBounds.back, outsideBounds.front)
-    collideBuildingWalls(position, 0.45)
-    collideCircle(position, outsideTree)
-    collideBounds(position, outsideDjBooth)
-
-    for (const speaker of outsideDjSpeakers) {
-      collideBounds(position, speaker)
-    }
-
-    return
-  }
-
-  position[0] = clamp(position[0], insideLeft, insideRight)
-
-  if (position[2] > insideFront && !isAtBackDoor(position)) {
-    position[2] = insideFront
-  }
-  else {
-    position[2] = clamp(position[2], insideBack, roomBounds.front + 0.45)
-  }
-
-  collideBounds(position, djBooth)
-  collideBounds(position, bartenderBar)
-
-  for (const stool of bartenderStools) {
-    collideBounds(position, stool)
-  }
-
-  for (const speaker of djSpeakers) {
-    collideBounds(position, speaker)
-  }
-}
-
-function collideBuildingWalls(position: Vec3, padding: number) {
-  const left = roomBounds.left - padding
-  const right = roomBounds.right + padding
-  const back = roomBounds.back - padding
-  const front = roomBounds.front + padding
-
-  if (position[0] > left && position[0] < right && position[2] > back && position[2] < front) {
-    if (isAtBackDoor(position) && position[2] > roomBounds.front - 0.8) {
-      return
-    }
-
-    const pushLeft = Math.abs(position[0] - left)
-    const pushRight = Math.abs(right - position[0])
-    const pushBack = Math.abs(position[2] - back)
-    const pushFront = Math.abs(front - position[2])
-    const push = Math.min(pushLeft, pushRight, pushBack, pushFront)
-
-    if (push === pushLeft) {
-      position[0] = left
-    }
-    else if (push === pushRight) {
-      position[0] = right
-    }
-    else if (push === pushBack) {
-      position[2] = back
-    }
-    else {
-      position[2] = front
-    }
-  }
-}
-
-function collideBounds(position: Vec3, bounds: Bounds) {
-  const padding = 0.28
-  const left = bounds.x - bounds.width / 2 - padding
-  const right = bounds.x + bounds.width / 2 + padding
-  const front = bounds.z + bounds.depth / 2 + padding
-  const back = bounds.z - bounds.depth / 2 - padding
-
-  if (position[0] > left && position[0] < right && position[2] > back && position[2] < front) {
-    const pushLeft = Math.abs(position[0] - left)
-    const pushRight = Math.abs(right - position[0])
-    const pushBack = Math.abs(position[2] - back)
-    const pushFront = Math.abs(front - position[2])
-    const push = Math.min(pushLeft, pushRight, pushBack, pushFront)
-
-    if (push === pushLeft) {
-      position[0] = left
-    }
-    else if (push === pushRight) {
-      position[0] = right
-    }
-    else if (push === pushBack) {
-      position[2] = back
-    }
-    else {
-      position[2] = front
-    }
-  }
-}
-
-function collideCircle(position: Vec3, bounds: CircleBounds) {
-  const x = position[0] - bounds.x
-  const z = position[2] - bounds.z
-  const distance = Math.hypot(x, z)
-  const radius = bounds.radius + 0.28
-
-  if (distance < radius) {
-    position[0] = bounds.x + x / distance * radius
-    position[2] = bounds.z + z / distance * radius
-  }
-}
