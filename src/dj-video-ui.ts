@@ -1,5 +1,5 @@
-import { projectedQuadTransform, projectWallPoint } from './projection.ts'
-import type { WallProjector } from './projection.ts'
+import { projectedQuadTransform, projectWallPointInto } from './projection.ts'
+import type { ProjectedPoint, WallProjector } from './projection.ts'
 import { djVideoWall, outsideVideoWall, videoTracks } from './scene-data.ts'
 import { isOutside } from './scene.ts'
 import type { Vec3, VideoZone, YouTubePlayer, YouTubeWindow } from './types.ts'
@@ -33,6 +33,15 @@ export function createDjVideoUi(
   const setElementStyle = createStyleSetter(element.style)
   const setInsideStyle = createStyleSetter(layers.inside.style)
   const setOutsideStyle = createStyleSetter(layers.outside.style)
+  const cornerA: Vec3 = [0, 0, 0]
+  const cornerB: Vec3 = [0, 0, 0]
+  const cornerC: Vec3 = [0, 0, 0]
+  const cornerD: Vec3 = [0, 0, 0]
+  const pointA: ProjectedPoint = { x: 0, y: 0 }
+  const pointB: ProjectedPoint = { x: 0, y: 0 }
+  const pointC: ProjectedPoint = { x: 0, y: 0 }
+  const pointD: ProjectedPoint = { x: 0, y: 0 }
+  const points = [pointA, pointB, pointC, pointD]
 
   for (const area of videoZones()) {
     const layer = layers[area]
@@ -136,19 +145,23 @@ export function createDjVideoUi(
       const right = wall.x + wall.width / 2
       const bottom = wall.y - wall.height / 2
       const top = wall.y + wall.height / 2
-      const points = wall.normal[2] < 0
-        ? [
-          projectWallPoint([right, bottom, wall.z], projector),
-          projectWallPoint([left, bottom, wall.z], projector),
-          projectWallPoint([left, top, wall.z], projector),
-          projectWallPoint([right, top, wall.z], projector),
-        ]
-        : [
-          projectWallPoint([left, bottom, wall.z], projector),
-          projectWallPoint([right, bottom, wall.z], projector),
-          projectWallPoint([right, top, wall.z], projector),
-          projectWallPoint([left, top, wall.z], projector),
-        ]
+      if (wall.normal[2] < 0) {
+        setPoint(cornerA, right, bottom, wall.z)
+        setPoint(cornerB, left, bottom, wall.z)
+        setPoint(cornerC, left, top, wall.z)
+        setPoint(cornerD, right, top, wall.z)
+      }
+      else {
+        setPoint(cornerA, left, bottom, wall.z)
+        setPoint(cornerB, right, bottom, wall.z)
+        setPoint(cornerC, right, top, wall.z)
+        setPoint(cornerD, left, top, wall.z)
+      }
+
+      projectWallPointInto(cornerA, projector, pointA)
+      projectWallPointInto(cornerB, projector, pointB)
+      projectWallPointInto(cornerC, projector, pointC)
+      projectWallPointInto(cornerD, projector, pointD)
 
       setElementStyle('opacity', '0.74')
       setInsideStyle('opacity', zone === 'inside' ? '1' : '0')
@@ -164,6 +177,12 @@ export function createDjVideoUi(
       ))
     },
   }
+}
+
+function setPoint(target: Vec3, x: number, y: number, z: number) {
+  target[0] = x
+  target[1] = y
+  target[2] = z
 }
 
 type StyleName = 'height' | 'opacity' | 'pointerEvents' | 'transform' | 'width'

@@ -87,6 +87,7 @@ const styleController = createCharacterStyleController()
 const chatUi = createChatUi(chatForm, chatInput, chatBubble, characterPosition)
 const djVideoUi = createDjVideoUi(djVideo, characterPosition)
 const cameraController = createCameraController(canvas, characterPosition)
+const wallProjector = createWallProjector({ eye: [0, 0, 1], center: [0, 0, 0] }, canvas)
 let outsideTree: CircleBounds = { x: 0, z: 20.5, radius: 0.75 }
 let lastStamp = 0
 const saveTimer = createSaveTimer(0.5)
@@ -282,7 +283,7 @@ const draw = (stamp: number) => {
   strobeController.updateInstances(stamp * 0.001, djVideoUi.zone)
   const lightCount = lightPoints.length / vertexSize
 
-  const projector = createWallProjector(camera, canvas)
+  const projector = createWallProjector(camera, canvas, wallProjector)
 
   djVideoUi.update(camera, projector)
   chatUi.update(projector, stamp)

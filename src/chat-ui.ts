@@ -1,5 +1,5 @@
-import { projectWallPoint } from './projection.ts'
-import type { WallProjector } from './projection.ts'
+import { projectWallPointInto } from './projection.ts'
+import type { ProjectedPoint, WallProjector } from './projection.ts'
 import type { Vec3 } from './types.ts'
 
 export function createChatUi(
@@ -11,6 +11,8 @@ export function createChatUi(
   let hideAt = 0
   let overlayX = Number.NaN
   let overlayY = Number.NaN
+  const anchor: Vec3 = [0, 0, 0]
+  const point: ProjectedPoint = { x: 0, y: 0 }
 
   return {
     open() {
@@ -36,7 +38,10 @@ export function createChatUi(
         return
       }
 
-      const point = projectWallPoint([position[0], position[1] + 1.05, position[2]], projector)
+      anchor[0] = position[0]
+      anchor[1] = position[1] + 1.05
+      anchor[2] = position[2]
+      projectWallPointInto(anchor, projector, point)
       const x = Math.round(point.x)
       const y = Math.round(point.y - 68)
 
