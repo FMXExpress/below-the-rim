@@ -340,6 +340,7 @@ export function addWallStrips(target: Vertex[]) {
   addDjBoothStrip(target, outsideDjBooth, -1, electricNavy, 3.2)
   addBartenderBarStrip(target)
   addOutsideHutBarStrip(target)
+  addOutsideHutRoofStrips(target)
   addBartenderBottleGlow(target)
 }
 
@@ -432,6 +433,26 @@ function addOutsideHutBarStrip(target: Vertex[]) {
   const y = characterFloor + outsideHutDeckHeight + 0.46
 
   addBox(target, x, y, outsideHutBar.z, 0.06, 0.07, outsideHutBar.depth - 0.45, electricNavy, 3.2)
+}
+
+function addOutsideHutRoofStrips(target: Vertex[]) {
+  const x = outsideHut.x + outsideHut.width / 2 + 0.5
+  const back = outsideHut.z - outsideHut.depth / 2 - 0.48
+  const front = outsideHut.z + outsideHut.depth / 2 + 0.48
+  const deckTop = characterFloor + outsideHutDeckHeight
+  const roofBottom = deckTop + 2.53
+  const ridge = deckTop + 3.8
+  const apex: Vec3 = [x, ridge, outsideHut.z]
+
+  addWallBeam(target, [x, roofBottom, back], apex, electricNavy)
+  addWallBeam(target, [x, roofBottom, front], apex, electricNavy)
+}
+
+function addWallBeam(target: Vertex[], a: Vec3, b: Vec3, color: Vec3) {
+  const angle = Math.atan2(b[1] - a[1], b[2] - a[2])
+  const side: Vec3 = [0, Math.cos(angle) * 0.06, -Math.sin(angle) * 0.06]
+
+  addQuad(target, add(a, side), subtract(a, side), subtract(b, side), add(b, side), color, 2.4)
 }
 
 function addBartenderBottleGlow(target: Vertex[]) {

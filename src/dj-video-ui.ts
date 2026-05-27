@@ -86,18 +86,12 @@ export function createDjVideoUi(
             events: {
               onReady() {
                 ready[area] = true
-                pendingStarts[area] = times[area]
-                const load = area === zone ? players[area]!.loadVideoById : players[area]!.cueVideoById
-
-                load.call(players[area]!, {
-                  videoId: videoTracks[area],
-                  startSeconds: times[area],
-                })
 
                 if (area === zone) {
-                  players[area]!.playVideo()
+                  loadVideoFromTime(area, players, pendingStarts, times)
                 }
                 else {
+                  cueVideoFromTime(area, players, pendingStarts, times)
                   players[area]!.pauseVideo()
                 }
               },
@@ -131,7 +125,7 @@ export function createDjVideoUi(
         zone = nextZone
 
         if (ready[zone]) {
-          players[zone]!.playVideo()
+          playVideoFromTime(zone, players, pendingStarts, times)
         }
       }
 
@@ -180,6 +174,44 @@ export function createDjVideoUi(
       ))
     },
   }
+}
+
+function cueVideoFromTime(
+  area: VideoZone,
+  players: Partial<Record<VideoZone, YouTubePlayer>>,
+  pendingStarts: Partial<Record<VideoZone, number>>,
+  times: Record<VideoZone, number>,
+) {
+  pendingStarts[area] = times[area]
+  players[area]!.cueVideoById({
+    videoId: videoTracks[area],
+    startSeconds: times[area],
+  })
+}
+
+function playVideoFromTime(
+  area: VideoZone,
+  players: Partial<Record<VideoZone, YouTubePlayer>>,
+  pendingStarts: Partial<Record<VideoZone, number>>,
+  times: Record<VideoZone, number>,
+) {
+  pendingStarts[area] = times[area]
+  players[area]!.seekTo(times[area], true)
+  players[area]!.playVideo()
+}
+
+function loadVideoFromTime(
+  area: VideoZone,
+  players: Partial<Record<VideoZone, YouTubePlayer>>,
+  pendingStarts: Partial<Record<VideoZone, number>>,
+  times: Record<VideoZone, number>,
+) {
+  pendingStarts[area] = times[area]
+  players[area]!.loadVideoById({
+    videoId: videoTracks[area],
+    startSeconds: times[area],
+  })
+  players[area]!.playVideo()
 }
 
 function setPoint(target: Vec3, x: number, y: number, z: number) {

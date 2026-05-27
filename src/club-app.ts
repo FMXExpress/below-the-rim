@@ -1,3 +1,4 @@
+import { createAdaptivePixelRatio } from './adaptive-pixel-ratio.ts'
 import { createCameraController } from './camera-controller.ts'
 import { createCharacterHairController } from './character-hair-control.ts'
 import { createCharacterRenderSystem } from './character-render-system.ts'
@@ -89,6 +90,7 @@ const chatUi = createChatUi(chatForm, chatInput, chatBubble, characterPosition)
 const djVideoUi = createDjVideoUi(djVideo, characterPosition)
 const cameraController = createCameraController(canvas, characterPosition)
 const wallProjector = createWallProjector({ eye: [0, 0, 1], center: [0, 0, 0] }, canvas)
+const pixelRatio = createAdaptivePixelRatio()
 let outsideTree: CircleBounds = { x: 0, z: 20.5, radius: 0.75 }
 let lastStamp = 0
 const saveTimer = createSaveTimer(0.5)
@@ -246,7 +248,7 @@ chatForm.addEventListener('submit', event => {
 })
 
 const resize = () => {
-  const ratio = window.devicePixelRatio
+  const ratio = pixelRatio.ratio()
   const width = Math.floor(canvas.clientWidth * ratio)
   const height = Math.floor(canvas.clientHeight * ratio)
 
@@ -267,6 +269,8 @@ const draw = (stamp: number) => {
 
   strobeController.setFrame(frame)
   lastStamp = stamp
+  pixelRatio.update(delta, stamp)
+  clubGlobal.clubPixelRatio = pixelRatio.ratio()
   resize()
   localCharacter.update(delta, cameraController.turn, outsideTree)
   updatePlayers(players, delta, stamp * 0.001, outsideTree)
