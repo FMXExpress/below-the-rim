@@ -47,10 +47,16 @@ type BuildOptions = {
   height: number
 }
 
+type TurnBasis = {
+  cos: number
+  sin: number
+}
+
 export type CharacterDrawCache = {
   boxInstances: number[]
   hairInstances: HairInstance[]
   npcBlendCache: PoseBlendCache
+  poses: Vec3[][]
   vertices: Vertex[]
 }
 
@@ -77,20 +83,26 @@ export function buildCharacterDrawData(options: BuildOptions) {
   const boxInstances = cache?.boxInstances ?? []
   const hairInstances = cache?.hairInstances ?? []
   const npcBlendCache = cache?.npcBlendCache ?? new Map()
+  const poses = cache?.poses ?? []
   const basePose = sampleBasePose(options.rig, options.time, characterPoseJoints, characterPoseJointSet)
+  let poseIndex = 0
 
   vertices.length = 0
   boxInstances.length = 0
   hairInstances.length = 0
   npcBlendCache.clear()
 
-  addRenderedCharacter(vertices, boxInstances, hairInstances, options.character, options, true, basePose)
+  addRenderedCharacter(vertices, boxInstances, hairInstances, options.character, options, true, basePose, undefined,
+    poses[poseIndex] ??= [])
+  poseIndex++
 
   const view = characterView(options.cameraPosition, options.cameraTarget)
 
   for (const player of options.players) {
     if (characterInView(player, view, options.width, options.height)) {
-      addRenderedCharacter(vertices, boxInstances, hairInstances, player, options, false, basePose, npcBlendCache)
+      addRenderedCharacter(vertices, boxInstances, hairInstances, player, options, false, basePose, npcBlendCache,
+        poses[poseIndex] ??= [])
+      poseIndex++
     }
   }
 
@@ -110,30 +122,35 @@ function addRenderedCharacter(
   detailedHair: boolean,
   basePose?: SampledPose,
   blendCache?: PoseBlendCache,
+  placedPose?: Vec3[],
 ) {
   const pose = sampleCharacterPose(options.rig, options.time, player, characterPoseJoints, characterPoseJointSet,
-    groundJointIndices, characterScale, basePose, blendCache)
+    groundJointIndices, characterScale, basePose, blendCache, placedPose)
   const style = player.resolvedStyle ?? resolvePlayerStyle(player.style)
   const localReflection = detailedHair
+  const turn: TurnBasis = {
+    cos: Math.cos(player.turn),
+    sin: Math.sin(player.turn),
+  }
 
   for (const part of characterPartPlans) {
     if (style.bottomMode === 'pants' || !part.part.bottom) {
-      addCharacterPart(target, boxInstances, pose, part, player, style, options.light, localReflection)
+      addCharacterPart(target, boxInstances, pose, part, player, turn, style, options.light, localReflection)
     }
   }
 
   if (style.bottomMode === 'skirt') {
-    addCharacterSkirt(target, pose, player, style, options.light, localReflection)
+    addCharacterSkirt(target, pose, player, turn, style, options.light, localReflection)
   }
 
   if (style.topMode === 'chest') {
-    addCharacterChest(target, boxInstances, pose, player, options.light, localReflection)
+    addCharacterChest(target, boxInstances, pose, player, turn, options.light, localReflection)
   }
 
   const hair = playerHair(options.hairMeshes, player.style.hairIndex)
 
   if (hair && detailedHair) {
-    addCharacterHair(target, pose, hair, player, style.hairColor, options.light)
+    addCharacterHair(target, pose, hair, turn, style.hairColor, options.light)
   }
   else if (hair && options.hairMeshes.length > 0) {
     addNpcHairInstance(hairInstances, pose, hair, player, style.hairColor)
@@ -177,6 +194,7 @@ function addCharacterPart(
   pose: Vec3[],
   plan: { part: CharacterPart; fromIndex: number; toIndex: number },
   player: { turn: number },
+  turn: TurnBasis,
   style: ResolvedPlayerStyle,
   light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
   localReflection: boolean,
@@ -194,8 +212,8 @@ function addCharacterPart(
 
   if (part.armOffset) {
     const torso = pose[spine2Index]!
-    const sideX = Math.cos(player.turn)
-    const sideZ = -Math.sin(player.turn)
+    const sideX = turn.cos
+    const sideZ = -turn.sin
     const centerX = (a[0] + b[0]) * 0.5 - torso[0]
     const centerZ = (a[2] + b[2]) * 0.5 - torso[2]
     const amount = Math.sign(centerX * sideX + centerZ * sideZ) * part.armOffset
@@ -212,7 +230,7 @@ function addCharacterPart(
   }
 
   addCharacterBox(target, boxInstances, a, b, part.width, part.depth, characterPartColor(part, style),
-    part.glow ?? 0.02, player.turn, localReflection, light)
+    part.glow ?? 0.02, player.turn, localReflection, light, 0, turn.sin, turn.cos)
 }
 
 function characterPartColor(part: CharacterPart, style: ResolvedPlayerStyle) {
@@ -240,6 +258,7 @@ function addCharacterChest(
   boxInstances: number[],
   pose: Vec3[],
   player: { turn: number },
+  turn: TurnBasis,
   light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
   localReflection: boolean,
 ) {
@@ -248,10 +267,10 @@ function addCharacterChest(
   const centerX = spine[0] + (neck[0] - spine[0]) * 0.32
   const centerY = spine[1] + (neck[1] - spine[1]) * 0.32
   const centerZ = spine[2] + (neck[2] - spine[2]) * 0.32
-  const sideX = Math.cos(player.turn)
-  const sideZ = -Math.sin(player.turn)
-  const forwardX = Math.sin(player.turn)
-  const forwardZ = Math.cos(player.turn)
+  const sideX = turn.cos
+  const sideZ = -turn.sin
+  const forwardX = turn.sin
+  const forwardZ = turn.cos
 
   for (const offset of [-0.055, 0.055]) {
     const a: Vec3 = [
@@ -265,7 +284,8 @@ function addCharacterChest(
       centerZ + sideZ * offset + forwardZ * 0.13,
     ]
 
-    addCharacterBox(target, boxInstances, a, b, 0.065, 0.06, skin, 0.02, player.turn, localReflection, light)
+    addCharacterBox(target, boxInstances, a, b, 0.065, 0.06, skin, 0.02, player.turn, localReflection, light, 0,
+      turn.sin, turn.cos)
   }
 }
 
@@ -273,6 +293,7 @@ function addCharacterSkirt(
   target: Vertex[],
   pose: Vec3[],
   player: { turn: number },
+  turn: TurnBasis,
   style: ResolvedPlayerStyle,
   light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
   localReflection: boolean,
@@ -288,10 +309,10 @@ function addCharacterSkirt(
   const bottomX = (leftLeg[0] + rightLeg[0]) * 0.5
   const bottomY = (leftLeg[1] + rightLeg[1]) * 0.5
   const bottomZ = (leftLeg[2] + rightLeg[2]) * 0.5
-  const sideX = Math.cos(player.turn)
-  const sideZ = -Math.sin(player.turn)
-  const forwardX = Math.sin(player.turn)
-  const forwardZ = Math.cos(player.turn)
+  const sideX = turn.cos
+  const sideZ = -turn.sin
+  const forwardX = turn.sin
+  const forwardZ = turn.cos
   const topWidth = 0.09
   const bottomWidth = 0.15
   const topDepth = 0.11
@@ -332,7 +353,7 @@ function addCharacterHair(
   target: Vertex[],
   pose: Vec3[],
   mesh: HairMesh,
-  player: { turn: number },
+  turn: TurnBasis,
   color: Vec3,
   light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
 ) {
@@ -346,9 +367,9 @@ function addCharacterHair(
   const upX = rawUpX / upLength
   const upY = rawUpY / upLength
   const upZ = rawUpZ / upLength
-  const sideX = Math.cos(player.turn)
+  const sideX = turn.cos
   const sideY = 0
-  const sideZ = -Math.sin(player.turn)
+  const sideZ = -turn.sin
   const forwardX = -sideZ
   const forwardY = 0
   const forwardZ = sideX

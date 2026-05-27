@@ -2,7 +2,7 @@ import type { HairRenderMesh, Vec3 } from './types.ts'
 import type { CharacterBoxGeometry } from './types.ts'
 
 type Camera = { eye: Vec3; center: Vec3 }
-export type NumberBufferCache = { data: Float32Array }
+export type NumberBufferCache = { capacity?: number; data: Float32Array }
 
 export function uploadCharacterBoxInstances(options: {
   buffer: WebGLBuffer
@@ -14,10 +14,30 @@ export function uploadCharacterBoxInstances(options: {
   const count = options.instances.length / options.instanceSize
   const data = options.cache ? fillNumberBuffer(options.cache, options.instances) : new Float32Array(options.instances)
 
-  options.gl.bindBuffer(options.gl.ARRAY_BUFFER, options.buffer)
-  options.gl.bufferData(options.gl.ARRAY_BUFFER, data, options.gl.DYNAMIC_DRAW)
+  uploadFloatBuffer(options.gl, options.buffer, data, options.cache)
 
   return count
+}
+
+export function uploadFloatBuffer(
+  gl: WebGL2RenderingContext,
+  buffer: WebGLBuffer,
+  data: Float32Array,
+  cache?: NumberBufferCache,
+) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+
+  if (!cache) {
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW)
+    return
+  }
+
+  if ((cache.capacity ?? 0) < data.byteLength) {
+    cache.capacity = data.byteLength
+    gl.bufferData(gl.ARRAY_BUFFER, cache.capacity, gl.DYNAMIC_DRAW)
+  }
+
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, data)
 }
 
 function fillNumberBuffer(cache: NumberBufferCache, values: number[]) {

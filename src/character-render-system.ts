@@ -1,7 +1,7 @@
 import { loadCharacterAssets } from './character-assets.ts'
 import { buildCharacterDrawData } from './character-draw.ts'
 import type { CharacterDrawCache } from './character-draw.ts'
-import { uploadCharacterBoxInstances } from './character-gpu.ts'
+import { uploadCharacterBoxInstances, uploadFloatBuffer } from './character-gpu.ts'
 import type { NumberBufferCache } from './character-gpu.ts'
 import { createCharacterHairController } from './character-hair-control.ts'
 import { updateHairInstances } from './character-hair.ts'
@@ -36,10 +36,12 @@ export function createCharacterRenderSystem(options: {
   let boxInstanceCount = 0
   let assetsLoaded = false
   const boxInstanceCache: NumberBufferCache = { data: new Float32Array(0) }
+  const vertexUploadCache: NumberBufferCache = { data: new Float32Array(0) }
   const drawCache: CharacterDrawCache = {
     boxInstances: [],
     hairInstances: [],
     npcBlendCache: new Map(),
+    poses: [],
     vertices: [],
   }
   const hairInstanceCache: HairInstanceUploadCache = { buffers: [], grouped: [] }
@@ -107,8 +109,7 @@ export function createCharacterRenderSystem(options: {
       instanceSize: options.boxInstanceSize,
     })
 
-    options.gl.bindBuffer(options.gl.ARRAY_BUFFER, options.buffer)
-    options.gl.bufferData(options.gl.ARRAY_BUFFER, data.vertices, options.gl.DYNAMIC_DRAW)
+    uploadFloatBuffer(options.gl, options.buffer, data.vertices, vertexUploadCache)
 
     return data.vertices.length / options.vertexSize
   }

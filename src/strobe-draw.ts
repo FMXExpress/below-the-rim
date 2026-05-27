@@ -1,3 +1,4 @@
+import { uploadFloatBuffer } from './character-gpu.ts'
 import { isOutside } from './scene.ts'
 import { strobeLightAmount, strobeRandom, strobeTarget } from './strobe-object.ts'
 import type { CharacterBoxGeometry, StrobeLight, StrobeReflectionLight, Vec3, VideoZone } from './types.ts'
@@ -27,6 +28,7 @@ type StrobeDrawOptions = {
 export function createStrobeDrawController(options: StrobeDrawOptions) {
   const instances: number[] = []
   let instanceBuffer = new Float32Array(0)
+  const instanceBufferCache = { data: instanceBuffer }
   let instanceCount = 0
   let reflectionFrame = -1
   let reflectionLights: StrobeReflectionLight[] = []
@@ -68,13 +70,13 @@ export function createStrobeDrawController(options: StrobeDrawOptions) {
       instanceCount = instances.length / options.instanceSize
       if (instanceBuffer.length < instances.length) {
         instanceBuffer = new Float32Array(instances.length)
+        instanceBufferCache.data = instanceBuffer
       }
 
       instanceBuffer.set(instances)
-      options.gl.bindBuffer(options.gl.ARRAY_BUFFER, options.instanceBuffer)
-      options.gl.bufferData(options.gl.ARRAY_BUFFER, instanceBuffer.length === instances.length
+      uploadFloatBuffer(options.gl, options.instanceBuffer, instanceBuffer.length === instances.length
         ? instanceBuffer
-        : instanceBuffer.subarray(0, instances.length), options.gl.DYNAMIC_DRAW)
+        : instanceBuffer.subarray(0, instances.length), instanceBufferCache)
     },
     draw(camera: Camera, width: number, height: number, nextFrame: number) {
       if (instanceCount === 0) {

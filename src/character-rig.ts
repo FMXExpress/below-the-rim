@@ -83,6 +83,7 @@ export function sampleCharacterPose(
   characterScale: number,
   basePose = sampleBasePose(rig, time, characterPoseJoints, characterPoseJointSet),
   blendCache?: PoseBlendCache,
+  placedPose?: Vec3[],
 ) {
   const blendKey = blendCache ? Math.round(player.motionBlend * 60) : 0
   const blend = blendCache ? blendKey / 60 : player.motionBlend
@@ -90,7 +91,7 @@ export function sampleCharacterPose(
 
   if (cached) {
     return placeCharacterPose(cached, player.position, player.turn, characterPoseJoints, characterGroundJointIndices,
-      characterScale)
+      characterScale, placedPose)
   }
 
   const { stand, run } = basePose
@@ -110,7 +111,7 @@ export function sampleCharacterPose(
   blendCache?.set(blendKey, pose)
 
   return placeCharacterPose(pose, player.position, player.turn, characterPoseJoints, characterGroundJointIndices,
-    characterScale)
+    characterScale, placedPose)
 }
 
 export function sampleBasePose(
@@ -213,9 +214,9 @@ export function placeCharacterPose(
   characterPoseJoints: string[],
   characterGroundJointIndices: number[],
   characterScale: number,
+  target = new Array<Vec3>(characterPoseJoints.length),
 ) {
   let ground = Infinity
-  const next = new Array<Vec3>(characterPoseJoints.length)
   const sin = Math.sin(turn)
   const cos = Math.cos(turn)
 
@@ -229,14 +230,22 @@ export function placeCharacterPose(
     const y = (point[1] - ground) * characterScale
     const z = point[2] * characterScale
 
-    next[i] = [
-      position[0] + x * cos + z * sin,
-      position[1] + y,
-      position[2] - x * sin + z * cos,
-    ]
+    const next = target[i]
+    const px = position[0] + x * cos + z * sin
+    const py = position[1] + y
+    const pz = position[2] - x * sin + z * cos
+
+    if (next) {
+      next[0] = px
+      next[1] = py
+      next[2] = pz
+    }
+    else {
+      target[i] = [px, py, pz]
+    }
   }
 
-  return next
+  return target
 }
 
 function getPoseSamplePlan(rig: CharacterRig, characterPoseJoints: string[], characterPoseJointSet: Set<string>) {

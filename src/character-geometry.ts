@@ -62,6 +62,8 @@ export function addCharacterBox(
   localReflection: boolean,
   light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
   strobe = 0,
+  turnSin = Math.sin(turn),
+  turnCos = Math.cos(turn),
 ) {
   const dx = b[0] - a[0]
   const dy = b[1] - a[1]
@@ -79,10 +81,10 @@ export function addCharacterBox(
   let upZ = 0
 
   if (vertical) {
-    sideX = Math.cos(turn)
-    sideZ = -Math.sin(turn)
-    upX = Math.sin(turn)
-    upZ = Math.cos(turn)
+    sideX = turnCos
+    sideZ = -turnSin
+    upX = turnSin
+    upZ = turnCos
   }
   else {
     const sideLength = Math.hypot(-nz, nx)
