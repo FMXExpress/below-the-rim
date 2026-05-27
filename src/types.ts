@@ -138,6 +138,9 @@ export type ResolvedPlayerStyle = {
   shirt: Vec3
   shirtLight: Vec3
   pants: Vec3
+  pantsDark: Vec3
+  pantsDim: Vec3
+  pantsLight: Vec3
   shoe: Vec3
   hairColor: Vec3
 }

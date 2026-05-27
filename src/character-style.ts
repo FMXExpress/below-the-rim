@@ -103,6 +103,9 @@ export function resolvePlayerStyle(style: PlayerStyle): ResolvedPlayerStyle {
     shirt: jewelPalette[top.colorIndex]!,
     shirtLight: scale(jewelPalette[top.colorIndex]!, 1.35),
     pants: pantsColor,
+    pantsDark: scale(pantsColor, 0.68),
+    pantsDim: scale(pantsColor, 0.78),
+    pantsLight: scale(pantsColor, 0.88),
     shoe: scale(pantsColor, 0.72),
     hairColor: hairPalette[hairColorIndex]!,
   }

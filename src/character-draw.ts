@@ -9,7 +9,7 @@ import { characterParts, characterPoseJoints, characterPoseJointSet } from './ch
 import { sampleBasePose, sampleCharacterPose } from './character-rig.ts'
 import { resolvePlayerStyle } from './character-style.ts'
 import { characterInView, characterView } from './character-visibility.ts'
-import { normalizeIndex, scale } from './math.ts'
+import { normalizeIndex } from './math.ts'
 import type {
   CharacterPart,
   CharacterRig,
@@ -221,21 +221,23 @@ function addNpcHairInstance(
   const upY = top[1] - head[1]
   const upZ = top[2] - head[2]
   const upLength = Math.hypot(upX, upY, upZ)
-  const up: Vec3 = [upX / upLength, upY / upLength, upZ / upLength]
+  const normalizedUpX = upX / upLength
+  const normalizedUpY = upY / upLength
+  const normalizedUpZ = upZ / upLength
   const sin = Math.sin(player.turn)
   const cos = Math.cos(player.turn)
 
   hairInstances.push(
     hair.index,
-    head[0] - up[0] * 0.035,
-    head[1] - up[1] * 0.035,
-    head[2] - up[2] * 0.035,
+    head[0] - normalizedUpX * 0.035,
+    head[1] - normalizedUpY * 0.035,
+    head[2] - normalizedUpZ * 0.035,
     cos,
     0,
     -sin,
-    up[0],
-    up[1],
-    up[2],
+    normalizedUpX,
+    normalizedUpY,
+    normalizedUpZ,
     sin,
     0,
     cos,
@@ -329,21 +331,41 @@ function addCharacterChest(
   const forwardX = turn.sin
   const forwardZ = turn.cos
 
-  for (const offset of [-0.055, 0.055]) {
-    const a: Vec3 = [
-      centerX + sideX * offset + forwardX * 0.06,
-      centerY,
-      centerZ + sideZ * offset + forwardZ * 0.06,
-    ]
-    const b: Vec3 = [
-      centerX + sideX * offset + forwardX * 0.13,
-      centerY,
-      centerZ + sideZ * offset + forwardZ * 0.13,
-    ]
+  addCharacterChestSide(target, boxInstances, centerX, centerY, centerZ, sideX, sideZ, forwardX, forwardZ, -0.055,
+    player, turn, light, localReflection)
+  addCharacterChestSide(target, boxInstances, centerX, centerY, centerZ, sideX, sideZ, forwardX, forwardZ, 0.055,
+    player, turn, light, localReflection)
+}
 
-    addCharacterBox(target, boxInstances, a, b, 0.065, 0.06, skin, 0.02, player.turn, localReflection, light, 0,
-      turn.sin, turn.cos)
-  }
+function addCharacterChestSide(
+  target: Vertex[],
+  boxInstances: number[],
+  centerX: number,
+  centerY: number,
+  centerZ: number,
+  sideX: number,
+  sideZ: number,
+  forwardX: number,
+  forwardZ: number,
+  offset: number,
+  player: { turn: number },
+  turn: TurnBasis,
+  light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
+  localReflection: boolean,
+) {
+  const a: Vec3 = [
+    centerX + sideX * offset + forwardX * 0.06,
+    centerY,
+    centerZ + sideZ * offset + forwardZ * 0.06,
+  ]
+  const b: Vec3 = [
+    centerX + sideX * offset + forwardX * 0.13,
+    centerY,
+    centerZ + sideZ * offset + forwardZ * 0.13,
+  ]
+
+  addCharacterBox(target, boxInstances, a, b, 0.065, 0.06, skin, 0.02, player.turn, localReflection, light, 0,
+    turn.sin, turn.cos)
 }
 
 function addCharacterSkirt(
@@ -400,10 +422,10 @@ function addCharacterSkirt(
   ]
 
   addCharacterQuad(target, a, b, f, e, style.pants, 0.02, localReflection, light)
-  addCharacterQuad(target, b, c, g, f, scale(style.pants, 0.88), 0.02, localReflection, light)
-  addCharacterQuad(target, c, d, h, g, scale(style.pants, 0.78), 0.02, localReflection, light)
-  addCharacterQuad(target, d, a, e, h, scale(style.pants, 0.88), 0.02, localReflection, light)
-  addCharacterQuad(target, e, f, g, h, scale(style.pants, 0.68), 0.02, localReflection, light)
+  addCharacterQuad(target, b, c, g, f, style.pantsLight, 0.02, localReflection, light)
+  addCharacterQuad(target, c, d, h, g, style.pantsDim, 0.02, localReflection, light)
+  addCharacterQuad(target, d, a, e, h, style.pantsLight, 0.02, localReflection, light)
+  addCharacterQuad(target, e, f, g, h, style.pantsDark, 0.02, localReflection, light)
 }
 
 function addCharacterHair(

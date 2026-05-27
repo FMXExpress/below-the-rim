@@ -1,12 +1,9 @@
 import { characterFloor } from './character-data.ts'
 import { readMoveInput } from './input.ts'
 import {
-  add,
   lengthSq,
   mix,
   normalizeInto,
-  scale,
-  setVec3,
   smoothAngle,
 } from './math.ts'
 import { collideRoom, walkHeight } from './scene.ts'
@@ -56,9 +53,18 @@ export function createLocalCharacter(keys: Set<string>) {
 
       if (moving) {
         normalizeInto(input)
-        setVec3(forward, [Math.sin(cameraTurn), 0, Math.cos(cameraTurn)])
-        setVec3(right, [-Math.cos(cameraTurn), 0, Math.sin(cameraTurn)])
-        setVec3(direction, add(scale(forward, input[2]), scale(right, input[0])))
+        const sin = Math.sin(cameraTurn)
+        const cos = Math.cos(cameraTurn)
+
+        forward[0] = sin
+        forward[1] = 0
+        forward[2] = cos
+        right[0] = -cos
+        right[1] = 0
+        right[2] = sin
+        direction[0] = forward[0] * input[2] + right[0] * input[0]
+        direction[1] = 0
+        direction[2] = forward[2] * input[2] + right[2] * input[0]
         normalizeInto(direction)
 
         position[0] += direction[0] * delta * 5

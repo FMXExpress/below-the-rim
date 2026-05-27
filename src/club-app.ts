@@ -266,7 +266,6 @@ const draw = (stamp: number) => {
   resize()
   localCharacter.update(delta, cameraController.turn, outsideTree)
   updatePlayers(players, delta, stamp * 0.001, outsideTree)
-  localCharacter.readInput()
   cameraController.update(delta, localCharacter.input, localCharacter.turn)
   saveTimer.update(delta, () =>
     saveClubState({
