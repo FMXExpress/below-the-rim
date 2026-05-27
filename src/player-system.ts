@@ -25,6 +25,8 @@ const updateCrossingDestination: PlayerDestination = { outside: false, position:
 const danceFloorSideRange = 3.1
 const danceFloorBackRange = [-0.95, 1.55] as const
 const danceFloorDistance = 2.8
+const outsideDanceFloorBackRange = [-0.8, 1.2] as const
+const outsideDanceFloorDistance = 5.2
 const danceFloorLinger = [18, 42] as const
 const seatLinger = [12, 32] as const
 const treeLinger = [22, 55] as const
@@ -276,7 +278,9 @@ function djDestination(seed: number, step: number) {
 
   return inside
     ? danceFloorDestination(djBooth, false, 1, jitterX, jitterZ)
-    : danceFloorDestination(outsideDjBooth, true, -1, jitterX, jitterZ)
+    : danceFloorDestination(outsideDjBooth, true, -1, jitterX,
+      seededRange(seed, step + 103, outsideDanceFloorBackRange[0], outsideDanceFloorBackRange[1]),
+      outsideDanceFloorDistance)
 }
 
 function seatDestination(seed: number, step: number, occupiedSeats: Set<string>) {
@@ -313,11 +317,11 @@ function danceFloorDestination(
   forward: number,
   jitterX: number,
   jitterZ: number,
+  distance = danceFloorDistance,
 ): PlayerDestination {
   return {
     outside,
-    position: [bounds.x + jitterX, characterFloor, bounds.z + forward * (bounds.depth * 0.5 + danceFloorDistance
-      + jitterZ)],
+    position: [bounds.x + jitterX, characterFloor, bounds.z + forward * (bounds.depth * 0.5 + distance + jitterZ)],
     lookAt: [bounds.x, characterFloor, bounds.z],
     linger: [danceFloorLinger[0], danceFloorLinger[1]],
   }
