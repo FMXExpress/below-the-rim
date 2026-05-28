@@ -19,6 +19,7 @@ import {
   protocolToAngle,
   protocolToMode,
   protocolToScene,
+  protocolVersion,
   S_LEAVE,
   S_MOTION,
   S_ROOM_STATE,
@@ -52,10 +53,10 @@ export function createMultiplayer(options: {
   const players = new Map<number, Player>()
   let url: string
   if (location.protocol === 'https:') {
-    url = location.origin.replace(/^http/, 'ws')
+    url = `${location.origin.replace(/^http/, 'ws')}?protocol=${protocolVersion}`
   }
   else {
-    url = `ws://${location.hostname}:3001`
+    url = `ws://${location.hostname}:3001?protocol=${protocolVersion}`
   }
   const heartbeatInterval = 5_000
   const reconnectDelay = 1_500
@@ -82,8 +83,13 @@ export function createMultiplayer(options: {
       send(encodeRoomChange(room))
       flush()
     })
-    next.addEventListener('close', () => {
+    next.addEventListener('close', event => {
       clearInterval(heartbeat)
+
+      if (event.code === 1012 || event.reason === 'protocol') {
+        location.reload()
+        return
+      }
 
       if (!closed) {
         reconnect = setTimeout(() => {
@@ -195,6 +201,7 @@ export function createMultiplayer(options: {
     send(encodeClientMotion({
       x: sceneToProtocol(options.localPosition[0]),
       y: sceneToProtocol(options.localPosition[2]),
+      height: sceneToProtocol(options.localPosition[1]),
       keys,
       angle,
       idleClipIndex: options.localIdleClipIndex(),
@@ -262,13 +269,13 @@ export function updateRemotePlayers(players: Iterable<Player>, delta: number, ou
 
     player.position[1] = seatedMode(player.mode)
       ? remoteSeatHeight(player)
-      : walkHeight(player.position[0], player.position[1], player.position[2])
+      : player.position[1]
   }
 }
 
 function createRemotePlayer(packet: SpawnPacket): Player {
   const player: Player = {
-    position: [protocolToScene(packet.x), characterFloor, protocolToScene(packet.y)],
+    position: [protocolToScene(packet.x), protocolToScene(packet.height), protocolToScene(packet.y)],
     turn: protocolToAngle(packet.angle),
     motionBlend: packet.keys === 0 ? 0 : 1,
     mode: protocolToMode(packet.mode),
@@ -290,14 +297,15 @@ function createRemotePlayer(packet: SpawnPacket): Player {
 
 function applyRemotePose(player: Player, packet: SpawnPacket) {
   player.position[0] = protocolToScene(packet.x)
+  player.position[1] = protocolToScene(packet.height)
   player.position[2] = protocolToScene(packet.y)
   player.turn = protocolToAngle(packet.angle)
   player.input = decodeKeys(packet.keys, packet.angle)
   player.motionBlend = packet.keys === 0 ? 0 : 1
   player.mode = protocolToMode(packet.mode)
-  player.position[1] = seatedMode(player.mode)
-    ? remoteSeatHeight(player)
-    : walkHeight(player.position[0], player.position[1], player.position[2])
+  if (seatedMode(player.mode)) {
+    player.position[1] = remoteSeatHeight(player)
+  }
   player.idleClipIndex = packet.idleClipIndex
   player.style = packet.style
   player.resolvedStyle = resolvePlayerStyle(packet.style)

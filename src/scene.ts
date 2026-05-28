@@ -40,8 +40,18 @@ const insideRight = roomBounds.right - 0.8
 const insideBack = roomBounds.back + 0.8
 const insideFront = roomBounds.front - 0.8
 const buddhaSeatId = 'buddha'
+const djBoothTop = characterFloor + 0.71
+const speakerTop = characterFloor + 1.82
+const barTop = characterFloor + 0.86
+const platformStep = 0.42
 
-export function walkHeight(x: number, _y: number, z: number) {
+export function walkHeight(x: number, y: number, z: number) {
+  const platform = platformHeight(x, z)
+
+  if (platform !== undefined && y > platform - platformStep) {
+    return platform
+  }
+
   if (inBounds(x, z, outsideHut) || inBounds(x, z, outsideHutBarDeckBounds)) {
     return characterFloor + outsideHutDeckHeight
   }
@@ -69,11 +79,17 @@ export function collideRoom(position: Vec3, outsideTree: CircleBounds, outside =
     collideBuildingWalls(position, 0.45)
     collideCircle(position, outsideTree)
     collideCircle(position, outsideBuddha)
-    collidePaddedBounds(position, outsideDjBoothCollision)
-    collidePaddedBounds(position, outsideHutBarCollision)
+    if (!onPaddedPlatform(position, outsideDjBoothCollision, djBoothTop)) {
+      collidePaddedBounds(position, outsideDjBoothCollision)
+    }
+    if (!onPaddedPlatform(position, outsideHutBarCollision, barTop)) {
+      collidePaddedBounds(position, outsideHutBarCollision)
+    }
 
     for (const speaker of outsideDjSpeakerCollisions) {
-      collidePaddedBounds(position, speaker)
+      if (!onPaddedPlatform(position, speaker, speakerTop)) {
+        collidePaddedBounds(position, speaker)
+      }
     }
 
     for (const couch of outsideCouchCollisions) {
@@ -100,15 +116,21 @@ export function collideRoom(position: Vec3, outsideTree: CircleBounds, outside =
     position[2] = clamp(position[2], insideBack, roomBounds.front + 0.45)
   }
 
-  collidePaddedBounds(position, djBoothCollision)
-  collidePaddedBounds(position, bartenderBarCollision)
+  if (!onPaddedPlatform(position, djBoothCollision, djBoothTop)) {
+    collidePaddedBounds(position, djBoothCollision)
+  }
+  if (!onPaddedPlatform(position, bartenderBarCollision, barTop)) {
+    collidePaddedBounds(position, bartenderBarCollision)
+  }
 
   for (const stool of bartenderStoolCollisions) {
     collidePaddedBounds(position, stool)
   }
 
   for (const speaker of djSpeakerCollisions) {
-    collidePaddedBounds(position, speaker)
+    if (!onPaddedPlatform(position, speaker, speakerTop)) {
+      collidePaddedBounds(position, speaker)
+    }
   }
 }
 
@@ -336,6 +358,24 @@ function hutPostBounds(bounds: Bounds): Bounds[] {
 function inBounds(x: number, z: number, bounds: Bounds) {
   return x > bounds.x - bounds.width / 2 && x < bounds.x + bounds.width / 2
     && z > bounds.z - bounds.depth / 2 && z < bounds.z + bounds.depth / 2
+}
+
+function platformHeight(x: number, z: number) {
+  if (inPaddedBounds(x, z, djBoothCollision) || inPaddedBounds(x, z, outsideDjBoothCollision)) {
+    return djBoothTop
+  }
+
+  if ([...djSpeakerCollisions, ...outsideDjSpeakerCollisions].some(bounds => inPaddedBounds(x, z, bounds))) {
+    return speakerTop
+  }
+
+  if (inPaddedBounds(x, z, bartenderBarCollision) || inPaddedBounds(x, z, outsideHutBarCollision)) {
+    return barTop
+  }
+}
+
+function onPaddedPlatform(position: Vec3, bounds: PaddedBounds, height: number) {
+  return position[1] > height - platformStep && inPaddedBounds(position[0], position[2], bounds)
 }
 
 function inPaddedBounds(x: number, z: number, bounds: PaddedBounds) {

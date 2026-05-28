@@ -62,9 +62,13 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
         center: [target[0], target[1], target[2]] as Vec3,
       }
     },
-    update(delta: number, input: Vec3, characterTurn: number, bounceActive: boolean) {
+    update(delta: number, input: Vec3, characterTurn: number, bounceActive: boolean, lookDown = false) {
       const moving = lengthSq(input) > 0
       const movingBack = moving && input[2] < 0
+
+      if (lookDown && !dragging) {
+        pitch = mix(pitch, 0.9, 1 - Math.exp(-7 * delta))
+      }
 
       if (holdingManualCamera && moving) {
         holdingManualCamera = false
@@ -83,7 +87,7 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
         const turnSpeed = returning ? 5 : mix(0.8, 2.2, input[2])
 
         turn = smoothAngle(turn, characterTurn, turnSpeed, delta)
-        pitch = mix(pitch, 0, 1 - Math.exp(-4 * delta))
+        pitch = mix(pitch, lookDown ? 0.9 : 0, 1 - Math.exp(-4 * delta))
 
         if (returning) {
           const angle = Math.abs(Math.atan2(Math.sin(characterTurn - turn), Math.cos(characterTurn - turn)))

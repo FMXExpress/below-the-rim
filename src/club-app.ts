@@ -415,6 +415,7 @@ const styleActions: Record<'cycleHair' | 'cycleHairColor' | 'cycleSkin' | 'cycle
 bindKeyboardInput({
   activeInput: chatInput,
   keys,
+  jump: () => localCharacter.jump(),
   openChatInput: () => chatUi.open(),
   setAlternativeInput: useAlternativeInput,
   toggleHelp: () => {
@@ -433,6 +434,7 @@ createMobileControls({
 })
 bindTapDestination({
   canvas,
+  jump: () => localCharacter.jump(),
   projector: wallProjector,
   setDestination: value => localCharacter.setDestination(value, seatAt(value, occupiedSeats, 0.46, true)),
 })
@@ -488,7 +490,7 @@ const draw = (stamp: number) => {
   renderPlayers.length = 0
   renderPlayers.push(...npcPlayers, ...multiplayer.players.values())
   cameraController.update(delta, localCharacter.input, localCharacter.turn, lengthSq(localCharacter.input) > 0
-    || (localCharacter.mode === 'stand' && idleClipIndex > 0))
+    || (localCharacter.mode === 'stand' && idleClipIndex > 0), localCharacter.jumping)
   saveTimer.update(delta, () =>
     saveClubState({
       camera: cameraController,

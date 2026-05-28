@@ -13,16 +13,19 @@ export const C_HEARTBEAT = 9
 export const roomCount = 2
 export const messageMaxLength = 120
 export const positionScale = 100
+export const protocolVersion = 2
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
 const angleScale = 256 / (Math.PI * 2)
-const spawnSize = 15
+const motionSize = 15
+const spawnSize = motionSize + 2
 
 export type MotionPacket = {
   id?: number
   x: number
   y: number
+  height: number
   keys: number
   angle: number
   idleClipIndex: number
@@ -43,7 +46,7 @@ export type MessagePacket = {
   text: string
 }
 
-const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting']
+const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting', 'jump']
 
 export function modeToProtocol(mode: CharacterMode) {
   return protocolModes.indexOf(mode)
@@ -83,7 +86,7 @@ export function decodeKeys(keys: number, angle: number): Vec3 {
 }
 
 export function encodeClientMotion(packet: MotionPacket) {
-  const data = new ArrayBuffer(14)
+  const data = new ArrayBuffer(1 + motionSize)
   const view = new DataView(data)
 
   view.setUint8(0, C_MOTION)
@@ -289,31 +292,33 @@ function readSpawn(view: DataView, offset: number): SpawnPacket {
 function writeMotion(view: DataView, offset: number, packet: MotionPacket) {
   view.setInt16(offset, packet.x)
   view.setInt16(offset + 2, packet.y)
-  view.setUint8(offset + 4, packet.keys)
-  view.setUint8(offset + 5, packet.angle)
-  view.setUint8(offset + 6, packet.idleClipIndex)
-  view.setUint8(offset + 7, packet.mode)
-  view.setUint8(offset + 8, packet.style.topStyleIndex)
-  view.setUint8(offset + 9, packet.style.bottomStyleIndex)
-  view.setUint8(offset + 10, packet.style.hairIndex)
-  view.setUint8(offset + 11, packet.style.hairColorIndex)
-  view.setUint8(offset + 12, packet.style.skinColorIndex)
+  view.setInt16(offset + 4, packet.height)
+  view.setUint8(offset + 6, packet.keys)
+  view.setUint8(offset + 7, packet.angle)
+  view.setUint8(offset + 8, packet.idleClipIndex)
+  view.setUint8(offset + 9, packet.mode)
+  view.setUint8(offset + 10, packet.style.topStyleIndex)
+  view.setUint8(offset + 11, packet.style.bottomStyleIndex)
+  view.setUint8(offset + 12, packet.style.hairIndex)
+  view.setUint8(offset + 13, packet.style.hairColorIndex)
+  view.setUint8(offset + 14, packet.style.skinColorIndex)
 }
 
 function readMotion(view: DataView, offset: number): MotionPacket {
   return {
     x: view.getInt16(offset),
     y: view.getInt16(offset + 2),
-    keys: view.getUint8(offset + 4),
-    angle: view.getUint8(offset + 5),
-    idleClipIndex: view.getUint8(offset + 6),
-    mode: view.getUint8(offset + 7),
+    height: view.getInt16(offset + 4),
+    keys: view.getUint8(offset + 6),
+    angle: view.getUint8(offset + 7),
+    idleClipIndex: view.getUint8(offset + 8),
+    mode: view.getUint8(offset + 9),
     style: {
-      topStyleIndex: view.getUint8(offset + 8),
-      bottomStyleIndex: view.getUint8(offset + 9),
-      hairIndex: view.getUint8(offset + 10),
-      hairColorIndex: view.getUint8(offset + 11),
-      skinColorIndex: view.getUint8(offset + 12),
+      topStyleIndex: view.getUint8(offset + 10),
+      bottomStyleIndex: view.getUint8(offset + 11),
+      hairIndex: view.getUint8(offset + 12),
+      hairColorIndex: view.getUint8(offset + 13),
+      skinColorIndex: view.getUint8(offset + 14),
     },
   }
 }

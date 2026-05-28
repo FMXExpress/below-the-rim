@@ -88,7 +88,14 @@ export function createRigNodes(root: AssimpNode) {
 export function sampleCharacterPose(
   rig: CharacterRig,
   time: number,
-  player: { position: Vec3; turn: number; motionBlend: number; idleClipIndex?: number; mode?: CharacterMode },
+  player: {
+    position: Vec3
+    turn: number
+    motionBlend: number
+    idleClipIndex?: number
+    mode?: CharacterMode
+    modeTime?: number
+  },
   characterPoseJoints: string[],
   characterPoseJointSet: Set<string>,
   characterGroundJointIndices: number[],
@@ -98,8 +105,19 @@ export function sampleCharacterPose(
   placedPose?: Vec3[],
   cacheFrame = 0,
 ) {
+  if (player.mode === 'jump') {
+    const pose = sampleClipPose(rig, rig.clips[player.mode], player.modeTime ?? time, characterPoseJoints, characterPoseJointSet,
+      blendCache?.get(cacheFrame) ?? placedPose)
+    const startPose = sampleClipPose(rig, rig.clips[player.mode], 0, characterPoseJoints, characterPoseJointSet)
+
+    blendCache?.set(cacheFrame, pose)
+
+    return placeCharacterPose(pose, player.position, player.turn, characterPoseJoints, characterGroundJointIndices,
+      characterScale, placedPose, poseGround(startPose, characterGroundJointIndices))
+  }
+
   if (player.mode === 'manSitting' || player.mode === 'womanSitting') {
-    const pose = sampleClipPose(rig, rig.clips[player.mode], time, characterPoseJoints, characterPoseJointSet,
+    const pose = sampleClipPose(rig, rig.clips[player.mode], player.modeTime ?? time, characterPoseJoints, characterPoseJointSet,
       blendCache?.get(cacheFrame) ?? placedPose)
 
     blendCache?.set(cacheFrame, pose)
@@ -469,14 +487,10 @@ export function placeCharacterPose(
   characterGroundJointIndices: number[],
   characterScale: number,
   target = new Array<Vec3>(characterPoseJoints.length),
+  ground = poseGround(pose, characterGroundJointIndices),
 ) {
-  let ground = Infinity
   const sin = Math.sin(turn)
   const cos = Math.cos(turn)
-
-  for (const index of characterGroundJointIndices) {
-    ground = Math.min(ground, pose[index]![1])
-  }
 
   for (let i = 0; i < characterPoseJoints.length; i++) {
     const point = pose[i]!
@@ -500,6 +514,16 @@ export function placeCharacterPose(
   }
 
   return target
+}
+
+function poseGround(pose: Vec3[], characterGroundJointIndices: number[]) {
+  let ground = Infinity
+
+  for (const index of characterGroundJointIndices) {
+    ground = Math.min(ground, pose[index]![1])
+  }
+
+  return ground
 }
 
 function getPoseSamplePlan(rig: CharacterRig, characterPoseJoints: string[], characterPoseJointSet: Set<string>) {

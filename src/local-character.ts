@@ -11,6 +11,10 @@ import { collideRoom, seatAt, walkHeight } from './scene.ts'
 import type { Seat } from './scene.ts'
 import type { BottomMode, CharacterMode, CircleBounds, Vec3 } from './types.ts'
 
+const jumpDuration = 0.8
+const jumpHeight = 1.65
+const jumpRiseDuration = 0.4
+
 export function createLocalCharacter(keys: Set<string>) {
   const position: Vec3 = [-2.2, -1.95, -6.8]
   const input: Vec3 = [0, 0, 0]
@@ -28,6 +32,8 @@ export function createLocalCharacter(keys: Set<string>) {
   let couchRelease = 0
   let seat = ''
   let hasDestination = false
+  let jumpTime = 0
+  let jumpElapsed = 0
 
   return {
     position,
@@ -43,6 +49,12 @@ export function createLocalCharacter(keys: Set<string>) {
     },
     get mode() {
       return mode
+    },
+    get jumping() {
+      return jumpTime > 0
+    },
+    get modeTime() {
+      return jumpElapsed
     },
     get velocityY() {
       return velocityY
@@ -60,6 +72,19 @@ export function createLocalCharacter(keys: Set<string>) {
     },
     readInput() {
       return readMoveInput(keys, input)
+    },
+    jump() {
+      if (seated) {
+        return
+      }
+
+      hasDestination = false
+      destinationSeat = ''
+      path = []
+      jumpTime = jumpDuration
+      jumpElapsed = 0
+      mode = 'jump'
+      motionBlend = 0
     },
     update(
       delta: number,
@@ -112,6 +137,10 @@ export function createLocalCharacter(keys: Set<string>) {
       }
       const moving = lengthSq(input) > 0
       couchRelease = Math.max(0, couchRelease - delta)
+      if (jumpTime > 0) {
+        jumpTime = Math.max(0, jumpTime - delta)
+        jumpElapsed += delta
+      }
 
       if (seated) {
         if (hasDestination || input[2] > 0) {
@@ -132,8 +161,14 @@ export function createLocalCharacter(keys: Set<string>) {
         }
       }
 
-      motionBlend = mix(motionBlend, moving ? 1 : 0, 1 - Math.exp(-8 * delta))
-      mode = motionBlend > 0.5 ? 'run' : 'stand'
+      if (jumpTime > 0) {
+        mode = 'jump'
+        motionBlend = 0
+      }
+      else {
+        motionBlend = mix(motionBlend, moving ? 1 : 0, 1 - Math.exp(-8 * delta))
+        mode = motionBlend > 0.5 ? 'run' : 'stand'
+      }
 
       if (moving) {
         normalizeInto(input)
@@ -181,7 +216,15 @@ export function createLocalCharacter(keys: Set<string>) {
 
       const floorY = walkHeight(position[0], position[1], position[2])
 
-      if (floorY > position[1]) {
+      if (jumpTime > 0) {
+        const progress = jumpElapsed < jumpRiseDuration
+          ? jumpElapsed / jumpRiseDuration * 0.5
+          : 0.5 + (jumpElapsed - jumpRiseDuration) / (jumpDuration - jumpRiseDuration) * 0.5
+
+        position[1] = floorY + Math.sin(progress * Math.PI) * jumpHeight
+        velocityY = 0
+      }
+      else if (floorY > position[1]) {
         position[1] = floorY
         velocityY = 0
       }

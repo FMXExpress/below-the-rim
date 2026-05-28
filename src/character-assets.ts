@@ -37,9 +37,10 @@ const cheapDanceClipFiles = danceClipFilesBySize.slice(0, cheapDanceClipCount)
 const remainingDanceClipFiles = danceClipFilesBySize.slice(cheapDanceClipCount)
 
 export async function loadCharacterAssets() {
-  const [stand, run] = await loadAssimpScenes([
+  const [stand, run, jump] = await loadAssimpScenes([
     { path: '/stand.fbx', name: 'stand.fbx' },
     { path: '/run.fbx', name: 'run.fbx' },
+    { path: '/jump.fbx', name: 'jump.fbx' },
   ])
   const standClip = createCharacterClip(stand!, 'stand.fbx')
   const rig: CharacterRig = {
@@ -48,6 +49,7 @@ export async function loadCharacterAssets() {
     clips: {
       stand: standClip,
       run: createCharacterClip(run!, 'run.fbx'),
+      jump: createCharacterClip(jump!, 'jump.fbx'),
       manSitting: standClip,
       womanSitting: standClip,
       dances: [],

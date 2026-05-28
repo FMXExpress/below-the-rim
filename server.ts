@@ -12,6 +12,7 @@ import {
   encodeSpawn,
   MESSAGE,
   positionScale,
+  protocolVersion,
   protocolToScene,
   roomCount,
   type SpawnPacket,
@@ -36,6 +37,7 @@ type Client = {
 
 type SocketData = {
   ip: string
+  protocolOk: boolean
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -54,12 +56,18 @@ const server = Bun.serve<SocketData>({
   port,
   async fetch(request, server) {
     const ip = clientIp(request)
+    const url = new URL(request.url)
 
     if (ipConnections(ip) >= maxConnectionsPerIp) {
       return new Response('Too Many Connections', { status: 429 })
     }
 
-    if (server.upgrade(request, { data: { ip } })) {
+    if (server.upgrade(request, {
+      data: {
+        ip,
+        protocolOk: url.searchParams.get('protocol') === String(protocolVersion),
+      },
+    })) {
       return
     }
 
@@ -67,6 +75,11 @@ const server = Bun.serve<SocketData>({
   },
   websocket: {
     open(socket) {
+      if (!socket.data.protocolOk) {
+        socket.close(1012, 'protocol')
+        return
+      }
+
       const id = nextId++
       const client: Client = {
         id,
@@ -80,6 +93,7 @@ const server = Bun.serve<SocketData>({
           id,
           x: 0,
           y: 0,
+          height: 0,
           keys: 0,
           angle: 0,
           idleClipIndex: 0,
@@ -146,7 +160,7 @@ const server = Bun.serve<SocketData>({
       catch (e) {
         clients.delete(socket)
         removeFromRoom(client)
-        socket.close(1003, 'invalid packet')
+        socket.close(1012, 'protocol')
       }
     },
     close(socket) {
@@ -196,7 +210,6 @@ async function serveStatic(request: Request) {
     })
   }
 
-  const url = new URL(request.url)
   const path = decodeURIComponent(url.pathname)
   const assetPath = path === '/' ? join(dist, 'index.html') : resolve(dist, `.${path}`)
   const assetRelativePath = relative(dist, assetPath)
@@ -449,7 +462,7 @@ function validateMotionValues(motion: MotionPacket) {
     throw new Error(`Invalid keys ${motion.keys}`)
   }
 
-  if (motion.mode < 0 || motion.mode > 3) {
+  if (motion.mode < 0 || motion.mode > 4) {
     throw new Error(`Invalid mode ${motion.mode}`)
   }
 
@@ -468,6 +481,12 @@ function validateMotionValues(motion: MotionPacket) {
 
   if (x < outsideBounds.left || x > outsideBounds.right || z < outsideBounds.back || z > outsideBounds.front) {
     throw new Error(`Invalid position ${x}, ${z}`)
+  }
+
+  const height = protocolToScene(motion.height)
+
+  if (height < -3 || height > 2.5) {
+    throw new Error(`Invalid height ${height}`)
   }
 
   if ((motion.mode === 2 || motion.mode === 3) && !seatAt([x, 0, z], new Set(), 0.46, true)) {

@@ -12,9 +12,12 @@ type PointerState = {
   x: number
   y: number
   moved: boolean
+  longPressed: boolean
+  timer: ReturnType<typeof setTimeout>
 }
 
 const tapMoveThreshold = 10
+const longPressDelay = 520
 const actions: StyleAction[] = []
 
 export function createMobileControls(options: {
@@ -86,6 +89,7 @@ function usesTouchControls() {
 
 export function bindTapDestination(options: {
   canvas: HTMLCanvasElement
+  jump: () => void
   projector: WallProjector
   setDestination: (value: Vec3) => void
 }) {
@@ -101,6 +105,13 @@ export function bindTapDestination(options: {
       x: event.clientX,
       y: event.clientY,
       moved: false,
+      longPressed: false,
+      timer: setTimeout(() => {
+        if (pointer?.id === event.pointerId && !pointer.moved) {
+          pointer.longPressed = true
+          options.jump()
+        }
+      }, longPressDelay),
     }
   })
 
@@ -113,6 +124,9 @@ export function bindTapDestination(options: {
     const dy = event.clientY - pointer.y
 
     pointer.moved ||= dx * dx + dy * dy > tapMoveThreshold * tapMoveThreshold
+    if (pointer.moved) {
+      clearTimeout(pointer.timer)
+    }
   })
 
   options.canvas.addEventListener('pointerup', event => {
@@ -123,7 +137,8 @@ export function bindTapDestination(options: {
     const released = pointer
 
     pointer = undefined
-    if (released.moved) {
+    clearTimeout(released.timer)
+    if (released.moved || released.longPressed) {
       return
     }
 
@@ -136,6 +151,7 @@ export function bindTapDestination(options: {
 
   options.canvas.addEventListener('pointercancel', event => {
     if (event.pointerId === pointer?.id) {
+      clearTimeout(pointer.timer)
       pointer = undefined
     }
   })

@@ -89,6 +89,7 @@ export function createCharacterRenderSystem(options: {
         turn: options.localCharacter.turn,
         motionBlend: options.localCharacter.motionBlend,
         mode: options.localCharacter.mode,
+        modeTime: options.localCharacter.modeTime,
         idleClipIndex: options.idleClipIndex(),
         style: {
           topStyleIndex: options.styleController.topStyleIndex,

@@ -31,6 +31,7 @@ type CharacterInput = {
   turn: number
   motionBlend: number
   mode?: CharacterMode
+  modeTime?: number
   idleClipIndex: number
   style: PlayerStyle
   resolvedStyle?: ResolvedPlayerStyle

@@ -25,6 +25,7 @@ export function bindKeyboardInput(options: {
   openChatInput: () => void
   setAlternativeInput: (value: boolean) => void
   toggleHelp: () => void
+  jump: () => void
   cycleHair: (direction: number) => void
   cycleHairColor: (direction: number) => void
   cycleSkin: (direction: number) => void
@@ -55,6 +56,11 @@ export function bindKeyboardInput(options: {
 
     if (key === 'h') {
       options.toggleHelp()
+      return
+    }
+
+    if (key === 'b') {
+      options.jump()
       return
     }
 
