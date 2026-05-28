@@ -62,6 +62,7 @@ export function createMultiplayer(options: {
   let heartbeat = 0
   let reconnect = 0
   let closed = false
+  const pending: ArrayBuffer[] = []
   let selfId = 0
   let room = options.initialRoom
   let lastKeys = -1
@@ -78,6 +79,7 @@ export function createMultiplayer(options: {
       room = Number(!isOutside(options.localPosition))
       sendMotion()
       send(encodeRoomChange(room))
+      flush()
     })
     next.addEventListener('close', () => {
       clearInterval(heartbeat)
@@ -157,15 +159,28 @@ export function createMultiplayer(options: {
     if (type === MESSAGE) {
       const message = decodeServerMessage(view)
 
-      if (message.id === selfId || players.has(message.id)) {
-        options.onMessage(message.id, message.text)
-      }
+      options.onMessage(message.id, message.text)
     }
   }
 
   function send(data: ArrayBuffer) {
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(data)
+    }
+  }
+
+  function queue(data: ArrayBuffer) {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(data)
+    }
+    else {
+      pending.push(data)
+    }
+  }
+
+  function flush() {
+    while (pending.length) {
+      socket.send(pending.shift()!)
     }
   }
 
@@ -206,7 +221,7 @@ export function createMultiplayer(options: {
       const next = truncateMessage(text)
 
       if (next) {
-        send(encodeClientMessage(next))
+        queue(encodeClientMessage(next))
       }
     },
     sendMotion,

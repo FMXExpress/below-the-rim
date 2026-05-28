@@ -358,7 +358,7 @@ multiplayer = createMultiplayer({
     chatUi.clear()
   },
   onMessage: (id, text) => {
-    const position = id === multiplayer.selfId ? characterPosition : multiplayer.players.get(id)!.position
+    const position = id === multiplayer.selfId ? characterPosition : multiplayer.players.get(id)?.position ?? characterPosition
 
     chatUi.show(id, text, position, performance.now())
   },
