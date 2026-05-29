@@ -393,7 +393,6 @@ function applyRemotePose(player: Player, packet: SpawnPacket) {
   player.position[2] = protocolToScene(packet.y)
   player.turn = protocolToAngle(packet.angle)
   player.input = decodeKeys(packet.keys, packet.angle)
-  player.motionBlend = packet.keys === 0 ? 0 : 1
   const mode = protocolToMode(packet.mode)
 
   player.modeTime = oneShotMode(mode)
