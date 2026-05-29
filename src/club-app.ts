@@ -422,6 +422,8 @@ let multiplayer: ReturnType<typeof createMultiplayer>
 const predictedMessages = new Map<string, number>()
 const beachBalls = createBeachBalls()
 let beachBallPoints = new Float32Array()
+const beachBallAuthorityUntil = new Map<number, number>()
+const beachBallAuthorityDuration = 2000
 
 multiplayer = createMultiplayer({
   localPosition: characterPosition,
@@ -593,8 +595,17 @@ const draw = (stamp: number) => {
   localCharacter.update(delta, cameraController.turn, outsideTree, styleController.bottomMode, occupiedSeats,
     seat => takeNpcSeat(npcPlayers, seat, stamp * 0.001, outsideTree, occupiedSeats))
   updateBeachBalls(beachBalls, delta, outsideTree)
-  if (hitBeachBalls(beachBalls, characterPosition)) {
-    multiplayer.sendBeachBalls(beachBalls)
+  const hits = hitBeachBalls(beachBalls, characterPosition)
+
+  for (const id of hits) {
+    beachBallAuthorityUntil.set(id, stamp + beachBallAuthorityDuration)
+  }
+  if (hits.length > 0) {
+    const activeBalls = beachBalls.filter(ball => (beachBallAuthorityUntil.get(ball.id) ?? 0) > stamp)
+
+    if (activeBalls.length > 0) {
+      multiplayer.sendBeachBalls(activeBalls)
+    }
   }
   // logPlayerPoseEvery(stamp)
   const zone = roomAt(characterPosition)

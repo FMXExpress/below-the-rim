@@ -44,7 +44,7 @@ export function updateBeachBalls(balls: BeachBall[], delta: number, outsideTree:
 }
 
 export function hitBeachBalls(balls: BeachBall[], player: Vec3) {
-  let hit = false
+  const hits: number[] = []
 
   for (const ball of balls) {
     const dx = ball.position[0] - player[0]
@@ -63,11 +63,11 @@ export function hitBeachBalls(balls: BeachBall[], player: Vec3) {
       ball.velocity[0] = x * pushSpeed
       ball.velocity[1] = Math.max(ball.velocity[1], liftSpeed)
       ball.velocity[2] = z * pushSpeed
-      hit = true
+      hits.push(ball.id)
     }
   }
 
-  return hit
+  return hits
 }
 
 export function addBeachBallGeometry(target: Vertex[], balls: BeachBall[]) {

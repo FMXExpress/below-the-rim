@@ -64,6 +64,8 @@ const memoryAssetMaxSize = 2 * 1024 * 1024
 const memoryAssets = new Map<string, MemoryAsset>()
 let videoState = initialVideoState()
 let beachBalls = createBeachBalls()
+const beachBallAuthorities = createBeachBalls().map(() => ({ client: 0, until: 0 }))
+const beachBallAuthorityDuration = 2000
 let nextId = 1
 
 type MemoryAsset = {
@@ -196,8 +198,10 @@ const server = Bun.serve<SocketData>({
         }
 
         if (type === BEACH_BALLS) {
-          beachBalls = validateBeachBalls(decodeBeachBalls(view).balls)
-          broadcastBeachBalls()
+          if (applyBeachBalls(client, validateBeachBalls(decodeBeachBalls(view).balls))) {
+            broadcastBeachBalls()
+          }
+
           return
         }
 
@@ -744,10 +748,6 @@ function validateVideoState(entries: VideoStateEntry[]) {
 }
 
 function validateBeachBalls(balls: ReturnType<typeof createBeachBalls>) {
-  if (balls.length !== beachBalls.length) {
-    throw new Error(`Invalid beach ball count ${balls.length}`)
-  }
-
   const ids = new Set<number>()
 
   for (const ball of balls) {
@@ -773,6 +773,26 @@ function validateBeachBalls(balls: ReturnType<typeof createBeachBalls>) {
   }
 
   return balls
+}
+
+function applyBeachBalls(client: Client, balls: ReturnType<typeof createBeachBalls>) {
+  const now = Date.now()
+  let applied = false
+
+  for (const ball of balls) {
+    const authority = beachBallAuthorities[ball.id]!
+
+    if (authority.client !== 0 && authority.client !== client.id && now < authority.until) {
+      continue
+    }
+
+    authority.client = client.id
+    authority.until = now + beachBallAuthorityDuration
+    beachBalls[ball.id] = ball
+    applied = true
+  }
+
+  return applied
 }
 
 function broadcastBeachBalls() {
