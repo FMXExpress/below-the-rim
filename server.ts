@@ -975,16 +975,22 @@ async function banClient(id: number) {
     throw new Error(`Invalid ban target ${id}`)
   }
 
+  const banned = [...clients.values()].filter(next => next.ip === client.ip)
+
   bannedIps.add(client.ip)
   await banDb.put(client.ip, client.ip)
-  broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id }))
+  console.log(`Admin ban: id=${id} ip=${client.ip}`)
 
-  for (const next of [...clients.values()]) {
-    if (next.ip === client.ip) {
+  for (const next of banned) {
+    broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id: next.id }))
+  }
+
+  setTimeout(() => {
+    for (const next of banned) {
       removeClient(next)
       next.socket.close(1008, 'banned')
     }
-  }
+  }, 100)
 }
 
 function broadcastGraffiti(splats: GraffitiSplat[]) {
