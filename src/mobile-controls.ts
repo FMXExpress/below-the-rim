@@ -27,6 +27,7 @@ export function createMobileControls(options: {
   cycleIdle: (direction: number) => void
   cycleShirt: (direction: number) => void
   cyclePants: (direction: number) => void
+  cycleAccessory: (direction: number) => void
   openChatInput: () => void
 }) {
   updateTouchControlsMode()
@@ -38,6 +39,7 @@ export function createMobileControls(options: {
     { label: 'Skin tone', apply: options.cycleSkin },
     { label: 'Top wear', apply: options.cycleShirt },
     { label: 'Bottom wear', apply: options.cyclePants },
+    { label: 'Accessories', apply: options.cycleAccessory },
     { label: 'Dance move', apply: options.cycleIdle },
   )
 
