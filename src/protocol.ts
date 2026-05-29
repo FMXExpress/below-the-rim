@@ -17,7 +17,7 @@ export const GRAFFITI = 13
 export const roomCount = 3
 export const messageMaxLength = 120
 export const positionScale = 100
-export const protocolVersion = 13
+export const protocolVersion = 16
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -279,7 +279,7 @@ export function encodeGraffiti(packet: GraffitiPacket) {
     view.setInt16(offset + 7, sceneToProtocol(splat.y))
     view.setUint16(offset + 9, splat.seed)
     view.setUint8(offset + 11, splat.colorIndex)
-    view.setUint8(offset + 12, 0)
+    view.setUint8(offset + 12, splat.radius)
     offset += 13
   }
 
@@ -301,6 +301,7 @@ export function decodeGraffiti(view: DataView): GraffitiPacket {
       y: protocolToScene(view.getInt16(offset + 7)),
       seed: view.getUint16(offset + 9),
       colorIndex: view.getUint8(offset + 11),
+      radius: view.getUint8(offset + 12),
     })
     offset += 13
   }

@@ -5,7 +5,7 @@ import { idleClipNames } from './character-assets.ts'
 import { characterFloor } from './character-data.ts'
 import { createCharacterHairController } from './character-hair-control.ts'
 import { createCharacterRenderSystem } from './character-render-system.ts'
-import { createCharacterStyleController } from './character-style.ts'
+import { createCharacterStyleController, glowstickColors } from './character-style.ts'
 import { createChatUi } from './chat-ui.ts'
 import { restoreClubState, saveClubState } from './club-persistence.ts'
 import { renderClubFrame } from './club-renderer.ts'
@@ -307,7 +307,8 @@ const characterBoxInstanceStride = characterBoxInstanceSize * Float32Array.BYTES
 
 if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisible || !treeShadowSampler
   || !characterBoxViewProjection
-  || !characterBoxRenderZone || !characterBoxBloomPass || !lightTime || !lightSmokeMap || !lightRenderZone || !lightViewProjection
+  || !characterBoxRenderZone || !characterBoxBloomPass || !lightTime || !lightSmokeMap || !lightRenderZone
+  || !lightViewProjection
   || !strobeTime || !strobeSmokeMap || !strobeRenderZone || !strobeViewProjection || !hairViewProjection
   || !hairRenderZone || !roomSmokeTime || !roomSmokeMap || !roomSmokeViewProjection || !roomSmokeCameraRight
   || !roomSmokeCameraUp || !postScene || !postBloom || !postBloomResolution || !postRenderSky
@@ -433,6 +434,9 @@ const beachBallAuthorityDuration = 2000
 const graffitiSplats: import('./types.ts').GraffitiSplat[] = []
 let graffitiPoints = new Float32Array()
 let graffitiSeed = Math.floor(Math.random() * 65536)
+let lastSprayAt = 0
+let sprayPointer = 0
+const sprayInterval = 55
 
 multiplayer = createMultiplayer({
   localPosition: characterPosition,
@@ -512,7 +516,17 @@ multiplayer = createMultiplayer({
     }
   },
   onGraffiti: splats => {
-    graffitiSplats.push(...splats)
+    for (const splat of splats) {
+      const optimistic = graffitiSplats.findIndex(next => next.id === 0 && graffitiKey(next) === graffitiKey(splat))
+
+      if (optimistic >= 0) {
+        graffitiSplats[optimistic] = splat
+      }
+      else {
+        graffitiSplats.push(splat)
+      }
+    }
+
     if (graffitiSplats.length > maxGraffitiSplats) {
       graffitiSplats.splice(0, graffitiSplats.length - maxGraffitiSplats)
     }
@@ -522,37 +536,39 @@ multiplayer = createMultiplayer({
 })
 clubGlobal.clubMultiplayerClose = () => multiplayer.close()
 
-const styleActions: Record<'cycleHair' | 'cycleHairColor' | 'cycleSkin' | 'cycleIdle' | 'cycleShirt' | 'cyclePants'
-  | 'cycleAccessory', (direction: number) => void> = {
-    cycleHair: direction => {
-      hairController.cycleHair(direction)
-      multiplayer.sendMotion()
-    },
-    cycleHairColor: direction => {
-      hairController.cycleColor(direction)
-      multiplayer.sendMotion()
-    },
-    cycleSkin: direction => {
-      styleController.cycleSkin(direction)
-      multiplayer.sendMotion()
-    },
-    cycleIdle: direction => {
-      cycleIdle(direction)
-      multiplayer.sendMotion()
-    },
-    cycleShirt: direction => {
-      styleController.cycleShirt(direction)
-      multiplayer.sendMotion()
-    },
-    cyclePants: direction => {
-      styleController.cyclePants(direction)
-      multiplayer.sendMotion()
-    },
-    cycleAccessory: direction => {
-      styleController.cycleAccessory(direction)
-      multiplayer.sendMotion()
-    },
-  }
+const styleActions: Record<
+  'cycleHair' | 'cycleHairColor' | 'cycleSkin' | 'cycleIdle' | 'cycleShirt' | 'cyclePants' | 'cycleAccessory',
+  (direction: number) => void
+> = {
+  cycleHair: direction => {
+    hairController.cycleHair(direction)
+    multiplayer.sendMotion()
+  },
+  cycleHairColor: direction => {
+    hairController.cycleColor(direction)
+    multiplayer.sendMotion()
+  },
+  cycleSkin: direction => {
+    styleController.cycleSkin(direction)
+    multiplayer.sendMotion()
+  },
+  cycleIdle: direction => {
+    cycleIdle(direction)
+    multiplayer.sendMotion()
+  },
+  cycleShirt: direction => {
+    styleController.cycleShirt(direction)
+    multiplayer.sendMotion()
+  },
+  cyclePants: direction => {
+    styleController.cyclePants(direction)
+    multiplayer.sendMotion()
+  },
+  cycleAccessory: direction => {
+    styleController.cycleAccessory(direction)
+    multiplayer.sendMotion()
+  },
+}
 
 bindKeyboardInput({
   activeInput: chatInput,
@@ -577,22 +593,62 @@ createMobileControls({
 })
 bindTapDestination({
   canvas,
-  ignorePointer: event => event.pointerType === 'mouse' && styleController.accessoryIndex > 0,
+  ignorePointer: event => styleController.accessoryIndex > glowstickColors.length,
   jump: () => localCharacter.jump(),
   projector: wallProjector,
   setDestination: value => localCharacter.setDestination(value, seatAt(value, occupiedSeats, 0.46, true)),
 })
 
 canvas.addEventListener('pointerdown', event => {
-  if (event.pointerType !== 'mouse' || styleController.accessoryIndex === 0) {
+  if (styleController.accessoryIndex <= glowstickColors.length) {
     return
   }
 
-  const hit = sprayWallPoint(event.clientX, event.clientY, wallProjector)
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  sprayPointer = event.pointerId
+  canvas.setPointerCapture(event.pointerId)
+  sprayAt(event.clientX, event.clientY)
+}, { capture: true })
+
+canvas.addEventListener('pointermove', event => {
+  if (event.pointerId !== sprayPointer) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  sprayAt(event.clientX, event.clientY)
+}, { capture: true })
+
+canvas.addEventListener('pointerup', event => {
+  if (event.pointerId === sprayPointer) {
+    sprayPointer = 0
+    canvas.releasePointerCapture(event.pointerId)
+  }
+}, { capture: true })
+
+canvas.addEventListener('pointercancel', event => {
+  if (event.pointerId === sprayPointer) {
+    sprayPointer = 0
+    canvas.releasePointerCapture(event.pointerId)
+  }
+}, { capture: true })
+
+function sprayAt(clientX: number, clientY: number) {
+  const stamp = performance.now()
+
+  if (stamp < lastSprayAt + sprayInterval) {
+    return
+  }
+
+  const hit = sprayWallPoint(clientX, clientY, wallProjector)
 
   if (!hit) {
     return
   }
+
+  lastSprayAt = stamp
 
   const splat = {
     id: 0,
@@ -600,13 +656,18 @@ canvas.addEventListener('pointerdown', event => {
     x: hit.x,
     y: hit.y,
     seed: graffitiSeed++ & 0xffff,
-    colorIndex: (styleController.accessoryIndex - 1) % graffitiColors.length,
+    colorIndex: (styleController.accessoryIndex - glowstickColors.length - 1) % graffitiColors.length,
+    radius: Math.round(Math.max(0, Math.min(255, (hit.distance - 2.5) * 18))),
   }
 
   graffitiSplats.push(splat)
   updateGraffitiBuffer()
   multiplayer.sendGraffiti([splat])
-})
+}
+
+function graffitiKey(splat: import('./types.ts').GraffitiSplat) {
+  return `${splat.wall}:${splat.x}:${splat.y}:${splat.seed}:${splat.colorIndex}:${splat.radius}`
+}
 
 chatForm.addEventListener('submit', event => {
   event.preventDefault()

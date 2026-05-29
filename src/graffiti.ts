@@ -1,23 +1,29 @@
-import { addQuad } from './geometry.ts'
+import { pack } from './geometry.ts'
+import { characterFloor } from './character-data.ts'
 import { roomBounds } from './scene-data.ts'
 import type { WallProjector } from './projection.ts'
 import type { GraffitiSplat, Vec3, Vertex } from './types.ts'
 
 export const maxGraffitiSplats = 10000
 export const graffitiColors: Vec3[] = [
-  [1, 0.03, 0.02],
-  [1, 0.03, 0.7],
-  [0.05, 0.82, 1],
-  [0, 1, 0.18],
-  [1, 0.9, 0.04],
-  [0.6, 0.12, 1],
-  [1, 0.22, 0.04],
+  [0.015, 0.012, 0.01],
+  [1, 1, 1],
+  [0.42, 0.42, 0.42],
+  [0.42, 0.2, 0.08],
+  [1, 0.02, 0.02],
+  [1, 0.32, 0.02],
+  [1, 0.9, 0.02],
+  [0.02, 1, 0.12],
+  [0.02, 0.55, 1],
+  [0.1, 0.08, 1],
+  [0.66, 0.08, 1],
+  [1, 0.03, 0.72],
 ]
 
-const wallYMin = -1.35
+const wallYMin = characterFloor + 0.03
 const wallYMax = 2.8
-const wallMargin = 0.25
-const wallEpsilon = 0.035
+const wallMargin = 0.03
+const wallEpsilon = 0.09
 
 const walls = [
   { axis: 'z', value: roomBounds.front, min: roomBounds.left, max: roomBounds.right, normal: [0, 0, 1] as Vec3 },
@@ -90,7 +96,7 @@ function wallHit(wallIndex: number, ray: ReturnType<typeof screenRay>) {
   return {
     x: along,
     y: worldY,
-    distance,
+    distance: distance * ray.length,
   }
 }
 
@@ -100,13 +106,14 @@ function addGraffitiSplat(target: Vertex[], splat: GraffitiSplat) {
   const tangent: Vec3 = wall.axis === 'x' ? [0, 0, 1] : [1, 0, 0]
   const up: Vec3 = [0, 1, 0]
   const center = wallPoint(splat.wall, splat.x, splat.y)
-  const count = 7 + splat.seed % 5
+  const scale = 0.38 + splat.radius / 255 * 0.72
+  const count = 5 + splat.seed % 4
 
   for (let i = 0; i < count; i++) {
     const angle = random(splat.seed, i * 4) * Math.PI * 2
-    const radius = 0.04 + random(splat.seed, i * 4 + 1) * 0.22
-    const sizeX = 0.07 + random(splat.seed, i * 4 + 2) * 0.12
-    const sizeY = 0.045 + random(splat.seed, i * 4 + 3) * 0.1
+    const radius = scale * (0.025 + random(splat.seed, i * 4 + 1) * 0.12)
+    const sizeX = scale * (0.055 + random(splat.seed, i * 4 + 2) * 0.09)
+    const sizeY = scale * (0.04 + random(splat.seed, i * 4 + 3) * 0.08)
     const cx = Math.cos(angle) * radius
     const cy = Math.sin(angle) * radius * 0.72
     const point: Vec3 = [
@@ -135,7 +142,14 @@ function addSplatQuad(target: Vertex[], center: Vec3, tangent: Vec3, up: Vec3, s
   const c = offset(center, tangent, up, sizeX, sizeY)
   const d = offset(center, tangent, up, -sizeX, sizeY)
 
-  addQuad(target, a, b, c, d, color, 0.18)
+  target.push(
+    pack(a, color, 0, 0, -1, -1, 6),
+    pack(b, color, 0, 0, 1, -1, 6),
+    pack(c, color, 0, 0, 1, 1, 6),
+    pack(a, color, 0, 0, -1, -1, 6),
+    pack(c, color, 0, 0, 1, 1, 6),
+    pack(d, color, 0, 0, -1, 1, 6),
+  )
 }
 
 function offset(center: Vec3, tangent: Vec3, up: Vec3, x: number, y: number): Vec3 {

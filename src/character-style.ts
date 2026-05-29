@@ -6,7 +6,17 @@ import type { Vec3 } from './types.ts'
 
 const topStyleCache = new Map<number, ReturnType<typeof createTopStyleData>>()
 const resolvedStyleCache = new Map<number, ResolvedPlayerStyle>()
-export const accessoryPalette: Vec3[] = graffitiColors
+export const glowstickColors: Vec3[] = [
+  [1, 0.03, 0.02],
+  [1, 0.03, 0.7],
+  [0.05, 0.82, 1],
+  [0, 1, 0.18],
+  [1, 0.9, 0.04],
+  [0.6, 0.12, 1],
+  [1, 0.22, 0.04],
+]
+export const sprayColors: Vec3[] = graffitiColors
+export const accessoryPalette: Vec3[] = [...glowstickColors, ...sprayColors]
 
 export function createCharacterStyleController() {
   let shirtColorIndex = 0
@@ -124,6 +134,11 @@ export function resolvePlayerStyle(style: PlayerStyle): ResolvedPlayerStyle {
   const top = topStyleData(topIndex)
   const bottomMode: BottomMode = bottomIndex < jewelPalette.length ? 'pants' : 'skirt'
   const pantsColor = jewelPalette[bottomIndex % jewelPalette.length]!
+  const accessoryKind: ResolvedPlayerStyle['accessoryKind'] = accessoryIndex === 0
+    ? undefined
+    : accessoryIndex <= glowstickColors.length
+    ? 'glowstick'
+    : 'spray'
   const resolved = {
     topMode: top.mode,
     bottomMode,
@@ -137,6 +152,7 @@ export function resolvePlayerStyle(style: PlayerStyle): ResolvedPlayerStyle {
     hairColor: hairPalette[hairColorIndex]!,
     skin: skinPalette[skinColorIndex]!,
     accessory: accessoryIndex === 0 ? undefined : accessoryPalette[accessoryIndex - 1],
+    accessoryKind,
   }
 
   resolvedStyleCache.set(key, resolved)

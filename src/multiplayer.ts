@@ -113,9 +113,8 @@ export function createMultiplayer(options: {
       clearInterval(heartbeat)
       clearInterval(videoSync)
 
-      if (event.code === 1012 && event.reason === 'protocol') {
-        location.reload()
-        return
+      if (event.code === 1012) {
+        console.error(`multiplayer protocol close: ${event.reason || event.code}`)
       }
 
       if (!closed) {

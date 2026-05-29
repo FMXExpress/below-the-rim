@@ -112,6 +112,10 @@ const hairForward: Vec3 = [0, 0, 0]
 const glowstickA: Vec3 = [0, 0, 0]
 const glowstickB: Vec3 = [0, 0, 0]
 const glowstickSide: Vec3 = [0, 0, 0]
+const sprayCanCapA: Vec3 = [0, 0, 0]
+const sprayCanCapB: Vec3 = [0, 0, 0]
+const sprayCanNozzleA: Vec3 = [0, 0, 0]
+const sprayCanNozzleB: Vec3 = [0, 0, 0]
 const farHairDistanceSq = 34 * 34
 
 export function buildCharacterDrawData(options: BuildOptions) {
@@ -223,7 +227,12 @@ function addRenderedCharacter(
   }
 
   if (style.accessory) {
-    addGlowsticks(target, boxInstances, pose, player, turn, style, options.light, localReflection)
+    if (style.accessoryKind === 'glowstick') {
+      addGlowsticks(target, boxInstances, pose, player, turn, style, options.light, localReflection)
+    }
+    else {
+      addSprayCan(target, boxInstances, pose, player, turn, style, options.light, localReflection)
+    }
   }
 
   const hair = playerHair(options.hairMeshes, player.style.hairIndex)
@@ -279,7 +288,6 @@ function addGlowstick(
   const stickX = crossX / crossLength
   const stickY = crossY / crossLength
   const stickZ = crossZ / crossLength
-
   const centerX = hand[0] + sideX * handSide * 0.08 + dx * 0.08
   const centerY = hand[1] + 0.007 + dy * 0.08
   const centerZ = hand[2] + sideZ * handSide * 0.08 + dz * 0.08
@@ -296,6 +304,79 @@ function addGlowstick(
   glowstickSide[2] = sideZ * handSide
   addCharacterBox(target, boxInstances, glowstickA, glowstickB, 0.025, 0.025, style.accessory!, 1.4, player.turn,
     localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
+}
+
+function addSprayCan(
+  target: VertexWriter,
+  boxInstances: VertexWriter,
+  pose: Vec3[],
+  player: { turn: number },
+  turn: TurnBasis,
+  style: ResolvedPlayerStyle,
+  light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
+  localReflection: boolean,
+) {
+  const torso = pose[spine2Index]!
+
+  addSprayCanAtHand(target, boxInstances, torso, pose[rightForeArmIndex]!, pose[rightHandIndex]!, player, turn, style,
+    light,
+    localReflection)
+}
+
+function addSprayCanAtHand(
+  target: VertexWriter,
+  boxInstances: VertexWriter,
+  torso: Vec3,
+  foreArm: Vec3,
+  hand: Vec3,
+  player: { turn: number },
+  turn: TurnBasis,
+  style: ResolvedPlayerStyle,
+  light: (color: Vec3, point: Vec3, normal: Vec3) => Vec3,
+  localReflection: boolean,
+) {
+  const dx = hand[0] - foreArm[0]
+  const dy = hand[1] - foreArm[1]
+  const dz = hand[2] - foreArm[2]
+  const sideX = turn.cos
+  const sideZ = -turn.sin
+  const handSide = Math.sign((hand[0] - torso[0]) * sideX + (hand[2] - torso[2]) * sideZ)
+  const centerX = hand[0] + sideX * handSide * 0.16 + dx * 0.04
+  const centerY = hand[1] - 0.08 + dy * 0.04
+  const centerZ = hand[2] + sideZ * handSide * 0.16 + dz * 0.04
+  const color = style.accessory!
+
+  glowstickA[0] = centerX
+  glowstickA[1] = centerY - 0.14
+  glowstickA[2] = centerZ
+  glowstickB[0] = centerX
+  glowstickB[1] = centerY + 0.12
+  glowstickB[2] = centerZ
+  glowstickSide[0] = sideX * handSide
+  glowstickSide[1] = 0
+  glowstickSide[2] = sideZ * handSide
+  addCharacterBox(target, boxInstances, glowstickA, glowstickB, 0.13, 0.13, color, 0.12, player.turn,
+    localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
+  addCharacterBox(target, boxInstances, glowstickA, glowstickB, 0.145, 0.035, color, 0.12, player.turn,
+    localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
+
+  sprayCanCapA[0] = centerX
+  sprayCanCapA[1] = centerY + 0.12
+  sprayCanCapA[2] = centerZ
+  sprayCanCapB[0] = centerX
+  sprayCanCapB[1] = centerY + 0.18
+  sprayCanCapB[2] = centerZ
+  addCharacterBox(target, boxInstances, sprayCanCapA, sprayCanCapB, 0.1, 0.1, color, 0.12, player.turn,
+    localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
+
+  sprayCanNozzleA[0] = centerX + sideX * handSide * 0.035
+  sprayCanNozzleA[1] = centerY + 0.19
+  sprayCanNozzleA[2] = centerZ + sideZ * handSide * 0.035
+  sprayCanNozzleB[0] = centerX + sideX * handSide * 0.13
+  sprayCanNozzleB[1] = centerY + 0.19
+  sprayCanNozzleB[2] = centerZ + sideZ * handSide * 0.13
+  addCharacterBox(target, boxInstances, sprayCanNozzleA, sprayCanNozzleB, 0.035, 0.035, color, 0.12,
+    player.turn, localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
 }
 
 function bodySampleTime(time: number, distanceSq: number) {

@@ -33,7 +33,7 @@ import {
 import { hairPalette, jewelPalette, skinPalette } from './src/character-data.ts'
 import { accessoryPalette } from './src/character-style.ts'
 import { createBeachBalls } from './src/beach-balls.ts'
-import { maxGraffitiSplats } from './src/graffiti.ts'
+import { graffitiColors, maxGraffitiSplats } from './src/graffiti.ts'
 import { outsideBounds, roomBounds, videoStartTimes, videoTracks } from './src/scene-data.ts'
 import { roomAt, seatAt } from './src/scene.ts'
 import { extname, isAbsolute, join, relative, resolve } from 'node:path'
@@ -74,7 +74,8 @@ let videoStateSynced = false
 let beachBalls = createBeachBalls()
 const beachBallAuthorities = createBeachBalls().map(() => ({ client: 0, until: 0 }))
 const beachBallAuthorityDuration = 2000
-const graffitiDb = open<GraffitiSplat>({ path: join(import.meta.dir, 'data', 'graffiti.lmdb'), compression: true })
+const graffitiDbPath = process.env.CLUB_GRAFFITI_DB ?? join(import.meta.dir, 'data', 'graffiti.lmdb')
+const graffitiDb = open<GraffitiSplat>({ path: graffitiDbPath, compression: true })
 let graffitiSplats = await loadGraffitiSplats()
 let nextGraffitiId = (graffitiSplats.at(-1)?.id ?? 0) + 1
 let nextId = 1
@@ -113,7 +114,7 @@ const server = Bun.serve<SocketData>({
   websocket: {
     open(socket) {
       if (!socket.data.protocolOk) {
-        socket.close(1012, 'protocol')
+        socket.close(1012, 'version')
         return
       }
 
@@ -235,10 +236,15 @@ const server = Bun.serve<SocketData>({
         }
 
         if (type === GRAFFITI) {
-          const splats = await saveGraffiti(validateGraffiti(decodeGraffiti(view).splats))
+          try {
+            const splats = await saveGraffiti(validateGraffiti(decodeGraffiti(view).splats))
 
-          if (splats.length > 0) {
-            broadcastGraffiti(splats)
+            if (splats.length > 0) {
+              broadcastGraffiti(splats)
+            }
+          }
+          catch (e) {
+            console.error(e)
           }
 
           return
@@ -247,8 +253,7 @@ const server = Bun.serve<SocketData>({
         throw new Error(`Invalid client packet type ${type}`)
       }
       catch (e) {
-        removeClient(client)
-        socket.close(1012, 'protocol')
+        console.error(e)
       }
     },
     close(socket) {
@@ -862,8 +867,11 @@ function broadcastBeachBalls(balls = beachBalls) {
 
 function validateGraffiti(splats: GraffitiSplat[]) {
   for (const splat of splats) {
-    if (splat.wall > 3 || splat.x < -30 || splat.x > 30 || splat.y < -2 || splat.y > 4
-      || splat.seed > 65535 || splat.colorIndex >= accessoryPalette.length)
+    if (!Number.isInteger(splat.wall) || !Number.isInteger(splat.seed) || !Number.isInteger(splat.colorIndex)
+      || !Number.isInteger(splat.radius) || !Number.isFinite(splat.x) || !Number.isFinite(splat.y)
+      || splat.wall > 3 || splat.x < -30
+      || splat.x > 30 || splat.y < -2 || splat.y > 4 || splat.seed > 65535
+      || splat.colorIndex >= graffitiColors.length || splat.radius < 0 || splat.radius > 255)
     {
       throw new Error('Invalid graffiti splat')
     }
@@ -896,7 +904,7 @@ async function loadGraffitiSplats() {
   const splats: GraffitiSplat[] = []
 
   for await (const { value } of graffitiDb.getRange()) {
-    splats.push(value)
+    splats.push({ ...value, radius: value.radius ?? 96 })
   }
 
   splats.sort((a, b) => a.id - b.id)

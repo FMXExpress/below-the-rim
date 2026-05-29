@@ -158,6 +158,7 @@ export type ResolvedPlayerStyle = {
   hairColor: Vec3
   skin: Vec3
   accessory?: Vec3
+  accessoryKind?: 'glowstick' | 'spray'
 }
 
 export type PlayerDestination = {
@@ -204,6 +205,7 @@ export type GraffitiSplat = {
   y: number
   seed: number
   colorIndex: number
+  radius: number
 }
 
 export type SampledPose = {
