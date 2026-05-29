@@ -249,14 +249,59 @@ html[data-touch-controls="true"] #support-link[data-hidden="true"] {
   gap: 4px;
   max-width: 100%;
   overflow: hidden;
+  pointer-events: none;
+}
+
+#chat-log[data-admin="true"] {
+  pointer-events: auto;
 }
 
 .chat-log-message {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
   overflow: hidden;
   font-weight: 600;
   overflow-wrap: anywhere;
   text-align: left;
   text-shadow: 0 0 8px currentColor;
+}
+
+.chat-log-message span {
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.chat-ban-button {
+  background: rgb(255 40 120 / 0.22);
+  border: 1px solid rgb(255 255 255 / 0.28);
+  color: currentColor;
+  cursor: pointer;
+  display: none;
+  font: inherit;
+  padding: 2px 6px;
+}
+
+#chat-log[data-admin="true"] .chat-ban-button {
+  display: inline-block;
+}
+
+#admin-dialog {
+  background: rgb(6 8 14 / 0.94);
+  border: 1px solid rgb(255 255 255 / 0.24);
+  color: white;
+  padding: 12px;
+}
+
+#admin-dialog::backdrop {
+  background: rgb(0 0 0 / 0.48);
+}
+
+#admin-dialog form {
+  display: flex;
+  gap: 8px;
 }
 
 .help-cluster,

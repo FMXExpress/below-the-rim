@@ -13,6 +13,7 @@ import {
   decodeServerMotion,
   decodeSpawn,
   decodeVideoState,
+  encodeAdminMessage,
   encodeClientMessage,
   encodeClientMotion,
   encodeHeartbeat,
@@ -112,10 +113,6 @@ export function createMultiplayer(options: {
     next.addEventListener('close', event => {
       clearInterval(heartbeat)
       clearInterval(videoSync)
-
-      if (event.code === 1012) {
-        console.error(`multiplayer protocol close: ${event.reason || event.code}`)
-      }
 
       if (!closed) {
         reconnect = setTimeout(() => {
@@ -286,6 +283,9 @@ export function createMultiplayer(options: {
       }
 
       return next
+    },
+    sendAdmin(pass: string, command: 'ban', id: number) {
+      send(encodeAdminMessage({ pass, command, id }))
     },
     sendMotion,
     sendBeachBalls(balls: BeachBall[]) {

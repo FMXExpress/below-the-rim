@@ -127,7 +127,7 @@ export function createCharacterRenderSystem(options: {
           options.hairController.log()
         })
         .catch((error: unknown) => {
-          console.error(error)
+          void error
         })
     }
     else {
@@ -135,7 +135,7 @@ export function createCharacterRenderSystem(options: {
         .then(() => loadCheapCharacterDances(activeRig))
         .then(() => loadCharacterDances(activeRig))
         .catch((error: unknown) => {
-          console.error(error)
+          void error
         })
     }
 

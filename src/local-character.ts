@@ -106,7 +106,7 @@ export function createLocalCharacter(keys: Set<string>) {
             path = findPath(position, destination, outsideTree)
           }
           catch (e) {
-            console.error(e)
+            void e
             hasDestination = false
             destinationSeat = ''
             path = []

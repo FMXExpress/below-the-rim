@@ -1,9 +1,11 @@
 import {
+  ADMIN,
   BEACH_BALLS,
   C_HEARTBEAT,
   C_MOTION,
   C_ROOM_CHANGE,
   decodeClientMessage,
+  decodeAdminMessage,
   decodeBeachBalls,
   decodeClientMotion,
   decodeGraffiti,
@@ -76,6 +78,10 @@ const beachBallAuthorities = createBeachBalls().map(() => ({ client: 0, until: 0
 const beachBallAuthorityDuration = 2000
 const graffitiDbPath = process.env.CLUB_GRAFFITI_DB ?? join(import.meta.dir, 'data', 'graffiti.lmdb')
 const graffitiDb = open<GraffitiSplat>({ path: graffitiDbPath, compression: true })
+const banDbPath = process.env.CLUB_BAN_DB ?? join(import.meta.dir, 'data', 'bans.lmdb')
+const banDb = open<string>({ path: banDbPath, compression: true })
+const adminPass = process.env.ADMIN_PASS ?? ''
+const bannedIps = await loadBannedIps()
 let graffitiSplats = await loadGraffitiSplats()
 let nextGraffitiId = (graffitiSplats.at(-1)?.id ?? 0) + 1
 let nextId = 1
@@ -95,6 +101,10 @@ const server = Bun.serve<SocketData>({
   async fetch(request, server) {
     const ip = clientIp(request)
     const url = new URL(request.url)
+
+    if (bannedIps.has(ip)) {
+      return new Response('Forbidden', { status: 403 })
+    }
 
     if (ipConnections(ip) >= maxConnectionsPerIp) {
       return new Response('Too Many Connections', { status: 429 })
@@ -200,6 +210,11 @@ const server = Bun.serve<SocketData>({
           return
         }
 
+        if (type === ADMIN) {
+          await applyAdminMessage(decodeAdminMessage(view))
+          return
+        }
+
         if (type === VIDEO_STATE) {
           const nextVideoState = validateVideoState(decodeVideoState(view).entries)
 
@@ -251,7 +266,7 @@ const server = Bun.serve<SocketData>({
             }
           }
           catch (e) {
-            console.error(e)
+            void e
           }
 
           return
@@ -260,7 +275,7 @@ const server = Bun.serve<SocketData>({
         throw new Error(`Invalid client packet type ${type}`)
       }
       catch (e) {
-        console.error(e)
+        void e
       }
     },
     close(socket) {
@@ -280,9 +295,6 @@ function clientProtocolOk(protocol: string | null) {
 
   return version === String(protocolVersion)
 }
-
-console.log(`club multiplayer: ws://localhost:${server.port}`)
-console.log(`club static: http://localhost:${server.port}`)
 
 setInterval(syncRooms, heartbeatInterval)
 
@@ -930,6 +942,44 @@ async function loadGraffitiSplats() {
   splats.sort((a, b) => a.id - b.id)
 
   return splats.slice(-maxGraffitiSplats)
+}
+
+async function loadBannedIps() {
+  const ips = new Set<string>()
+
+  for await (const { value } of banDb.getRange()) {
+    ips.add(value)
+  }
+
+  return ips
+}
+
+async function applyAdminMessage(packet: ReturnType<typeof decodeAdminMessage>) {
+  if (adminPass === '' || packet.pass !== adminPass) {
+    throw new Error('Invalid admin pass')
+  }
+
+  if (packet.command === 'ban') {
+    await banClient(packet.id)
+  }
+}
+
+async function banClient(id: number) {
+  const client = [...clients.values()].find(next => next.id === id)
+
+  if (!client) {
+    throw new Error(`Invalid ban target ${id}`)
+  }
+
+  bannedIps.add(client.ip)
+  await banDb.put(client.ip, client.ip)
+
+  for (const next of [...clients.values()]) {
+    if (next.ip === client.ip) {
+      removeClient(next)
+      next.socket.close(1008, 'banned')
+    }
+  }
 }
 
 function broadcastGraffiti(splats: GraffitiSplat[]) {

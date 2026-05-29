@@ -13,11 +13,12 @@ export const S_ONLINE = 10
 export const VIDEO_STATE = 11
 export const BEACH_BALLS = 12
 export const GRAFFITI = 13
+export const ADMIN = 14
 
 export const roomCount = 3
 export const messageMaxLength = 120
 export const positionScale = 100
-export const protocolVersion = 16
+export const protocolVersion = 17
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -66,6 +67,12 @@ export type BeachBallPacket = {
 
 export type GraffitiPacket = {
   splats: GraffitiSplat[]
+}
+
+export type AdminPacket = {
+  pass: string
+  command: 'ban'
+  id: number
 }
 
 const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting', 'jump']
@@ -431,6 +438,44 @@ export function decodeServerMessage(view: DataView): MessagePacket {
   return {
     id: view.getUint16(1),
     text: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 5, length)),
+  }
+}
+
+export function encodeAdminMessage(packet: AdminPacket) {
+  const pass = textEncoder.encode(packet.pass)
+  const command = textEncoder.encode(packet.command)
+  const data = new ArrayBuffer(7 + pass.length + command.length)
+  const view = new DataView(data)
+
+  view.setUint8(0, ADMIN)
+  view.setUint16(1, packet.id)
+  view.setUint16(3, pass.length)
+  new Uint8Array(data, 5).set(pass)
+  view.setUint16(5 + pass.length, command.length)
+  new Uint8Array(data, 7 + pass.length).set(command)
+
+  return data
+}
+
+export function decodeAdminMessage(view: DataView): AdminPacket {
+  expectAtLeastSize(view, 7)
+  const passLength = view.getUint16(3)
+
+  expectTextSize(view, 5, passLength)
+  const commandOffset = 5 + passLength
+  const commandLength = view.getUint16(commandOffset)
+
+  expectTextSize(view, commandOffset + 2, commandLength)
+  const command = textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + commandOffset + 2, commandLength))
+
+  if (command !== 'ban') {
+    throw new Error(`Invalid admin command ${command}`)
+  }
+
+  return {
+    id: view.getUint16(1),
+    pass: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 5, passLength)),
+    command,
   }
 }
 

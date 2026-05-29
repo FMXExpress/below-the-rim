@@ -2,7 +2,7 @@ import { characterFloor } from './character-data.ts'
 import { clamp } from './math.ts'
 import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, outsideBounds, outsideBuddha, outsideCouches,
   outsideDjBooth, outsideDjSpeakers, outsideHut, outsideHutBar, outsideHutBarStools, outsideHutDeckHeight,
-  roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentDoorAngle, tentPole,
+  outsideStage, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentDoorAngle, tentPole,
   tentVideoAngle } from './scene-data.ts'
 import type { Bounds, CircleBounds, Vec3, VideoZone } from './types.ts'
 
@@ -25,6 +25,7 @@ const bartenderStoolCollisions = bartenderStools.map(bounds => paddedBounds(boun
 const seatStools = [...bartenderStools, ...outsideHutBarStools]
 const djSpeakerCollisions = djSpeakers.map(bounds => paddedBounds(bounds))
 const outsideDjBoothCollision = paddedBounds(outsideDjBooth)
+const outsideStageCollision = paddedBounds(outsideStage, 0.12)
 const outsideDjSpeakerCollisions = outsideDjSpeakers.map(bounds => paddedBounds(bounds))
 const tentDjBoothCollision = paddedBounds(tentDjBooth)
 const tentDjSpeakerCollisions = tentDjSpeakers.map(bounds => paddedBounds(bounds))
@@ -46,6 +47,7 @@ const buddhaSeatId = 'buddha'
 const djBoothTop = characterFloor + 0.71
 const speakerTop = characterFloor + 1.82
 const barTop = characterFloor + 0.86
+const outsideStageTop = characterFloor + 4.2
 const platformStep = 0.42
 
 export function walkHeight(x: number, y: number, z: number) {
@@ -99,6 +101,7 @@ export function collideRoom(position: Vec3, outsideTree: CircleBounds, outside =
     if (!onPaddedPlatform(position, outsideDjBoothCollision, djBoothTop)) {
       collidePaddedBounds(position, outsideDjBoothCollision)
     }
+    collidePaddedBounds(position, outsideStageCollision)
     if (!onPaddedPlatform(position, tentDjBoothCollision, djBoothTop)) {
       collidePaddedBounds(position, tentDjBoothCollision)
     }
@@ -178,6 +181,7 @@ export function collideSphereRoom(position: Vec3, radius: number, outsideTree: C
   }
 
   collideSpherePaddedBounds(position, radius, outsideDjBoothCollision, djBoothTop)
+  collideSpherePaddedBounds(position, radius, outsideStageCollision, outsideStageTop)
   collideSpherePaddedBounds(position, radius, tentDjBoothCollision, djBoothTop)
   collideSpherePaddedBounds(position, radius, outsideHutBarCollision, barTop)
 
@@ -209,6 +213,7 @@ export function isWalkable(x: number, z: number, outsideTree: CircleBounds) {
       && !inCircle(x, z, outsideTree)
       && !inCircle(x, z, outsideBuddha)
       && !inPaddedBounds(x, z, outsideDjBoothCollision)
+      && !inPaddedBounds(x, z, outsideStageCollision)
       && !inPaddedBounds(x, z, tentDjBoothCollision)
       && !inPaddedBounds(x, z, outsideHutBarCollision)
       && outsideDjSpeakerCollisions.every(bounds => !inPaddedBounds(x, z, bounds))

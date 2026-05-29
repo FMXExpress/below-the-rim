@@ -13,6 +13,7 @@ export const bartenderStools: Bounds[] = [-2.05, -1.15, -0.25, 0.65, 1.55, 2.25]
   depth: 0.34,
 }))
 export const outsideDjBooth: Bounds = { x: 0, z: 29, width: 3.6, depth: 1.24 }
+export const outsideStage: Bounds = { x: outsideDjBooth.x, z: outsideDjBooth.z + 2.15, width: 8.6, depth: 1.55 }
 export const outsideDjSpeakers: Bounds[] = [
   { x: -4.16, z: 29.08, width: 0.71, depth: 0.79 },
   { x: 4.16, z: 29.08, width: 0.71, depth: 0.79 },

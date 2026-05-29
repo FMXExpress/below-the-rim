@@ -48,7 +48,6 @@ export function createCharacterHairController() {
       hair = index === 0 ? undefined : meshes[index - 1]!
     },
     log() {
-      console.log(`Current hair ${index}: ${hair?.name ?? 'no hair'}`)
     },
   }
 }

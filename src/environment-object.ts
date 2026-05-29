@@ -4,7 +4,7 @@ import { addBox, addDisc, addGrassQuad, addQuad, addTriangle, pack, packSmoke } 
 import { add, mix, scale, subtract } from './math.ts'
 import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, landscapeBounds, outsideBounds, outsideCouches,
   outsideDjBooth, outsideDjSpeakers, outsideHut, outsideHutBar, outsideHutBarStools, outsideHutDeckHeight,
-  outsideVideoWall, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentPole,
+  outsideStage, outsideVideoWall, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentPole,
   tentDoorAngle, tentVideoAngle, tentVideoWall } from './scene-data.ts'
 import { strobeTarget } from './strobe-object.ts'
 import type { Bounds, StrobeLight, Vec3, Vertex, VideoZone } from './types.ts'
@@ -177,16 +177,17 @@ function addTent(target: Vertex[], floor: number) {
 }
 
 function addTentDoorFrame(target: Vertex[], floor: number) {
+  const fuchsia: Vec3 = [1, 0.03, 0.72]
   const side = [Math.cos(tentDoorAngle), 0, -Math.sin(tentDoorAngle)] as Vec3
   const left: Vec3 = [tentDoor.x - side[0] * (tentDoor.width / 2 + 0.06), floor + tentDoor.height / 2,
     tentDoor.z - side[2] * (tentDoor.width / 2 + 0.06)]
   const right: Vec3 = [tentDoor.x + side[0] * (tentDoor.width / 2 + 0.06), floor + tentDoor.height / 2,
     tentDoor.z + side[2] * (tentDoor.width / 2 + 0.06)]
 
-  addBox(target, left[0], left[1], left[2], 0.12, tentDoor.height, 0.12, electricNavy, 3.2)
-  addBox(target, right[0], right[1], right[2], 0.12, tentDoor.height, 0.12, electricNavy, 3.2)
+  addBox(target, left[0], left[1], left[2], 0.12, tentDoor.height, 0.12, fuchsia, 3.2)
+  addBox(target, right[0], right[1], right[2], 0.12, tentDoor.height, 0.12, fuchsia, 3.2)
   addBox(target, tentDoor.x, floor + tentDoor.height + 0.05, tentDoor.z, 0.12, 0.1, tentDoor.width + 0.24,
-    electricNavy, 3.2)
+    fuchsia, 3.2)
 }
 
 function addTentDoorOccluder(target: Vertex[], floor: number) {
@@ -449,7 +450,7 @@ function addOpenAirHutBar(target: Vertex[], floor: number) {
 
 function addOutsideStage(target: Vertex[], floor: number) {
   const dark: Vec3 = [0.005, 0.008, 0.02]
-  const z = outsideDjBooth.z + 2.15
+  const z = outsideStage.z
   const width = 7.4
   const left = outsideDjBooth.x - width / 2
   const right = outsideDjBooth.x + width / 2
@@ -457,7 +458,7 @@ function addOutsideStage(target: Vertex[], floor: number) {
   const top = floor + 4.1
   const centerY = (base + top) / 2
 
-  addBox(target, outsideDjBooth.x, floor + 0.04, z + 0.12, width + 1.2, 0.08, 1.55, dark, 0)
+  addBox(target, outsideStage.x, floor + 0.04, z + 0.12, outsideStage.width, 0.08, outsideStage.depth, dark, 0)
   addBox(target, left, centerY, z, 0.13, top - base, 0.13, electricNavy, 3.2)
   addBox(target, right, centerY, z, 0.13, top - base, 0.13, electricNavy, 3.2)
   addBox(target, outsideDjBooth.x, top, z, width, 0.13, 0.13, electricNavy, 3.2)

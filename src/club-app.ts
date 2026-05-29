@@ -120,6 +120,8 @@ const saveKey = 'club-state'
 const helpSeenKey = 'club-help-seen'
 const bloomScale = 0.5
 const chatLogMax = 15
+let adminPass = ''
+let adminView = false
 const chatPalette = [
   '#ff4fd8',
   '#00f5ff',
@@ -159,15 +161,60 @@ function syncOnlineIndicator() {
 syncOnlineIndicator()
 function addChatLogMessage(id: number, text: string) {
   const row = document.createElement('div')
+  const message = document.createElement('span')
+  const ban = document.createElement('button')
 
   row.className = 'chat-log-message'
   row.style.color = chatUserColor(id)
-  row.textContent = text
+  row.dataset.userId = String(id)
+  message.textContent = text
+  ban.type = 'button'
+  ban.className = 'chat-ban-button'
+  ban.textContent = 'ban'
+  ban.addEventListener('click', event => {
+    event.preventDefault()
+    event.stopPropagation()
+    multiplayer.sendAdmin(adminPass, 'ban', id)
+  })
+  row.append(message, ban)
   chatLog.append(row)
 
   while (chatLog.childElementCount > chatLogMax) {
     chatLog.firstElementChild!.remove()
   }
+}
+
+const adminDialog = document.createElement('dialog')
+const adminForm = document.createElement('form')
+const adminInput = document.createElement('input')
+const adminSubmit = document.createElement('button')
+
+adminDialog.id = 'admin-dialog'
+adminForm.method = 'dialog'
+adminInput.type = 'password'
+adminInput.autocomplete = 'current-password'
+adminInput.placeholder = 'admin pass'
+adminSubmit.type = 'submit'
+adminSubmit.textContent = 'enter'
+adminForm.append(adminInput, adminSubmit)
+adminDialog.append(adminForm)
+document.body.append(adminDialog)
+
+adminForm.addEventListener('submit', () => {
+  adminPass = adminInput.value
+  setAdminView(adminPass.length > 0)
+})
+
+function openAdminDialog() {
+  adminInput.value = adminPass
+  adminDialog.showModal()
+  adminInput.focus()
+}
+
+function setAdminView(value: boolean) {
+  adminView = value
+  chatLog.dataset.admin = String(adminView)
+  onlineIndicator.style.pointerEvents = adminView ? 'auto' : ''
 }
 
 function chatUserColor(id: number) {
@@ -619,6 +666,15 @@ bindKeyboardInput({
   ...styleActions,
 })
 
+addEventListener('keydown', event => {
+  if (event.key !== '`' || adminDialog.open || document.activeElement instanceof HTMLInputElement) {
+    return
+  }
+
+  event.preventDefault()
+  openAdminDialog()
+})
+
 createMobileControls({
   ...styleActions,
   openChatInput: () => chatUi.open(),
@@ -1024,7 +1080,7 @@ frameId = requestAnimationFrame(draw)
 clubGlobal.clubFrameId = frameId
 
 characterRenderSystem.loadOnce().catch((error: unknown) => {
-  console.error(error)
+  void error
 })
 
 loadOutsideTree(gl, treeShadowMap, vertices, outsideTree, addSunLitTriangle)
@@ -1034,7 +1090,7 @@ loadOutsideTree(gl, treeShadowMap, vertices, outsideTree, addSunLitTriangle)
     refreshRoomBuffer()
   })
   .catch((error: unknown) => {
-    console.error(error)
+    void error
   })
 
 loadStaticFbxObject(vertices, {
@@ -1051,5 +1107,5 @@ loadStaticFbxObject(vertices, {
     refreshRoomBuffer()
   })
   .catch((error: unknown) => {
-    console.error(error)
+    void error
   })
