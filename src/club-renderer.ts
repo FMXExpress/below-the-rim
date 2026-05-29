@@ -61,6 +61,7 @@ export function renderClubFrame(options: {
     light: WebGLVertexArrayObject
     post: WebGLVertexArrayObject
     beachBalls: WebGLVertexArrayObject
+    graffiti: WebGLVertexArrayObject
     room: WebGLVertexArrayObject
     smoke: WebGLVertexArrayObject
   }
@@ -89,6 +90,7 @@ export function renderClubFrame(options: {
   doorCoverVisible: boolean
   points: Float32Array
   beachBallPoints: Float32Array
+  graffitiPoints: Float32Array
   post: {
     bloom: WebGLUniformLocation
     bloomResolution: WebGLUniformLocation
@@ -142,6 +144,7 @@ export function renderClubFrame(options: {
   gl.enable(gl.POLYGON_OFFSET_FILL)
   gl.polygonOffset(1, 1)
   gl.drawArrays(gl.TRIANGLES, 0, options.points.length / options.vertexSize)
+  drawGraffiti(options)
   drawBeachBalls(options)
   gl.disable(gl.POLYGON_OFFSET_FILL)
   gl.disable(gl.BLEND)
@@ -202,6 +205,7 @@ export function renderClubFrame(options: {
   gl.enable(gl.POLYGON_OFFSET_FILL)
   gl.polygonOffset(1, 1)
   gl.drawArrays(gl.TRIANGLES, 0, options.points.length / options.vertexSize)
+  drawGraffiti(options)
   drawBeachBalls(options)
   gl.disable(gl.POLYGON_OFFSET_FILL)
   drawCharacters(options, options.bloomTarget.width, options.bloomTarget.height, false)
@@ -211,6 +215,7 @@ export function renderClubFrame(options: {
   gl.uniform1i(options.roomUniforms.bloomPass, 1)
   gl.bindVertexArray(options.arrays.room)
   gl.drawArrays(gl.TRIANGLES, 0, options.points.length / options.vertexSize)
+  drawGraffiti(options)
   gl.depthFunc(gl.LEQUAL)
   drawCharacterVertexGeometry(options)
   drawCharacterBoxes({
@@ -277,6 +282,15 @@ function drawBeachBalls(options: Parameters<typeof renderClubFrame>[0]) {
 
   options.gl.bindVertexArray(options.arrays.beachBalls)
   options.gl.drawArrays(options.gl.TRIANGLES, 0, options.beachBallPoints.length / options.vertexSize)
+}
+
+function drawGraffiti(options: Parameters<typeof renderClubFrame>[0]) {
+  if (options.graffitiPoints.length === 0) {
+    return
+  }
+
+  options.gl.bindVertexArray(options.arrays.graffiti)
+  options.gl.drawArrays(options.gl.TRIANGLES, 0, options.graffitiPoints.length / options.vertexSize)
 }
 
 function drawCharacters(options: Parameters<typeof renderClubFrame>[0], width: number, height: number, hair: boolean) {

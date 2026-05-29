@@ -1,4 +1,4 @@
-import type { BeachBall, Vec3 } from './types.ts'
+import type { BeachBall, GraffitiSplat, Vec3 } from './types.ts'
 import type { CharacterMode, PlayerStyle, VideoZone } from './types.ts'
 
 export const C_MOTION = 1
@@ -12,11 +12,12 @@ export const C_HEARTBEAT = 9
 export const S_ONLINE = 10
 export const VIDEO_STATE = 11
 export const BEACH_BALLS = 12
+export const GRAFFITI = 13
 
 export const roomCount = 3
 export const messageMaxLength = 120
 export const positionScale = 100
-export const protocolVersion = 12
+export const protocolVersion = 13
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -61,6 +62,10 @@ export type VideoStatePacket = {
 
 export type BeachBallPacket = {
   balls: BeachBall[]
+}
+
+export type GraffitiPacket = {
+  splats: GraffitiSplat[]
 }
 
 const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting', 'jump']
@@ -257,6 +262,50 @@ export function decodeBeachBalls(view: DataView): BeachBallPacket {
   }
 
   return { balls }
+}
+
+export function encodeGraffiti(packet: GraffitiPacket) {
+  const data = new ArrayBuffer(3 + packet.splats.length * 13)
+  const view = new DataView(data)
+  let offset = 3
+
+  view.setUint8(0, GRAFFITI)
+  view.setUint16(1, packet.splats.length)
+
+  for (const splat of packet.splats) {
+    view.setUint32(offset, splat.id)
+    view.setUint8(offset + 4, splat.wall)
+    view.setInt16(offset + 5, sceneToProtocol(splat.x))
+    view.setInt16(offset + 7, sceneToProtocol(splat.y))
+    view.setUint16(offset + 9, splat.seed)
+    view.setUint8(offset + 11, splat.colorIndex)
+    view.setUint8(offset + 12, 0)
+    offset += 13
+  }
+
+  return data
+}
+
+export function decodeGraffiti(view: DataView): GraffitiPacket {
+  expectAtLeastSize(view, 3)
+  const count = view.getUint16(1)
+  expectSize(view, 3 + count * 13)
+  const splats: GraffitiSplat[] = []
+  let offset = 3
+
+  for (let i = 0; i < count; i++) {
+    splats.push({
+      id: view.getUint32(offset),
+      wall: view.getUint8(offset + 4),
+      x: protocolToScene(view.getInt16(offset + 5)),
+      y: protocolToScene(view.getInt16(offset + 7)),
+      seed: view.getUint16(offset + 9),
+      colorIndex: view.getUint8(offset + 11),
+    })
+    offset += 13
+  }
+
+  return { splats }
 }
 
 export function encodeSpawn(packet: SpawnPacket) {

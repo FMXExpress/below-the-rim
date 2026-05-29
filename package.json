@@ -12,7 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "assimpjs": "^0.0.10"
+    "assimpjs": "^0.0.10",
+    "lmdb": "^3.5.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",

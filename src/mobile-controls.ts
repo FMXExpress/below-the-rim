@@ -94,10 +94,15 @@ export function bindTapDestination(options: {
   jump: () => void
   projector: WallProjector
   setDestination: (value: Vec3) => void
+  ignorePointer?: (event: PointerEvent) => boolean
 }) {
   let pointer: PointerState | undefined
 
   options.canvas.addEventListener('pointerdown', event => {
+    if (options.ignorePointer?.(event)) {
+      return
+    }
+
     if (event.pointerType === 'mouse') {
       return
     }

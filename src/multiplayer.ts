@@ -6,6 +6,7 @@ import {
   decodeKeys,
   decodeLeave,
   decodeBeachBalls,
+  decodeGraffiti,
   decodeOnline,
   decodeRoomState,
   decodeServerMessage,
@@ -16,6 +17,7 @@ import {
   encodeClientMotion,
   encodeHeartbeat,
   encodeBeachBalls,
+  encodeGraffiti,
   encodeKeys,
   encodeRoomChange,
   encodeVideoState,
@@ -35,10 +37,11 @@ import {
   type VideoStateEntry,
   truncateMessage,
   BEACH_BALLS,
+  GRAFFITI,
   VIDEO_STATE,
 } from './protocol.ts'
 import { collideRoom, isOutside, seatAt, walkHeight } from './scene.ts'
-import type { BeachBall, CharacterMode, CircleBounds, Player, Vec3 } from './types.ts'
+import type { BeachBall, CharacterMode, CircleBounds, GraffitiSplat, Player, Vec3 } from './types.ts'
 
 export function createMultiplayer(options: {
   localPosition: Vec3
@@ -62,6 +65,7 @@ export function createMultiplayer(options: {
   onOnlineCount: (count: number) => void
   onVideoState: (entries: VideoStateEntry[], preserveSameTrack: boolean) => void
   onBeachBalls: (balls: BeachBall[]) => void
+  onGraffiti: (splats: GraffitiSplat[]) => void
   videoState: () => VideoStateEntry[]
 }) {
   const players = new Map<number, Player>()
@@ -100,7 +104,7 @@ export function createMultiplayer(options: {
       clearTimeout(reconnect)
       heartbeat = setInterval(() => send(encodeHeartbeat()), heartbeatInterval)
       videoSync = setInterval(() => sendVideoState(), videoSyncInterval)
-      room = Number(!isOutside(options.localPosition))
+      room = options.initialRoom
       sendMotion()
       send(encodeRoomChange(room))
       flush()
@@ -202,6 +206,11 @@ export function createMultiplayer(options: {
       return
     }
 
+    if (type === GRAFFITI) {
+      options.onGraffiti(decodeGraffiti(view).splats)
+      return
+    }
+
     if (type === MESSAGE) {
       const message = decodeServerMessage(view)
 
@@ -282,6 +291,9 @@ export function createMultiplayer(options: {
     sendMotion,
     sendBeachBalls(balls: BeachBall[]) {
       send(encodeBeachBalls({ balls }))
+    },
+    sendGraffiti(splats: GraffitiSplat[]) {
+      send(encodeGraffiti({ splats }))
     },
     sendMotionIfKeysChanged() {
       const mode = options.localMode()

@@ -13,6 +13,7 @@ import { createSaveTimer, readClubState } from './club-state.ts'
 import { createDjVideoUi } from './dj-video-ui.ts'
 import { getDomElements } from './dom-elements.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
+import { addGraffitiGeometry, graffitiColors, maxGraffitiSplats, sprayWallPoint } from './graffiti.ts'
 import { createHelpUi } from './help-ui.ts'
 import { bindKeyboardInput, setAlternativeInput } from './input.ts'
 import { createLocalCharacter } from './local-character.ts'
@@ -292,6 +293,8 @@ const postArray = gl.createVertexArray()
 const postBuffer = gl.createBuffer()
 const beachBallArray = gl.createVertexArray()
 const beachBallBuffer = gl.createBuffer()
+const graffitiArray = gl.createVertexArray()
+const graffitiBuffer = gl.createBuffer()
 const target = createTarget(gl, 1, 1)
 const bloomTarget = createTarget(gl, 1, 1)
 const stride = vertexSize * Float32Array.BYTES_PER_ELEMENT
@@ -312,7 +315,7 @@ if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisi
   || !buffer || !lightArray || !lightBuffer || !strobeArray || !strobeGeometryBuffer || !strobeInstanceBuffer
   || !smokeArray || !smokeBuffer || !characterArray || !characterBuffer
   || !characterBoxArray || !characterBoxGeometryBuffer || !characterBoxInstanceBuffer || !postArray || !postBuffer
-  || !beachBallArray || !beachBallBuffer)
+  || !beachBallArray || !beachBallBuffer || !graffitiArray || !graffitiBuffer)
 {
   throw new Error('Failed to initialize WebGL resources')
 }
@@ -356,6 +359,7 @@ setupCharacterBoxArray({
 })
 setupPostArray({ array: postArray, buffer: postBuffer, gl })
 setupVertexArray({ array: beachBallArray, buffer: beachBallBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
+setupVertexArray({ array: graffitiArray, buffer: graffitiBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 
 gl.enable(gl.DEPTH_TEST)
 gl.clearColor(0.01, 0.01, 0.014, 1.0)
@@ -426,6 +430,9 @@ const beachBalls = createBeachBalls()
 let beachBallPoints = new Float32Array()
 const beachBallAuthorityUntil = new Map<number, number>()
 const beachBallAuthorityDuration = 2000
+const graffitiSplats: import('./types.ts').GraffitiSplat[] = []
+let graffitiPoints = new Float32Array()
+let graffitiSeed = Math.floor(Math.random() * 65536)
 
 multiplayer = createMultiplayer({
   localPosition: characterPosition,
@@ -504,6 +511,13 @@ multiplayer = createMultiplayer({
       target.velocity[2] = ball.velocity[2]
     }
   },
+  onGraffiti: splats => {
+    graffitiSplats.push(...splats)
+    if (graffitiSplats.length > maxGraffitiSplats) {
+      graffitiSplats.splice(0, graffitiSplats.length - maxGraffitiSplats)
+    }
+    updateGraffitiBuffer()
+  },
   videoState: () => djVideoUi.states(),
 })
 clubGlobal.clubMultiplayerClose = () => multiplayer.close()
@@ -563,9 +577,35 @@ createMobileControls({
 })
 bindTapDestination({
   canvas,
+  ignorePointer: event => event.pointerType === 'mouse' && styleController.accessoryIndex > 0,
   jump: () => localCharacter.jump(),
   projector: wallProjector,
   setDestination: value => localCharacter.setDestination(value, seatAt(value, occupiedSeats, 0.46, true)),
+})
+
+canvas.addEventListener('pointerdown', event => {
+  if (event.pointerType !== 'mouse' || styleController.accessoryIndex === 0) {
+    return
+  }
+
+  const hit = sprayWallPoint(event.clientX, event.clientY, wallProjector)
+
+  if (!hit) {
+    return
+  }
+
+  const splat = {
+    id: 0,
+    wall: hit.wall,
+    x: hit.x,
+    y: hit.y,
+    seed: graffitiSeed++ & 0xffff,
+    colorIndex: (styleController.accessoryIndex - 1) % graffitiColors.length,
+  }
+
+  graffitiSplats.push(splat)
+  updateGraffitiBuffer()
+  multiplayer.sendGraffiti([splat])
 })
 
 chatForm.addEventListener('submit', event => {
@@ -694,6 +734,7 @@ const draw = (stamp: number) => {
       light: lightArray,
       post: postArray,
       beachBalls: beachBallArray,
+      graffiti: graffitiArray,
       room: array,
       smoke: smokeArray,
     },
@@ -727,6 +768,7 @@ const draw = (stamp: number) => {
     renderZone: renderZoneIndex(zone),
     points,
     beachBallPoints,
+    graffitiPoints,
     post: {
       bloom: postBloom,
       bloomResolution: postBloomResolution,
@@ -778,6 +820,15 @@ function updateBeachBallBuffer() {
   beachBallPoints = new Float32Array(points.flat())
   gl.bindBuffer(gl.ARRAY_BUFFER, beachBallBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, beachBallPoints, gl.DYNAMIC_DRAW)
+}
+
+function updateGraffitiBuffer() {
+  const points: Vertex[] = []
+
+  addGraffitiGeometry(points, graffitiSplats)
+  graffitiPoints = new Float32Array(points.flat())
+  gl.bindBuffer(gl.ARRAY_BUFFER, graffitiBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, graffitiPoints, gl.DYNAMIC_DRAW)
 }
 
 function updateIntro() {

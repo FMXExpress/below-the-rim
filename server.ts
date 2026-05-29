@@ -6,6 +6,7 @@ import {
   decodeClientMessage,
   decodeBeachBalls,
   decodeClientMotion,
+  decodeGraffiti,
   decodeRoomChange,
   decodeVideoState,
   encodeLeave,
@@ -13,6 +14,7 @@ import {
   encodeRoomState,
   encodeServerMessage,
   encodeBeachBalls,
+  encodeGraffiti,
   encodeServerMotion,
   encodeSpawn,
   encodeVideoState,
@@ -25,14 +27,18 @@ import {
   type MotionPacket,
   type VideoStateEntry,
   truncateMessage,
+  GRAFFITI,
   VIDEO_STATE,
 } from './src/protocol.ts'
 import { hairPalette, jewelPalette, skinPalette } from './src/character-data.ts'
 import { accessoryPalette } from './src/character-style.ts'
 import { createBeachBalls } from './src/beach-balls.ts'
+import { maxGraffitiSplats } from './src/graffiti.ts'
 import { outsideBounds, roomBounds, videoStartTimes, videoTracks } from './src/scene-data.ts'
-import { seatAt } from './src/scene.ts'
+import { roomAt, seatAt } from './src/scene.ts'
 import { extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { open } from 'lmdb'
+import type { GraffitiSplat } from './src/types.ts'
 
 type Client = {
   id: number
@@ -68,6 +74,9 @@ let videoStateSynced = false
 let beachBalls = createBeachBalls()
 const beachBallAuthorities = createBeachBalls().map(() => ({ client: 0, until: 0 }))
 const beachBallAuthorityDuration = 2000
+const graffitiDb = open<GraffitiSplat>({ path: join(import.meta.dir, 'data', 'graffiti.lmdb'), compression: true })
+let graffitiSplats = await loadGraffitiSplats()
+let nextGraffitiId = (graffitiSplats.at(-1)?.id ?? 0) + 1
 let nextId = 1
 
 type MemoryAsset = {
@@ -144,10 +153,11 @@ const server = Bun.serve<SocketData>({
         sendVideoState(client)
       }
       sendBeachBalls(client)
+      sendGraffiti(client)
       broadcastOnline()
       broadcast(client.room, encodeSpawn(client.pose), client)
     },
-    message(socket, message) {
+    async message(socket, message) {
       const client = clients.get(socket)!
 
       try {
@@ -219,6 +229,16 @@ const server = Bun.serve<SocketData>({
 
           if (appliedBalls.length > 0) {
             broadcastBeachBalls(appliedBalls)
+          }
+
+          return
+        }
+
+        if (type === GRAFFITI) {
+          const splats = await saveGraffiti(validateGraffiti(decodeGraffiti(view).splats))
+
+          if (splats.length > 0) {
+            broadcastGraffiti(splats)
           }
 
           return
@@ -697,8 +717,9 @@ function validateMotionStep(client: Client, motion: MotionPacket) {
 function clientPoseRoom(client: Client) {
   const x = protocolToScene(client.pose.x)
   const z = protocolToScene(client.pose.y)
+  const zone = roomAt([x, 0, z])
 
-  return Number(!(x < roomBounds.left || x > roomBounds.right || z < roomBounds.back || z > roomBounds.front))
+  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : 0
 }
 
 function sendRoomState(client: Client) {
@@ -723,6 +744,10 @@ function broadcastVideoState() {
 
 function sendBeachBalls(client: Client) {
   client.socket.send(encodeBeachBalls({ balls: beachBalls }))
+}
+
+function sendGraffiti(client: Client) {
+  client.socket.send(encodeGraffiti({ splats: graffitiSplats }))
 }
 
 function pickVideoState() {
@@ -829,6 +854,58 @@ function applyBeachBalls(client: Client, balls: ReturnType<typeof createBeachBal
 
 function broadcastBeachBalls(balls = beachBalls) {
   const data = encodeBeachBalls({ balls })
+
+  for (const client of clients.values()) {
+    client.socket.send(data)
+  }
+}
+
+function validateGraffiti(splats: GraffitiSplat[]) {
+  for (const splat of splats) {
+    if (splat.wall > 3 || splat.x < -30 || splat.x > 30 || splat.y < -2 || splat.y > 4
+      || splat.seed > 65535 || splat.colorIndex >= accessoryPalette.length)
+    {
+      throw new Error('Invalid graffiti splat')
+    }
+  }
+
+  return splats.slice(0, 8)
+}
+
+async function saveGraffiti(splats: GraffitiSplat[]) {
+  const saved: GraffitiSplat[] = []
+
+  for (const splat of splats) {
+    const next = { ...splat, id: nextGraffitiId++ }
+
+    graffitiSplats.push(next)
+    saved.push(next)
+    await graffitiDb.put(next.id, next)
+  }
+
+  while (graffitiSplats.length > maxGraffitiSplats) {
+    const removed = graffitiSplats.shift()!
+
+    await graffitiDb.remove(removed.id)
+  }
+
+  return saved
+}
+
+async function loadGraffitiSplats() {
+  const splats: GraffitiSplat[] = []
+
+  for await (const { value } of graffitiDb.getRange()) {
+    splats.push(value)
+  }
+
+  splats.sort((a, b) => a.id - b.id)
+
+  return splats.slice(-maxGraffitiSplats)
+}
+
+function broadcastGraffiti(splats: GraffitiSplat[]) {
+  const data = encodeGraffiti({ splats })
 
   for (const client of clients.values()) {
     client.socket.send(data)

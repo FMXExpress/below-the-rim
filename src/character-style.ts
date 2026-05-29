@@ -1,19 +1,12 @@
 import { hairPalette, jewelPalette, pants, shirt, shirtLight, shoe, skin, skinPalette } from './character-data.ts'
+import { graffitiColors } from './graffiti.ts'
 import { normalizeIndex, scale, setVec3 } from './math.ts'
 import type { BottomMode, PlayerStyle, ResolvedPlayerStyle, TopMode } from './types.ts'
 import type { Vec3 } from './types.ts'
 
 const topStyleCache = new Map<number, ReturnType<typeof createTopStyleData>>()
 const resolvedStyleCache = new Map<number, ResolvedPlayerStyle>()
-export const accessoryPalette: Vec3[] = [
-  [1, 0.03, 0.02],
-  [1, 0.03, 0.7],
-  [0.05, 0.82, 1],
-  [0, 1, 0.18],
-  [1, 0.9, 0.04],
-  [0.6, 0.12, 1],
-  [1, 0.22, 0.04],
-]
+export const accessoryPalette: Vec3[] = graffitiColors
 
 export function createCharacterStyleController() {
   let shirtColorIndex = 0

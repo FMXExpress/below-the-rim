@@ -197,6 +197,15 @@ export type BeachBall = {
   velocity: Vec3
 }
 
+export type GraffitiSplat = {
+  id: number
+  wall: number
+  x: number
+  y: number
+  seed: number
+  colorIndex: number
+}
+
 export type SampledPose = {
   stand: Vec3[]
   run: Vec3[]
