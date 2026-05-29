@@ -112,6 +112,7 @@ const hairForward: Vec3 = [0, 0, 0]
 const glowstickA: Vec3 = [0, 0, 0]
 const glowstickB: Vec3 = [0, 0, 0]
 const glowstickSide: Vec3 = [0, 0, 0]
+const sprayCanNozzleSide: Vec3 = [0, 1, 0]
 const sprayCanCapA: Vec3 = [0, 0, 0]
 const sprayCanCapB: Vec3 = [0, 0, 0]
 const sprayCanNozzleA: Vec3 = [0, 0, 0]
@@ -280,7 +281,7 @@ function addGlowstick(
   const dz = hand[2] - foreArm[2]
   const sideX = turn.cos
   const sideZ = -turn.sin
-  const handSide = Math.sign((hand[0] - torso[0]) * sideX + (hand[2] - torso[2]) * sideZ)
+  const handSide = handSideSign(hand, torso, sideX, sideZ)
   const crossX = -dy * sideZ
   const crossY = dz * sideX - dx * sideZ
   const crossZ = dy * sideX
@@ -340,7 +341,7 @@ function addSprayCanAtHand(
   const dz = hand[2] - foreArm[2]
   const sideX = turn.cos
   const sideZ = -turn.sin
-  const handSide = Math.sign((hand[0] - torso[0]) * sideX + (hand[2] - torso[2]) * sideZ)
+  const handSide = handSideSign(hand, torso, sideX, sideZ)
   const centerX = hand[0] + sideX * handSide * 0.16 + dx * 0.04
   const centerY = hand[1] - 0.08 + dy * 0.04
   const centerZ = hand[2] + sideZ * handSide * 0.16 + dz * 0.04
@@ -376,7 +377,11 @@ function addSprayCanAtHand(
   sprayCanNozzleB[1] = centerY + 0.19
   sprayCanNozzleB[2] = centerZ + sideZ * handSide * 0.13
   addCharacterBox(target, boxInstances, sprayCanNozzleA, sprayCanNozzleB, 0.035, 0.035, color, 0.12,
-    player.turn, localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
+    player.turn, localReflection, light, 0, turn.sin, turn.cos, { side: sprayCanNozzleSide })
+}
+
+function handSideSign(hand: Vec3, torso: Vec3, sideX: number, sideZ: number) {
+  return (hand[0] - torso[0]) * sideX + (hand[2] - torso[2]) * sideZ >= 0 ? 1 : -1
 }
 
 function bodySampleTime(time: number, distanceSq: number) {
