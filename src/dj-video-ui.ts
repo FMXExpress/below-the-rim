@@ -44,6 +44,7 @@ export function createDjVideoUi(
   const players: Partial<Record<VideoZone, YouTubePlayer>> = {}
   const ready: Partial<Record<VideoZone, boolean>> = {}
   const pendingStarts: Partial<Record<VideoZone, number>> = {}
+  const pendingLoops: Partial<Record<VideoZone, boolean>> = {}
   let zone: VideoZone = roomAt(position)
   const setElementStyle = createStyleSetter(element.style)
   const setInsideStyle = createStyleSetter(layers.inside.style)
@@ -159,7 +160,7 @@ export function createDjVideoUi(
                 }
 
                 if (event.data === endedState) {
-                  loopVideo(area, players, pendingStarts, times)
+                  loopVideo(area, zone, players, pendingStarts, pendingLoops, times)
                   pauseOtherVideos(area, players, ready)
                 }
                 else {
@@ -368,14 +369,36 @@ function pauseOtherVideos(
 
 function loopVideo(
   area: VideoZone,
+  zone: VideoZone,
   players: Partial<Record<VideoZone, YouTubePlayer>>,
   pendingStarts: Partial<Record<VideoZone, number>>,
+  pendingLoops: Partial<Record<VideoZone, boolean>>,
   times: Record<VideoZone, number>,
 ) {
+  if (pendingLoops[area]) {
+    return
+  }
+
   times[area] = videoStartTimes[area]
   pendingStarts[area] = times[area]
-  players[area]!.seekTo(times[area], true)
-  players[area]!.playVideo()
+  pendingLoops[area] = true
+  setTimeout(() => {
+    delete pendingLoops[area]
+
+    if (area !== zone) {
+      players[area]!.pauseVideo()
+      return
+    }
+
+    players[area]!.loadVideoById({
+      videoId: trackIdForLoop(area, players),
+      startSeconds: times[area],
+    })
+  }, 0)
+}
+
+function trackIdForLoop(area: VideoZone, players: Partial<Record<VideoZone, YouTubePlayer>>) {
+  return players[area]!.getVideoData()?.video_id || videoTracks[area]
 }
 
 function videoStateTime(zone: VideoZone, id: string, time: number) {
