@@ -11,6 +11,7 @@ type OutsideTreeOptions = {
   color: (index: number) => Vec3
   height: number
   name: string
+  nodeTransforms: boolean
   path: string
   shadow: boolean
   sourceUp: 'y' | 'z'
@@ -26,13 +27,15 @@ export async function loadOutsideTree(
     color: index => treeMeshColor(index),
     height: 12.9,
     name: 'trees.fbx',
+    nodeTransforms: false,
     path: '/trees.fbx',
     shadow: true,
     sourceUp: 'z',
   },
 ) {
   const trees = await loadAssimpScene(options.path, options.name)
-  const meshes = createTreeMeshes(trees, options.name, options.height, options.color, options.sourceUp)
+  const meshes = createTreeMeshes(trees, options.name, options.height, options.color, options.sourceUp,
+    options.nodeTransforms)
   const positionY = options.sourceUp === 'y' ? characterFloor : characterFloor + options.height * 0.287
   const position: Vec3 = [outsideTree.x, positionY, outsideTree.z]
   const collision = treeCollision(meshes, position)

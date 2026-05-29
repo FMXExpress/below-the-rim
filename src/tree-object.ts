@@ -13,9 +13,10 @@ export function createTreeMeshes(
   height = 12.9,
   color: TreeMeshColor = treeMeshColor,
   sourceUp: SourceUp = 'z',
+  nodeTransforms = false,
 ): TreeMesh[] {
   const instances = collectMeshInstances(scene.rootnode)
-  const meshInstances = instances.length > 0
+  const meshInstances = nodeTransforms && instances.length > 0
     ? instances
     : scene.meshes!.map((_, index) => ({ index, transform: identity() }))
   const meshes = meshInstances.map(instance => {
@@ -83,7 +84,7 @@ function normalizeTreeMeshes(meshes: TreeMesh[], height: number, sourceUp: Sourc
   const centerX = (min[0] + max[0]) * 0.5
   const yUp = sourceUp === 'y'
   const centerZ = (min[2] + max[2]) * 0.5
-  const sourceHeight = yUp ? max[1] - min[1] : max[2] - min[2]
+  const sourceHeight = max[1] - min[1]
   const amount = height / sourceHeight
   const turn = Math.PI / 4
   const turnX = Math.cos(turn)
