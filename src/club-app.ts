@@ -451,6 +451,8 @@ multiplayer = createMultiplayer({
   onOnlineCount: count => {
     onlineCount.textContent = `${count} online`
   },
+  onVideoState: entries => djVideoUi.applyStates(entries),
+  videoState: () => djVideoUi.states(),
 })
 
 const styleActions: Record<'cycleHair' | 'cycleHairColor' | 'cycleSkin' | 'cycleIdle' | 'cycleShirt' | 'cyclePants',

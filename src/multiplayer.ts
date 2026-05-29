@@ -10,11 +10,13 @@ import {
   decodeServerMessage,
   decodeServerMotion,
   decodeSpawn,
+  decodeVideoState,
   encodeClientMessage,
   encodeClientMotion,
   encodeHeartbeat,
   encodeKeys,
   encodeRoomChange,
+  encodeVideoState,
   MESSAGE,
   modeToProtocol,
   protocolToAngle,
@@ -28,7 +30,9 @@ import {
   S_SPAWN,
   sceneToProtocol,
   type SpawnPacket,
+  type VideoStateEntry,
   truncateMessage,
+  VIDEO_STATE,
 } from './protocol.ts'
 import { collideRoom, isOutside, seatAt, walkHeight } from './scene.ts'
 import type { CharacterMode, CircleBounds, Player, Vec3 } from './types.ts'
@@ -52,6 +56,8 @@ export function createMultiplayer(options: {
   onMessage: (id: number, text: string) => void
   onLeave: (id: number) => void
   onOnlineCount: (count: number) => void
+  onVideoState: (entries: VideoStateEntry[]) => void
+  videoState: () => VideoStateEntry[]
 }) {
   const players = new Map<number, Player>()
   let url: string
@@ -62,9 +68,11 @@ export function createMultiplayer(options: {
     url = `ws://${location.hostname}:3001?protocol=${protocolVersion}`
   }
   const heartbeatInterval = 5_000
+  const videoSyncInterval = 10_000
   const reconnectDelay = 1_500
   let socket = connect()
   let heartbeat = 0
+  let videoSync = 0
   let reconnect = 0
   let closed = false
   const pending: ArrayBuffer[] = []
@@ -82,13 +90,16 @@ export function createMultiplayer(options: {
     next.addEventListener('open', () => {
       clearTimeout(reconnect)
       heartbeat = setInterval(() => send(encodeHeartbeat()), heartbeatInterval)
+      videoSync = setInterval(() => sendVideoState(), videoSyncInterval)
       room = Number(!isOutside(options.localPosition))
       sendMotion()
       send(encodeRoomChange(room))
+      sendVideoState()
       flush()
     })
     next.addEventListener('close', () => {
       clearInterval(heartbeat)
+      clearInterval(videoSync)
 
       if (!closed) {
         reconnect = setTimeout(() => {
@@ -167,6 +178,11 @@ export function createMultiplayer(options: {
       return
     }
 
+    if (type === VIDEO_STATE) {
+      options.onVideoState(decodeVideoState(view).entries)
+      return
+    }
+
     if (type === MESSAGE) {
       const message = decodeServerMessage(view)
 
@@ -219,6 +235,10 @@ export function createMultiplayer(options: {
     lastHeight = height
   }
 
+  function sendVideoState() {
+    send(encodeVideoState({ entries: options.videoState() }))
+  }
+
   return {
     players,
     get selfId() {
@@ -255,6 +275,7 @@ export function createMultiplayer(options: {
     close() {
       closed = true
       clearInterval(heartbeat)
+      clearInterval(videoSync)
       clearTimeout(reconnect)
       socket.close()
     },

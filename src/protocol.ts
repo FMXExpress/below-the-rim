@@ -1,5 +1,5 @@
 import type { Vec3 } from './types.ts'
-import type { CharacterMode, PlayerStyle } from './types.ts'
+import type { CharacterMode, PlayerStyle, VideoZone } from './types.ts'
 
 export const C_MOTION = 1
 export const S_ROOM_STATE = 2
@@ -10,11 +10,12 @@ export const S_SPAWN = 7
 export const MESSAGE = 8
 export const C_HEARTBEAT = 9
 export const S_ONLINE = 10
+export const VIDEO_STATE = 11
 
 export const roomCount = 3
 export const messageMaxLength = 120
 export const positionScale = 100
-export const protocolVersion = 2
+export const protocolVersion = 3
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -47,7 +48,18 @@ export type MessagePacket = {
   text: string
 }
 
+export type VideoStateEntry = {
+  zone: VideoZone
+  id: string
+  time: number
+}
+
+export type VideoStatePacket = {
+  entries: VideoStateEntry[]
+}
+
 const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting', 'jump']
+const protocolVideoZones: VideoZone[] = ['inside', 'outside', 'tent']
 
 export function modeToProtocol(mode: CharacterMode) {
   return protocolModes.indexOf(mode)
@@ -143,6 +155,54 @@ export function decodeOnline(view: DataView) {
   expectSize(view, 3)
 
   return view.getUint16(1)
+}
+
+export function encodeVideoState(packet: VideoStatePacket) {
+  const encoded = packet.entries.map(entry => ({
+    ...entry,
+    bytes: textEncoder.encode(entry.id),
+  }))
+  const size = 2 + encoded.reduce((total, entry) => total + 7 + entry.bytes.length, 0)
+  const data = new ArrayBuffer(size)
+  const view = new DataView(data)
+  let offset = 2
+
+  view.setUint8(0, VIDEO_STATE)
+  view.setUint8(1, encoded.length)
+
+  for (const entry of encoded) {
+    view.setUint8(offset, videoZoneToProtocol(entry.zone))
+    view.setUint32(offset + 1, Math.round(entry.time * 1000))
+    view.setUint16(offset + 5, entry.bytes.length)
+    new Uint8Array(data, offset + 7).set(entry.bytes)
+    offset += 7 + entry.bytes.length
+  }
+
+  return data
+}
+
+export function decodeVideoState(view: DataView): VideoStatePacket {
+  expectAtLeastSize(view, 2)
+
+  const count = view.getUint8(1)
+  const entries: VideoStateEntry[] = []
+  let offset = 2
+
+  for (let i = 0; i < count; i++) {
+    expectAtLeastSize(view, offset + 7)
+    const zone = protocolToVideoZone(view.getUint8(offset))
+    const time = view.getUint32(offset + 1) / 1000
+    const length = view.getUint16(offset + 5)
+    expectAtLeastSize(view, offset + 7 + length)
+    const id = textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + offset + 7, length))
+
+    entries.push({ zone, id, time })
+    offset += 7 + length
+  }
+
+  expectSize(view, offset)
+
+  return { entries }
 }
 
 export function encodeSpawn(packet: SpawnPacket) {
@@ -292,6 +352,20 @@ function expectTextSize(view: DataView, offset: number, length: number) {
   if (view.byteLength !== size) {
     throw new Error(`Invalid text packet size ${view.byteLength}, expected ${size}`)
   }
+}
+
+function videoZoneToProtocol(zone: VideoZone) {
+  return protocolVideoZones.indexOf(zone)
+}
+
+function protocolToVideoZone(zone: number) {
+  const next = protocolVideoZones[zone]
+
+  if (next === undefined) {
+    throw new Error(`Invalid video zone ${zone}`)
+  }
+
+  return next
 }
 
 function writeSpawn(view: DataView, offset: number, packet: SpawnPacket) {

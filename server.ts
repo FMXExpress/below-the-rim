@@ -5,12 +5,14 @@ import {
   decodeClientMessage,
   decodeClientMotion,
   decodeRoomChange,
+  decodeVideoState,
   encodeLeave,
   encodeOnline,
   encodeRoomState,
   encodeServerMessage,
   encodeServerMotion,
   encodeSpawn,
+  encodeVideoState,
   MESSAGE,
   positionScale,
   protocolVersion,
@@ -18,10 +20,12 @@ import {
   roomCount,
   type SpawnPacket,
   type MotionPacket,
+  type VideoStateEntry,
   truncateMessage,
+  VIDEO_STATE,
 } from './src/protocol.ts'
 import { hairPalette, jewelPalette, skinPalette } from './src/character-data.ts'
-import { outsideBounds, roomBounds } from './src/scene-data.ts'
+import { outsideBounds, roomBounds, videoStartTimes, videoTracks } from './src/scene-data.ts'
 import { seatAt } from './src/scene.ts'
 import { extname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -33,6 +37,7 @@ type Client = {
   poseSynced: boolean
   room: number
   socket: Bun.ServerWebSocket<SocketData>
+  videoState: VideoStateEntry[]
   pose: SpawnPacket
 }
 
@@ -53,6 +58,7 @@ const maxClientStep = 1.2
 const maxHairIndex = 32
 const memoryAssetMaxSize = 2 * 1024 * 1024
 const memoryAssets = new Map<string, MemoryAsset>()
+let videoState = initialVideoState()
 let nextId = 1
 
 type MemoryAsset = {
@@ -102,6 +108,7 @@ const server = Bun.serve<SocketData>({
         poseSynced: false,
         room: 0,
         socket,
+        videoState,
         pose: {
           id,
           x: 0,
@@ -124,6 +131,7 @@ const server = Bun.serve<SocketData>({
       clients.set(socket, client)
       addToRoom(client, 0)
       sendRoomState(client)
+      sendVideoState(client)
       broadcastOnline()
       broadcast(client.room, encodeSpawn(client.pose), client)
     },
@@ -166,6 +174,12 @@ const server = Bun.serve<SocketData>({
             broadcast(client.room, encodeServerMessage({ id: client.id, text }))
           }
 
+          return
+        }
+
+        if (type === VIDEO_STATE) {
+          client.videoState = validateVideoState(decodeVideoState(view).entries)
+          pickVideoState()
           return
         }
 
@@ -651,6 +665,55 @@ function sendRoomState(client: Client) {
     room: client.room,
     players: [...rooms[client.room]!.values()].map(player => player.pose),
   }))
+}
+
+function sendVideoState(client: Client) {
+  client.socket.send(encodeVideoState({ entries: videoState }))
+}
+
+function pickVideoState() {
+  const synced = [...clients.values()].filter(client => client.videoState.length > 0)
+
+  if (synced.length === 0) {
+    videoState = initialVideoState()
+    return
+  }
+
+  videoState = synced[Math.floor(Math.random() * synced.length)]!.videoState
+}
+
+function initialVideoState(): VideoStateEntry[] {
+  return [
+    { zone: 'inside', id: videoTracks.inside, time: videoStartTimes.inside },
+    { zone: 'outside', id: videoTracks.outside, time: videoStartTimes.outside },
+    { zone: 'tent', id: videoTracks.tent, time: videoStartTimes.tent },
+  ]
+}
+
+function validateVideoState(entries: VideoStateEntry[]) {
+  const seen = new Set<string>()
+
+  for (const entry of entries) {
+    if (seen.has(entry.zone)) {
+      throw new Error(`Duplicate video zone ${entry.zone}`)
+    }
+
+    if (!/^[\w-]{6,32}$/.test(entry.id)) {
+      throw new Error(`Invalid video id ${entry.id}`)
+    }
+
+    if (!Number.isFinite(entry.time) || entry.time < 0 || entry.time > 86400) {
+      throw new Error(`Invalid video time ${entry.time}`)
+    }
+
+    seen.add(entry.zone)
+  }
+
+  if (seen.size !== roomCount) {
+    throw new Error(`Invalid video state count ${seen.size}`)
+  }
+
+  return entries
 }
 
 function syncRooms() {
