@@ -215,6 +215,13 @@ const server = Bun.serve<SocketData>({
             return
           }
 
+          if (!videoIdsMatch(nextVideoState, videoState) && videoIdsMatch(nextVideoState, initialVideoState())) {
+            videoState = nextVideoState
+            client.videoState = nextVideoState
+            broadcastVideoState()
+            return
+          }
+
           if (!videoIdsMatch(nextVideoState, videoState)) {
             sendVideoState(client)
             return

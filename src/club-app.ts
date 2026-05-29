@@ -13,7 +13,14 @@ import { createSaveTimer, readClubState } from './club-state.ts'
 import { createDjVideoUi } from './dj-video-ui.ts'
 import { getDomElements } from './dom-elements.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
-import { addGraffitiGeometry, graffitiColors, maxGraffitiSplats, sprayWallPoint } from './graffiti.ts'
+import {
+  addGraffitiWallGeometry,
+  createGraffitiCanvas,
+  graffitiColors,
+  maxGraffitiSplats,
+  paintGraffitiSplats,
+  sprayWallPoint,
+} from './graffiti.ts'
 import { createHelpUi } from './help-ui.ts'
 import { bindKeyboardInput, setAlternativeInput } from './input.ts'
 import { createLocalCharacter } from './local-character.ts'
@@ -231,10 +238,13 @@ function renderZoneIndex(zone: VideoZone) {
 addRoom(vertices)
 addWallStrips(lights)
 addRoomSmoke(smoke)
+const graffitiWallVertices: Vertex[] = []
+addGraffitiWallGeometry(graffitiWallVertices)
 
 let points = new Float32Array(vertices.flat())
 let lightPoints = new Float32Array(lights.flat())
 const smokePoints = new Float32Array(smoke.flat())
+const graffitiPoints = new Float32Array(graffitiWallVertices.flat())
 const program = createProgram(gl, vertex, fragment)
 const lightProgram = createProgram(gl, vertex, lightFragment)
 const strobeProgram = createProgram(gl, strobeVertex, lightFragment)
@@ -244,12 +254,16 @@ const smokeProgram = createProgram(gl, smokeVertex, smokeFragment)
 const postProgram = createProgram(gl, postVertex, postFragment)
 const smokeMap = createSmokeMap(gl)
 const treeShadowMap = createTreeShadowMap(gl)
+const graffitiCanvas = createGraffitiCanvas()
+const graffitiContext = graffitiCanvas.getContext('2d')!
+const graffitiTexture = gl.createTexture()
 const viewProjection = gl.getUniformLocation(program, 'viewProjection')
 const cameraEye = gl.getUniformLocation(program, 'cameraEye')
 const renderZone = gl.getUniformLocation(program, 'renderZone')
 const bloomPass = gl.getUniformLocation(program, 'bloomPass')
 const doorCoverVisible = gl.getUniformLocation(program, 'doorCoverVisible')
 const treeShadowSampler = gl.getUniformLocation(program, 'treeShadowMap')
+const graffitiMap = gl.getUniformLocation(program, 'graffitiMap')
 const characterBoxViewProjection = gl.getUniformLocation(characterBoxProgram, 'viewProjection')
 const characterBoxRenderZone = gl.getUniformLocation(characterBoxProgram, 'renderZone')
 const characterBoxBloomPass = gl.getUniformLocation(characterBoxProgram, 'bloomPass')
@@ -306,6 +320,7 @@ const characterBoxInstanceSize = 17
 const characterBoxInstanceStride = characterBoxInstanceSize * Float32Array.BYTES_PER_ELEMENT
 
 if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisible || !treeShadowSampler
+  || !graffitiMap || !graffitiTexture
   || !characterBoxViewProjection
   || !characterBoxRenderZone || !characterBoxBloomPass || !lightTime || !lightSmokeMap || !lightRenderZone
   || !lightViewProjection
@@ -330,6 +345,13 @@ const hairUniforms = {
   renderZone: hairRenderZone,
   viewProjection: hairViewProjection,
 }
+
+gl.bindTexture(gl.TEXTURE_2D, graffitiTexture)
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, graffitiCanvas)
 
 setupVertexArray({ array, buffer, data: points, gl, stride, usage: gl.STATIC_DRAW })
 
@@ -360,7 +382,7 @@ setupCharacterBoxArray({
 })
 setupPostArray({ array: postArray, buffer: postBuffer, gl })
 setupVertexArray({ array: beachBallArray, buffer: beachBallBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
-setupVertexArray({ array: graffitiArray, buffer: graffitiBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
+setupVertexArray({ array: graffitiArray, buffer: graffitiBuffer, data: graffitiPoints, gl, stride, usage: gl.STATIC_DRAW })
 
 gl.enable(gl.DEPTH_TEST)
 gl.clearColor(0.01, 0.01, 0.014, 1.0)
@@ -432,7 +454,6 @@ let beachBallPoints = new Float32Array()
 const beachBallAuthorityUntil = new Map<number, number>()
 const beachBallAuthorityDuration = 2000
 const graffitiSplats: import('./types.ts').GraffitiSplat[] = []
-let graffitiPoints = new Float32Array()
 let graffitiSeed = Math.floor(Math.random() * 65536)
 let lastSprayAt = 0
 let sprayPointer = 0
@@ -516,6 +537,9 @@ multiplayer = createMultiplayer({
     }
   },
   onGraffiti: splats => {
+    const appended: import('./types.ts').GraffitiSplat[] = []
+    let rebuild = false
+
     for (const splat of splats) {
       const optimistic = graffitiSplats.findIndex(next => next.id === 0 && graffitiKey(next) === graffitiKey(splat))
 
@@ -524,13 +548,21 @@ multiplayer = createMultiplayer({
       }
       else {
         graffitiSplats.push(splat)
+        appended.push(splat)
       }
     }
 
     if (graffitiSplats.length > maxGraffitiSplats) {
       graffitiSplats.splice(0, graffitiSplats.length - maxGraffitiSplats)
+      rebuild = true
     }
-    updateGraffitiBuffer()
+
+    if (rebuild) {
+      repaintGraffitiTexture()
+    }
+    else if (appended.length > 0) {
+      paintGraffitiTexture(appended)
+    }
   },
   videoState: () => djVideoUi.states(),
 })
@@ -661,7 +693,7 @@ function sprayAt(clientX: number, clientY: number) {
   }
 
   graffitiSplats.push(splat)
-  updateGraffitiBuffer()
+  paintGraffitiTexture([splat])
   multiplayer.sendGraffiti([splat])
 }
 
@@ -830,6 +862,7 @@ const draw = (stamp: number) => {
     points,
     beachBallPoints,
     graffitiPoints,
+    graffitiTexture,
     post: {
       bloom: postBloom,
       bloomResolution: postBloomResolution,
@@ -845,6 +878,7 @@ const draw = (stamp: number) => {
       bloomPass,
       cameraEye,
       doorCoverVisible,
+      graffitiMap,
       renderZone,
       treeShadowSampler,
       viewProjection,
@@ -883,13 +917,15 @@ function updateBeachBallBuffer() {
   gl.bufferData(gl.ARRAY_BUFFER, beachBallPoints, gl.DYNAMIC_DRAW)
 }
 
-function updateGraffitiBuffer() {
-  const points: Vertex[] = []
+function repaintGraffitiTexture() {
+  graffitiContext.clearRect(0, 0, graffitiCanvas.width, graffitiCanvas.height)
+  paintGraffitiTexture(graffitiSplats)
+}
 
-  addGraffitiGeometry(points, graffitiSplats)
-  graffitiPoints = new Float32Array(points.flat())
-  gl.bindBuffer(gl.ARRAY_BUFFER, graffitiBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, graffitiPoints, gl.DYNAMIC_DRAW)
+function paintGraffitiTexture(splats: import('./types.ts').GraffitiSplat[]) {
+  paintGraffitiSplats(graffitiContext, splats)
+  gl.bindTexture(gl.TEXTURE_2D, graffitiTexture)
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, graffitiCanvas)
 }
 
 function updateIntro() {

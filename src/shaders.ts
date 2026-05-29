@@ -138,6 +138,7 @@ uniform int renderZone;
 uniform int bloomPass;
 uniform int doorCoverVisible;
 uniform sampler2D treeShadowMap;
+uniform sampler2D graffitiMap;
 
 in vec3 shade;
 in float light;
@@ -243,21 +244,13 @@ void main() {
   }
 
   if (hazeAmount > 5.5) {
-    float radius = length(patternUv);
-    float edge = smoothstep(1.0, 0.82, radius);
-    float largeHole = noise(patternUv * 3.2 + worldPosition.xy * 0.41);
-    float smallHole = noise(patternUv * 9.0 + worldPosition.yz * 0.37);
-    float hole = max(
-      smoothstep(0.64, 0.68, largeHole) * smoothstep(0.08, 0.42, radius),
-      smoothstep(0.78, 0.81, smallHole) * 0.72
-    );
-    float alpha = edge * (1.0 - hole);
+    vec4 paint = texture(graffitiMap, patternUv);
 
-    if (alpha < 0.04) {
+    if (paint.a < 0.04) {
       discard;
     }
 
-    pixel = vec4(shade, alpha);
+    pixel = paint;
     return;
   }
 

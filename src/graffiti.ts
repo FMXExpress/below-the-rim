@@ -4,7 +4,9 @@ import { roomBounds } from './scene-data.ts'
 import type { WallProjector } from './projection.ts'
 import type { GraffitiSplat, Vec3, Vertex } from './types.ts'
 
-export const maxGraffitiSplats = 10000
+export const maxGraffitiSplats = 100000
+export const graffitiTextureSize = 1024
+export const graffitiCellSize = graffitiTextureSize / 2
 export const graffitiColors: Vec3[] = [
   [0.015, 0.012, 0.01],
   [1, 1, 1],
@@ -50,6 +52,44 @@ export function sprayWallPoint(clientX: number, clientY: number, projector: Wall
 export function addGraffitiGeometry(target: Vertex[], splats: GraffitiSplat[]) {
   for (const splat of splats) {
     addGraffitiSplat(target, splat)
+  }
+}
+
+export function addGraffitiWallGeometry(target: Vertex[]) {
+  for (let wall = 0; wall < walls.length; wall++) {
+    const data = walls[wall]!
+    const u0 = wall % 2 * 0.5
+    const v0 = Math.floor(wall / 2) * 0.5
+    const u1 = u0 + 0.5
+    const v1 = v0 + 0.5
+
+    if (data.axis === 'x') {
+      const x = data.value + data.normal[0] * wallEpsilon
+
+      addGraffitiQuad(target, [x, wallYMin, data.min], [x, wallYMin, data.max], [x, wallYMax, data.max],
+        [x, wallYMax, data.min], u0, v0, u1, v1)
+    }
+    else {
+      const z = data.value + data.normal[2] * wallEpsilon
+
+      addGraffitiQuad(target, [data.min, wallYMin, z], [data.max, wallYMin, z], [data.max, wallYMax, z],
+        [data.min, wallYMax, z], u0, v0, u1, v1)
+    }
+  }
+}
+
+export function createGraffitiCanvas() {
+  const canvas = document.createElement('canvas')
+
+  canvas.width = graffitiTextureSize
+  canvas.height = graffitiTextureSize
+
+  return canvas
+}
+
+export function paintGraffitiSplats(context: CanvasRenderingContext2D, splats: GraffitiSplat[]) {
+  for (const splat of splats) {
+    paintGraffitiSplat(context, splat)
   }
 }
 
@@ -107,7 +147,7 @@ function addGraffitiSplat(target: Vertex[], splat: GraffitiSplat) {
   const up: Vec3 = [0, 1, 0]
   const center = wallPoint(splat.wall, splat.x, splat.y)
   const scale = 0.38 + splat.radius / 255 * 0.72
-  const count = 5 + splat.seed % 4
+  const count = 3 + splat.seed % 3
 
   for (let i = 0; i < count; i++) {
     const angle = random(splat.seed, i * 4) * Math.PI * 2
@@ -150,6 +190,85 @@ function addSplatQuad(target: Vertex[], center: Vec3, tangent: Vec3, up: Vec3, s
     pack(c, color, 0, 0, 1, 1, 6),
     pack(d, color, 0, 0, -1, 1, 6),
   )
+}
+
+function addGraffitiQuad(
+  target: Vertex[],
+  a: Vec3,
+  b: Vec3,
+  c: Vec3,
+  d: Vec3,
+  u0: number,
+  v0: number,
+  u1: number,
+  v1: number,
+) {
+  const color: Vec3 = [1, 1, 1]
+
+  target.push(
+    pack(a, color, 0, 0, u0, v1, 6),
+    pack(b, color, 0, 0, u1, v1, 6),
+    pack(c, color, 0, 0, u1, v0, 6),
+    pack(a, color, 0, 0, u0, v1, 6),
+    pack(c, color, 0, 0, u1, v0, 6),
+    pack(d, color, 0, 0, u0, v0, 6),
+  )
+}
+
+function paintGraffitiSplat(context: CanvasRenderingContext2D, splat: GraffitiSplat) {
+  const color = graffitiColors[splat.colorIndex % graffitiColors.length]!
+  const wall = walls[splat.wall]!
+  const [x, y] = splatCanvasPoint(splat)
+  const pixelsPerMeterX = graffitiCellSize / (wall.max - wall.min)
+  const pixelsPerMeterY = graffitiCellSize / (wallYMax - wallYMin)
+  const scale = 0.38 + splat.radius / 255 * 0.72
+  const count = 3 + splat.seed % 3
+
+  context.save()
+  context.translate(x, y)
+  context.scale(pixelsPerMeterX, pixelsPerMeterY)
+  context.fillStyle = `rgb(${Math.round(color[0] * 255)} ${Math.round(color[1] * 255)} ${Math.round(color[2] * 255)})`
+
+  for (let i = 0; i < count; i++) {
+    const angle = random(splat.seed, i * 4) * Math.PI * 2
+    const radius = scale * (0.025 + random(splat.seed, i * 4 + 1) * 0.12)
+    const sizeX = scale * (0.055 + random(splat.seed, i * 4 + 2) * 0.09)
+    const sizeY = scale * (0.04 + random(splat.seed, i * 4 + 3) * 0.08)
+    const xRadius = Math.cos(angle) * radius
+    const yRadius = Math.sin(angle) * radius * 0.72
+
+    context.beginPath()
+    context.ellipse(xRadius, yRadius, sizeX, sizeY, angle * 0.37, 0, Math.PI * 2)
+    context.fill()
+  }
+
+  context.globalCompositeOperation = 'destination-out'
+  for (let i = 0; i < count + 2; i++) {
+    const angle = random(splat.seed, 40 + i * 3) * Math.PI * 2
+    const radius = scale * (0.035 + random(splat.seed, 41 + i * 3) * 0.12)
+    const size = scale * (0.012 + random(splat.seed, 42 + i * 3) * 0.026)
+    const xRadius = Math.cos(angle) * radius
+    const yRadius = Math.sin(angle) * radius
+
+    context.beginPath()
+    context.arc(xRadius, yRadius, size, 0, Math.PI * 2)
+    context.fill()
+  }
+
+  context.restore()
+}
+
+function splatCanvasPoint(splat: GraffitiSplat) {
+  const wall = walls[splat.wall]!
+  const cellX = splat.wall % 2 * graffitiCellSize
+  const cellY = Math.floor(splat.wall / 2) * graffitiCellSize
+  const u = (splat.x - wall.min) / (wall.max - wall.min)
+  const v = 1 - (splat.y - wallYMin) / (wallYMax - wallYMin)
+
+  return [
+    cellX + u * graffitiCellSize,
+    cellY + v * graffitiCellSize,
+  ]
 }
 
 function offset(center: Vec3, tangent: Vec3, up: Vec3, x: number, y: number): Vec3 {

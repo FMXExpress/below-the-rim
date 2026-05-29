@@ -20,6 +20,7 @@ type RoomUniforms = {
   bloomPass: WebGLUniformLocation
   cameraEye: WebGLUniformLocation
   doorCoverVisible: WebGLUniformLocation
+  graffitiMap: WebGLUniformLocation
   renderZone: WebGLUniformLocation
   treeShadowSampler: WebGLUniformLocation
   viewProjection: WebGLUniformLocation
@@ -91,6 +92,7 @@ export function renderClubFrame(options: {
   points: Float32Array
   beachBallPoints: Float32Array
   graffitiPoints: Float32Array
+  graffitiTexture: WebGLTexture
   post: {
     bloom: WebGLUniformLocation
     bloomResolution: WebGLUniformLocation
@@ -138,6 +140,9 @@ export function renderClubFrame(options: {
   gl.activeTexture(gl.TEXTURE4)
   gl.bindTexture(gl.TEXTURE_2D, options.treeShadowMap)
   gl.uniform1i(options.roomUniforms.treeShadowSampler, 4)
+  gl.activeTexture(gl.TEXTURE5)
+  gl.bindTexture(gl.TEXTURE_2D, options.graffitiTexture)
+  gl.uniform1i(options.roomUniforms.graffitiMap, 5)
   gl.bindVertexArray(options.arrays.room)
   gl.enable(gl.BLEND)
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
@@ -204,6 +209,9 @@ export function renderClubFrame(options: {
   gl.activeTexture(gl.TEXTURE4)
   gl.bindTexture(gl.TEXTURE_2D, options.treeShadowMap)
   gl.uniform1i(options.roomUniforms.treeShadowSampler, 4)
+  gl.activeTexture(gl.TEXTURE5)
+  gl.bindTexture(gl.TEXTURE_2D, options.graffitiTexture)
+  gl.uniform1i(options.roomUniforms.graffitiMap, 5)
   gl.colorMask(false, false, false, false)
   gl.bindVertexArray(options.arrays.room)
   gl.enable(gl.POLYGON_OFFSET_FILL)
