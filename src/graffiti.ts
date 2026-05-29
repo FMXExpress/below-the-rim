@@ -23,7 +23,7 @@ export const graffitiColors: Vec3[] = [
 ]
 
 const wallYMin = characterFloor + 0.03
-const wallYMax = 2.8
+const wallYMax = 5
 const wallMargin = 0.03
 const wallEpsilon = 0.09
 
