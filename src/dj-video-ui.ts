@@ -99,12 +99,19 @@ export function createDjVideoUi(
     },
     applyStates(states: Array<{ zone: VideoZone; id: string; time: number }>) {
       for (const state of states) {
+        const sameTrack = trackIds[state.zone] === state.id
+
         trackIds[state.zone] = state.id
         times[state.zone] = state.time
         pendingStarts[state.zone] = state.time
 
         if (ready[state.zone]) {
-          cueVideoFromTime(state.zone, players, pendingStarts, times, trackIndexes, trackIds)
+          if (sameTrack) {
+            players[state.zone]!.seekTo(state.time, true)
+          }
+          else {
+            cueVideoFromTime(state.zone, players, pendingStarts, times, trackIndexes, trackIds)
+          }
         }
       }
     },

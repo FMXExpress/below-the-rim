@@ -25,7 +25,7 @@ import {
   VIDEO_STATE,
 } from './src/protocol.ts'
 import { hairPalette, jewelPalette, skinPalette } from './src/character-data.ts'
-import { outsideBounds, roomBounds, videoStartTimes, videoTracks } from './src/scene-data.ts'
+import { outsideBounds, roomBounds } from './src/scene-data.ts'
 import { seatAt } from './src/scene.ts'
 import { extname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -37,7 +37,7 @@ type Client = {
   poseSynced: boolean
   room: number
   socket: Bun.ServerWebSocket<SocketData>
-  videoState: VideoStateEntry[]
+  videoState?: VideoStateEntry[]
   pose: SpawnPacket
 }
 
@@ -58,7 +58,7 @@ const maxClientStep = 1.2
 const maxHairIndex = 32
 const memoryAssetMaxSize = 2 * 1024 * 1024
 const memoryAssets = new Map<string, MemoryAsset>()
-let videoState = initialVideoState()
+let videoState: VideoStateEntry[] | undefined
 let nextId = 1
 
 type MemoryAsset = {
@@ -108,7 +108,6 @@ const server = Bun.serve<SocketData>({
         poseSynced: false,
         room: 0,
         socket,
-        videoState,
         pose: {
           id,
           x: 0,
@@ -131,7 +130,9 @@ const server = Bun.serve<SocketData>({
       clients.set(socket, client)
       addToRoom(client, 0)
       sendRoomState(client)
-      sendVideoState(client)
+      if (videoState) {
+        sendVideoState(client)
+      }
       broadcastOnline()
       broadcast(client.room, encodeSpawn(client.pose), client)
     },
@@ -668,26 +669,18 @@ function sendRoomState(client: Client) {
 }
 
 function sendVideoState(client: Client) {
-  client.socket.send(encodeVideoState({ entries: videoState }))
+  client.socket.send(encodeVideoState({ entries: videoState! }))
 }
 
 function pickVideoState() {
-  const synced = [...clients.values()].filter(client => client.videoState.length > 0)
+  const synced = [...clients.values()].filter(client => client.videoState)
 
   if (synced.length === 0) {
-    videoState = initialVideoState()
+    videoState = undefined
     return
   }
 
-  videoState = synced[Math.floor(Math.random() * synced.length)]!.videoState
-}
-
-function initialVideoState(): VideoStateEntry[] {
-  return [
-    { zone: 'inside', id: videoTracks.inside, time: videoStartTimes.inside },
-    { zone: 'outside', id: videoTracks.outside, time: videoStartTimes.outside },
-    { zone: 'tent', id: videoTracks.tent, time: videoStartTimes.tent },
-  ]
+  videoState = synced[Math.floor(Math.random() * synced.length)]!.videoState!
 }
 
 function validateVideoState(entries: VideoStateEntry[]) {

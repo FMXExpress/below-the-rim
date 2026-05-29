@@ -75,6 +75,8 @@ export function createMultiplayer(options: {
   let videoSync = 0
   let reconnect = 0
   let closed = false
+  let connectedOnce = false
+  let ignoreVideoState = false
   const pending: ArrayBuffer[] = []
   let selfId = 0
   let room = options.initialRoom
@@ -88,6 +90,8 @@ export function createMultiplayer(options: {
 
     next.binaryType = 'arraybuffer'
     next.addEventListener('open', () => {
+      ignoreVideoState = connectedOnce
+      connectedOnce = true
       clearTimeout(reconnect)
       heartbeat = setInterval(() => send(encodeHeartbeat()), heartbeatInterval)
       videoSync = setInterval(() => sendVideoState(), videoSyncInterval)
@@ -179,6 +183,11 @@ export function createMultiplayer(options: {
     }
 
     if (type === VIDEO_STATE) {
+      if (ignoreVideoState) {
+        ignoreVideoState = false
+        return
+      }
+
       options.onVideoState(decodeVideoState(view).entries)
       return
     }

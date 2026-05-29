@@ -11,8 +11,8 @@ import { renderClubFrame } from './club-renderer.ts'
 import { createSaveTimer, readClubState } from './club-state.ts'
 import { createDjVideoUi } from './dj-video-ui.ts'
 import { getDomElements } from './dom-elements.ts'
-import { createHelpUi } from './help-ui.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
+import { createHelpUi } from './help-ui.ts'
 import { bindKeyboardInput, setAlternativeInput } from './input.ts'
 import { createLocalCharacter } from './local-character.ts'
 import { lengthSq } from './math.ts'
@@ -362,11 +362,11 @@ function moveToRoom(room: number) {
 }
 
 function logPlayerPose(label: string) {
-  console.log(
-    `${label}: x=${characterPosition[0].toFixed(2)} y=${characterPosition[1].toFixed(2)} z=${
-      characterPosition[2].toFixed(2)
-    } angle=${localCharacter.turn.toFixed(3)}`,
-  )
+  // console.log(
+  //   `${label}: x=${characterPosition[0].toFixed(2)} y=${characterPosition[1].toFixed(2)} z=${
+  //     characterPosition[2].toFixed(2)
+  //   } angle=${localCharacter.turn.toFixed(3)}`,
+  // )
 }
 
 function logPlayerPoseEvery(stamp: number) {
@@ -442,7 +442,9 @@ multiplayer = createMultiplayer({
       return
     }
 
-    const position = id === multiplayer.selfId ? characterPosition : multiplayer.players.get(id)?.position ?? characterPosition
+    const position = id === multiplayer.selfId
+      ? characterPosition
+      : multiplayer.players.get(id)?.position ?? characterPosition
 
     addChatLogMessage(id, text)
     chatUi.show(id, text, position, performance.now())
@@ -457,31 +459,31 @@ multiplayer = createMultiplayer({
 
 const styleActions: Record<'cycleHair' | 'cycleHairColor' | 'cycleSkin' | 'cycleIdle' | 'cycleShirt' | 'cyclePants',
   (direction: number) => void> = {
-  cycleHair: direction => {
-    hairController.cycleHair(direction)
-    multiplayer.sendMotion()
-  },
-  cycleHairColor: direction => {
-    hairController.cycleColor(direction)
-    multiplayer.sendMotion()
-  },
-  cycleSkin: direction => {
-    styleController.cycleSkin(direction)
-    multiplayer.sendMotion()
-  },
-  cycleIdle: direction => {
-    cycleIdle(direction)
-    multiplayer.sendMotion()
-  },
-  cycleShirt: direction => {
-    styleController.cycleShirt(direction)
-    multiplayer.sendMotion()
-  },
-  cyclePants: direction => {
-    styleController.cyclePants(direction)
-    multiplayer.sendMotion()
-  },
-}
+    cycleHair: direction => {
+      hairController.cycleHair(direction)
+      multiplayer.sendMotion()
+    },
+    cycleHairColor: direction => {
+      hairController.cycleColor(direction)
+      multiplayer.sendMotion()
+    },
+    cycleSkin: direction => {
+      styleController.cycleSkin(direction)
+      multiplayer.sendMotion()
+    },
+    cycleIdle: direction => {
+      cycleIdle(direction)
+      multiplayer.sendMotion()
+    },
+    cycleShirt: direction => {
+      styleController.cycleShirt(direction)
+      multiplayer.sendMotion()
+    },
+    cyclePants: direction => {
+      styleController.cyclePants(direction)
+      multiplayer.sendMotion()
+    },
+  }
 
 bindKeyboardInput({
   activeInput: chatInput,
