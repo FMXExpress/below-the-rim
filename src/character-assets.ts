@@ -44,6 +44,7 @@ export async function loadCharacterAssets() {
     { path: '/wave.fbx', name: 'wave.fbx' },
   ])
   const standClip = createCharacterClip(stand!, 'stand.fbx')
+  const waveClip = createCharacterClip(wave!, 'wave.fbx')
   const rig: CharacterRig = {
     root: stand!.rootnode,
     nodes: createRigNodes(stand!.rootnode),
@@ -51,7 +52,8 @@ export async function loadCharacterAssets() {
       stand: standClip,
       run: createCharacterClip(run!, 'run.fbx'),
       jump: createCharacterClip(jump!, 'jump.fbx'),
-      wave: createCharacterClip(wave!, 'wave.fbx'),
+      wave: waveClip,
+      waveOut: waveClip,
       manSitting: standClip,
       womanSitting: standClip,
       dances: [],
