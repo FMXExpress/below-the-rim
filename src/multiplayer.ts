@@ -78,7 +78,6 @@ export function createMultiplayer(options: {
   const heartbeatInterval = 5_000
   const videoSyncInterval = 10_000
   const reconnectDelay = 1_500
-  let socket = connect()
   let heartbeat = 0
   let videoSync = 0
   let reconnect = 0
@@ -92,6 +91,7 @@ export function createMultiplayer(options: {
   let lastAngle = -1
   let lastMode = -1
   let lastHeight = Infinity
+  let socket = connect()
 
   function connect() {
     const next = new WebSocket(connectUrl(connectedOnce))
