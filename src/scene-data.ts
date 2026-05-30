@@ -81,12 +81,12 @@ export const tentPole: CircleBounds = { x: tent.x, z: tent.z, radius: 0.13 }
 export const tentCenterBench = { x: tent.x, z: tent.z, innerRadius: 0.34, outerRadius: 0.9 }
 export const videoTracks: Record<VideoZone, string> = {
   inside: '0oB97YhEukw',
-  outside: 'JviNPyhY6U4', // 'DK5XBwLiWZY', // 'xda6KAXJESo', // 'IIbcGjZy6OM', // '5lthiQoQiRA', 'CsGauHXioos', // 'HIn1BxT38mE', // 'ZEaqqk8V1bY', //
+  outside: 'mqz9HpVNSAQ', // 'JviNPyhY6U4', // 'DK5XBwLiWZY', // 'xda6KAXJESo', // 'IIbcGjZy6OM', // '5lthiQoQiRA', 'CsGauHXioos', // 'HIn1BxT38mE', // 'ZEaqqk8V1bY', //
   tent: 'fz6nN5AtcYk',
 }
 export const videoStartTimes: Record<VideoZone, number> = {
   inside: 0,
-  outside: 100,
+  outside: 50,
   tent: 0,
 }
 export const videoPlaylists: Partial<Record<VideoZone, string>> = {
