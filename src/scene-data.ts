@@ -93,12 +93,13 @@ export const videoTracks: Record<VideoZone, string> = {
   tent: 'fz6nN5AtcYk',
 }
 export const videoStartTimes: Record<VideoZone, number> = {
-  inside: 60,
-  outside: 60,
+  inside: 0,
+  outside: 0,
   tent: 60,
 }
 export const videoPlaylists: Partial<Record<VideoZone, string>> = {
-  // inside: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
+  inside: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
+  outside: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
 }
 export const backDoor = { x: -4.75, z: 4, width: 1.45, height: 2.55 }
 export const roomBounds = { left: -7, right: 7, back: -24, front: 4 }

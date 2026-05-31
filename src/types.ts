@@ -76,13 +76,16 @@ export type YouTubePlayer = {
   cuePlaylist(options: { index: number; list: string; listType: 'playlist'; startSeconds: number }): void
   getCurrentTime(): number
   getVideoData(): { video_id: string }
+  getPlaylist(): string[] | undefined
   getPlaylistIndex(): number
   loadVideoById(options: { videoId: string; startSeconds: number }): void
   loadPlaylist(options: { index: number; list: string; listType: 'playlist'; startSeconds: number }): void
+  nextVideo(): void
   pauseVideo(): void
   playVideo(): void
   seekTo(seconds: number, allowSeekAhead: boolean): void
   setLoop(loopPlaylists: boolean): void
+  setShuffle(shufflePlaylist: boolean): void
 }
 
 export type YouTubeConstructor = new(

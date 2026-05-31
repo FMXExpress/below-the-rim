@@ -13,6 +13,7 @@ import {
   decodeServerMessage,
   decodeServerMotion,
   decodeSpawn,
+  decodeVideoAuthority,
   decodeVideoState,
   encodeAdminMessage,
   encodeClientMessage,
@@ -37,11 +38,13 @@ import {
   sceneToProtocol,
   type SpawnPacket,
   type VideoStateEntry,
+  type VideoAuthorityEntry,
   truncateMessage,
   BEACH_BALLS,
   GRAFFITI,
   MODERATION,
   VIDEO_STATE,
+  VIDEO_AUTHORITY,
 } from './protocol.ts'
 import { collideRoom, isOutside, seatAt, walkHeight } from './scene.ts'
 import type { BeachBall, CharacterMode, CircleBounds, GraffitiSplat, Player, Vec3 } from './types.ts'
@@ -69,6 +72,7 @@ export function createMultiplayer(options: {
   onDeleteMessages: (id: number) => void
   onLeave: (id: number) => void
   onOnlineCount: (count: number) => void
+  onVideoAuthority: (entries: VideoAuthorityEntry[]) => void
   onVideoState: (entries: VideoStateEntry[], preserveSameTrack: boolean) => void
   onBeachBalls: (balls: BeachBall[]) => void
   onGraffiti: (splats: GraffitiSplat[]) => void
@@ -76,7 +80,7 @@ export function createMultiplayer(options: {
 }) {
   const players = new Map<number, Player>()
   const heartbeatInterval = 5_000
-  const videoSyncInterval = 10_000
+  const videoSyncInterval = 2_000
   const reconnectDelay = 1_500
   let heartbeat = 0
   let videoSync = 0
@@ -216,6 +220,11 @@ export function createMultiplayer(options: {
       return
     }
 
+    if (type === VIDEO_AUTHORITY) {
+      options.onVideoAuthority(decodeVideoAuthority(view).entries)
+      return
+    }
+
     if (type === BEACH_BALLS) {
       options.onBeachBalls(decodeBeachBalls(view).balls)
       return
@@ -316,6 +325,7 @@ export function createMultiplayer(options: {
       queue(encodeAdminMessage({ pass, command, id }))
     },
     sendMotion,
+    sendVideoState,
     sendBeachBalls(balls: BeachBall[]) {
       send(encodeBeachBalls({ balls }))
     },

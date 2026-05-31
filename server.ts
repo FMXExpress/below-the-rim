@@ -26,6 +26,7 @@ import {
   encodeServerMessage,
   encodeServerMotion,
   encodeSpawn,
+  encodeVideoAuthority,
   encodeVideoState,
   GRAFFITI,
   MESSAGE,
@@ -40,9 +41,9 @@ import {
   VIDEO_STATE,
   type VideoStateEntry,
 } from './src/protocol.ts'
-import { outsideBounds, roomBounds, videoStartTimes, videoTracks } from './src/scene-data.ts'
+import { outsideBounds, roomBounds, videoPlaylists, videoStartTimes, videoTracks } from './src/scene-data.ts'
 import { roomAt, seatAt } from './src/scene.ts'
-import type { GraffitiSplat } from './src/types.ts'
+import type { GraffitiSplat, VideoZone } from './src/types.ts'
 
 type Client = {
   id: number
@@ -53,8 +54,15 @@ type Client = {
   poseSynced: boolean
   room: number
   socket: Bun.ServerWebSocket<SocketData>
-  videoState?: VideoStateEntry[]
   pose: SpawnPacket
+}
+
+type StoredVideoState = {
+  entries: StoredVideoStateEntry[]
+}
+
+type StoredVideoStateEntry = VideoStateEntry & {
+  updatedAt: number
 }
 
 type SocketData = {
@@ -76,8 +84,10 @@ const maxClientStep = 1.2
 const maxHairIndex = 32
 const memoryAssetMaxSize = 2 * 1024 * 1024
 const memoryAssets = new Map<string, MemoryAsset>()
-let videoState = initialVideoState()
-let videoStateSynced = false
+const videoDbPath = process.env.CLUB_VIDEO_DB ?? join(import.meta.dir, 'data', 'video.lmdb')
+const videoDb = open<StoredVideoState>({ path: videoDbPath, compression: true })
+let videoState = await loadVideoState()
+const videoAuthorities: Partial<Record<VideoZone, number>> = {}
 let beachBalls = createBeachBalls()
 const beachBallAuthorities = createBeachBalls().map(() => ({ client: 0, until: 0 }))
 const beachBallAuthorityDuration = 2000
@@ -168,9 +178,8 @@ const server = Bun.serve<SocketData>({
       clients.set(socket, client)
       addToRoom(client, 0)
       sendRoomState(client)
-      if (videoStateSynced) {
-        sendVideoState(client)
-      }
+      sendVideoState(client)
+      sendVideoAuthority(client)
       sendBeachBalls(client)
       if (socket.data.initialState) {
         sendGraffiti(client)
@@ -199,6 +208,7 @@ const server = Bun.serve<SocketData>({
           client.pose = { id: client.id, ...motion }
           client.lastMotionAt = Date.now()
           client.poseSynced = true
+          ensureVideoAuthority(clientVideoZone(client))
           broadcast(client.room, encodeServerMotion(client.pose), client)
           return
         }
@@ -216,7 +226,7 @@ const server = Bun.serve<SocketData>({
 
           touchInteraction(client)
           if (normalizedText && !binaryText(text) && !slur) {
-            console.log(`[chat] ${client.ip}: ${text}`)
+            console.log(`[chat] ${client.id} ${client.ip}: ${text}`)
             broadcastAll(encodeServerMessage({ id: client.id, text }))
           }
 
@@ -236,28 +246,12 @@ const server = Bun.serve<SocketData>({
             return
           }
 
-          if (!videoStateSynced) {
-            videoState = nextVideoState
-            videoStateSynced = true
-            client.videoState = nextVideoState
-            broadcastVideoState()
-            return
-          }
-
-          if (!videoIdsMatch(nextVideoState, videoState) && videoIdsMatch(nextVideoState, initialVideoState())) {
-            videoState = nextVideoState
-            client.videoState = nextVideoState
-            broadcastVideoState()
-            return
-          }
-
-          if (!videoIdsMatch(nextVideoState, videoState)) {
+          if (!videoAuthority(client)) {
             sendVideoState(client)
             return
           }
 
-          client.videoState = nextVideoState
-          pickVideoState()
+          await applyVideoState(client, nextVideoState)
           return
         }
 
@@ -577,8 +571,13 @@ function changeRoom(client: Client, room: number) {
     return
   }
 
+  const previousZone = clientVideoZone(client)
+
+  releaseVideoAuthority(client)
   removeFromRoom(client)
   addToRoom(client, room)
+  ensureVideoAuthority(previousZone)
+  ensureVideoAuthority(clientVideoZone(client))
   sendRoomState(client)
   broadcast(client.room, encodeSpawn(client.pose), client)
 }
@@ -788,11 +787,27 @@ function sendRoomState(client: Client) {
 }
 
 function sendVideoState(client: Client) {
-  client.socket.send(encodeVideoState({ entries: videoState }))
+  client.socket.send(encodeVideoState({ entries: currentVideoState() }))
 }
 
-function broadcastVideoState() {
-  const data = encodeVideoState({ entries: videoState })
+function sendVideoAuthority(client: Client) {
+  client.socket.send(encodeVideoAuthority({ entries: currentVideoAuthority() }))
+}
+
+function broadcastVideoState(skip?: Client) {
+  const data = encodeVideoState({ entries: currentVideoState() })
+
+  for (const client of clients.values()) {
+    if (client === skip) {
+      continue
+    }
+
+    client.socket.send(data)
+  }
+}
+
+function broadcastVideoAuthority() {
+  const data = encodeVideoAuthority({ entries: currentVideoAuthority() })
 
   for (const client of clients.values()) {
     client.socket.send(data)
@@ -807,32 +822,101 @@ function sendGraffiti(client: Client) {
   client.socket.send(encodeGraffiti({ splats: graffitiSplats }))
 }
 
-function pickVideoState() {
-  const synced = [...clients.values()].filter(client => client.videoState)
+function currentVideoState(now = Date.now()): VideoStateEntry[] {
+  return videoState.map(entry => ({
+    id: entry.id,
+    time: entry.time + (now - entry.updatedAt) / 1000,
+    zone: entry.zone,
+  }))
+}
 
-  if (synced.length === 0) {
+function initialVideoState(now = Date.now()): StoredVideoStateEntry[] {
+  return [
+    { zone: 'inside', id: videoTracks.inside, time: videoStartTimes.inside, updatedAt: now },
+    { zone: 'outside', id: videoTracks.outside, time: videoStartTimes.outside, updatedAt: now },
+    { zone: 'tent', id: videoTracks.tent, time: videoStartTimes.tent, updatedAt: now },
+  ]
+}
+
+async function loadVideoState() {
+  const saved = await videoDb.get('state')
+
+  return saved?.entries ?? initialVideoState()
+}
+
+async function saveVideoState() {
+  await videoDb.put('state', { entries: videoState })
+}
+
+function videoAuthority(client: Client) {
+  const zone = clientVideoZone(client)
+
+  if (!videoPlaylists[zone]) {
+    return true
+  }
+
+  ensureVideoAuthority(zone)
+
+  return videoAuthorities[zone] === client.id
+}
+
+function ensureVideoAuthority(zone: VideoZone) {
+  if (!videoPlaylists[zone]) {
     return
   }
 
-  videoState = synced[Math.floor(Math.random() * synced.length)]!.videoState!
-}
+  const current = videoAuthorities[zone]
 
-function videoIdsMatch(left: VideoStateEntry[], right: VideoStateEntry[]) {
-  for (const entry of left) {
-    if (right.find(state => state.zone === entry.zone)!.id !== entry.id) {
-      return false
-    }
+  if (current && videoAuthorityActive(current, zone)) {
+    return
   }
 
-  return true
+  const candidates = [...clients.values()].filter(client => client.poseSynced && clientVideoZone(client) === zone)
+  const next = candidates[Math.floor(Math.random() * candidates.length)]
+
+  if (!next) {
+    if (current) {
+      delete videoAuthorities[zone]
+      broadcastVideoAuthority()
+    }
+    return
+  }
+
+  videoAuthorities[zone] = next.id
+  broadcastVideoAuthority()
 }
 
-function initialVideoState(): VideoStateEntry[] {
-  return [
-    { zone: 'inside', id: videoTracks.inside, time: videoStartTimes.inside },
-    { zone: 'outside', id: videoTracks.outside, time: videoStartTimes.outside },
-    { zone: 'tent', id: videoTracks.tent, time: videoStartTimes.tent },
-  ]
+function currentVideoAuthority() {
+  return (Object.keys(videoPlaylists) as VideoZone[]).map(zone => ({
+    zone,
+    id: videoAuthorities[zone] ?? 0,
+  }))
+}
+
+function videoAuthorityActive(id: number, zone: VideoZone) {
+  const client = [...clients.values()].find(client => client.id === id)
+
+  return Boolean(client && clientVideoZone(client) === zone)
+}
+
+async function applyVideoState(client: Client, entries: VideoStateEntry[]) {
+  const zone = clientVideoZone(client)
+  const entry = entries.find(entry => entry.zone === zone)!
+  const now = Date.now()
+
+  videoState = videoState.map(current => current.zone === zone
+    ? { ...entry, updatedAt: now }
+    : current)
+  await saveVideoState()
+  broadcastVideoState(client)
+}
+
+function clientVideoZone(client: Client) {
+  return roomVideoZone(client.room)
+}
+
+function roomVideoZone(room: number): VideoZone {
+  return room === 1 ? 'inside' : room === 2 ? 'tent' : 'outside'
 }
 
 function validateVideoState(entries: VideoStateEntry[]) {
@@ -862,10 +946,9 @@ function validateVideoState(entries: VideoStateEntry[]) {
 }
 
 function videoStateEntry(entry: VideoStateEntry): VideoStateEntry {
-  const id = videoTracks[entry.zone]
-  const time = entry.id === id && entry.time >= 0.5 ? entry.time : videoStartTimes[entry.zone]
+  const time = entry.time >= 0.5 ? entry.time : videoStartTimes[entry.zone]
 
-  return { zone: entry.zone, id, time }
+  return { zone: entry.zone, id: entry.id, time }
 }
 
 function validateBeachBalls(balls: ReturnType<typeof createBeachBalls>) {
@@ -1068,8 +1151,25 @@ function removeClient(client: Client) {
     return
   }
 
+  const releasedZones = releaseVideoAuthority(client)
   removeFromRoom(client)
+  for (const zone of releasedZones) {
+    ensureVideoAuthority(zone)
+  }
   broadcastOnline()
+}
+
+function releaseVideoAuthority(client: Client) {
+  const released: VideoZone[] = []
+
+  for (const zone of Object.keys(videoAuthorities) as VideoZone[]) {
+    if (videoAuthorities[zone] === client.id) {
+      delete videoAuthorities[zone]
+      released.push(zone)
+    }
+  }
+
+  return released
 }
 
 function broadcastOnline() {

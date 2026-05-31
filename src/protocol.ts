@@ -15,11 +15,12 @@ export const BEACH_BALLS = 12
 export const GRAFFITI = 13
 export const ADMIN = 14
 export const MODERATION = 15
+export const VIDEO_AUTHORITY = 16
 
 export const roomCount = 3
 export const messageMaxLength = 120
 export const positionScale = 100
-export const protocolVersion = 20
+export const protocolVersion = 23
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -60,6 +61,15 @@ export type VideoStateEntry = {
 
 export type VideoStatePacket = {
   entries: VideoStateEntry[]
+}
+
+export type VideoAuthorityEntry = {
+  zone: VideoZone
+  id: number
+}
+
+export type VideoAuthorityPacket = {
+  entries: VideoAuthorityEntry[]
 }
 
 export type BeachBallPacket = {
@@ -225,6 +235,41 @@ export function decodeVideoState(view: DataView): VideoStatePacket {
   }
 
   expectSize(view, offset)
+
+  return { entries }
+}
+
+export function encodeVideoAuthority(packet: VideoAuthorityPacket) {
+  const data = new ArrayBuffer(2 + packet.entries.length * 3)
+  const view = new DataView(data)
+  let offset = 2
+
+  view.setUint8(0, VIDEO_AUTHORITY)
+  view.setUint8(1, packet.entries.length)
+
+  for (const entry of packet.entries) {
+    view.setUint8(offset, videoZoneToProtocol(entry.zone))
+    view.setUint16(offset + 1, entry.id)
+    offset += 3
+  }
+
+  return data
+}
+
+export function decodeVideoAuthority(view: DataView): VideoAuthorityPacket {
+  expectAtLeastSize(view, 2)
+  const count = view.getUint8(1)
+  expectSize(view, 2 + count * 3)
+  const entries: VideoAuthorityEntry[] = []
+  let offset = 2
+
+  for (let i = 0; i < count; i++) {
+    entries.push({
+      zone: protocolToVideoZone(view.getUint8(offset)),
+      id: view.getUint16(offset + 1),
+    })
+    offset += 3
+  }
 
   return { entries }
 }

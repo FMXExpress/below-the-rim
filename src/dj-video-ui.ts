@@ -16,6 +16,8 @@ export function createDjVideoUi(
   element: HTMLElement,
   position: Vec3,
   options: {
+    isAuthority?: (zone: VideoZone) => boolean
+    onStateChanged?: () => void
     recoverFocus?: () => void
   } = {},
 ) {
@@ -177,7 +179,19 @@ export function createDjVideoUi(
                 }
 
                 if (event.data === endedState) {
-                  loopVideo(area, zone, players, pendingStarts, pendingLoops, times)
+                  if (videoPlaylists[area]) {
+                    if (options.isAuthority?.(area) ?? true) {
+                      nextPlaylistVideo(area, zone, players, pendingStarts, pendingLoops, times, trackIndexes, trackIds,
+                        options.onStateChanged)
+                    }
+                    else {
+                      pendingStarts[area] = times[area]
+                      players[area]!.pauseVideo()
+                    }
+                  }
+                  else {
+                    loopVideo(area, zone, players, pendingStarts, pendingLoops, times)
+                  }
                   pauseOtherVideos(area, players, ready)
                 }
                 else {
@@ -327,6 +341,7 @@ function cueVideoFromTime(
       listType: 'playlist',
       startSeconds: times[area],
     })
+    shufflePlaylist(area, players)
   }
   else {
     players[area]!.cueVideoById({
@@ -354,6 +369,7 @@ function loadVideoFromTime(
       listType: 'playlist',
       startSeconds: times[area],
     })
+    shufflePlaylist(area, players)
   }
   else {
     players[area]!.loadVideoById({
@@ -414,6 +430,64 @@ function loopVideo(
       startSeconds: times[area],
     })
   }, 0)
+}
+
+function nextPlaylistVideo(
+  area: VideoZone,
+  zone: VideoZone,
+  players: Partial<Record<VideoZone, YouTubePlayer>>,
+  pendingStarts: Partial<Record<VideoZone, number>>,
+  pendingLoops: Partial<Record<VideoZone, boolean>>,
+  times: Record<VideoZone, number>,
+  trackIndexes: Record<VideoZone, number>,
+  trackIds: Record<VideoZone, string>,
+  onStateChanged?: () => void,
+) {
+  if (pendingLoops[area]) {
+    return
+  }
+
+  pendingStarts[area] = 0
+  times[area] = 0
+  pendingLoops[area] = true
+  setTimeout(() => {
+    delete pendingLoops[area]
+
+    if (area !== zone) {
+      players[area]!.pauseVideo()
+      return
+    }
+
+    if (playlistActive(area, players)) {
+      players[area]!.nextVideo()
+    }
+    else {
+      trackIndexes[area] = 0
+      players[area]!.loadPlaylist({
+        index: trackIndexes[area],
+        list: videoPlaylists[area]!,
+        listType: 'playlist',
+        startSeconds: 0,
+      })
+      shufflePlaylist(area, players)
+      setTimeout(() => players[area]!.nextVideo(), 250)
+    }
+    players[area]!.playVideo()
+    setTimeout(() => {
+      syncVideoTime(area, players, { [area]: true }, pendingStarts, times, trackIndexes, trackIds)
+      onStateChanged?.()
+    }, 250)
+  }, 0)
+}
+
+function playlistActive(area: VideoZone, players: Partial<Record<VideoZone, YouTubePlayer>>) {
+  return Boolean(videoPlaylists[area] && players[area]?.getPlaylist()?.length)
+}
+
+function shufflePlaylist(area: VideoZone, players: Partial<Record<VideoZone, YouTubePlayer>>) {
+  if (area === 'inside' || area === 'outside') {
+    setTimeout(() => players[area]!.setShuffle(true), 0)
+  }
 }
 
 function trackIdForLoop(area: VideoZone, players: Partial<Record<VideoZone, YouTubePlayer>>) {

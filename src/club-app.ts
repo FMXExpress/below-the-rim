@@ -187,8 +187,12 @@ const hairController = createCharacterHairController()
 const styleController = createCharacterStyleController()
 const chatUi = createChatUi(chatForm, chatInput, chatBubble, characterPosition)
 const adminIdRoot = document.createElement('div')
+const videoAuthorityZones = new Set<VideoZone>()
+let sendVideoStateNow = () => {}
 const djVideoUi = createDjVideoUi(djVideo, characterPosition, {
   recoverFocus: () => canvas.focus(),
+  isAuthority: zone => videoAuthorityZones.has(zone),
+  onStateChanged: () => sendVideoStateNow(),
 })
 const helpUi = createHelpUi()
 const helpSeen = localStorage.getItem(helpSeenKey) === 'true'
@@ -864,6 +868,14 @@ multiplayer = createMultiplayer({
   onOnlineCount: count => {
     onlineCount.textContent = `${count} online`
   },
+  onVideoAuthority: entries => {
+    videoAuthorityZones.clear()
+    for (const entry of entries) {
+      if (entry.id === multiplayer.selfId) {
+        videoAuthorityZones.add(entry.zone)
+      }
+    }
+  },
   onVideoState: (entries, preserveSameTrack) => djVideoUi.applyStates(entries, preserveSameTrack),
   onBeachBalls: balls => {
     const stamp = performance.now()
@@ -919,6 +931,7 @@ multiplayer = createMultiplayer({
   },
   videoState: () => djVideoUi.states(),
 })
+sendVideoStateNow = () => multiplayer.sendVideoState()
 clubGlobal.clubMultiplayerClose = () => multiplayer.close()
 
 const styleActions: Record<
