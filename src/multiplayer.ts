@@ -14,6 +14,7 @@ import {
   decodeServerMotion,
   decodeSpawn,
   decodeVideoAuthority,
+  decodeVideoPlaylist,
   decodeVideoState,
   encodeAdminMessage,
   encodeClientMessage,
@@ -23,6 +24,7 @@ import {
   encodeGraffiti,
   encodeKeys,
   encodeRoomChange,
+  encodeVideoPlaylist,
   encodeVideoState,
   MESSAGE,
   modeToProtocol,
@@ -39,12 +41,14 @@ import {
   type SpawnPacket,
   type VideoStateEntry,
   type VideoAuthorityEntry,
+  type VideoPlaylistEntry,
   truncateMessage,
   BEACH_BALLS,
   GRAFFITI,
   MODERATION,
   VIDEO_STATE,
   VIDEO_AUTHORITY,
+  VIDEO_PLAYLIST,
 } from './protocol.ts'
 import { collideRoom, isOutside, seatAt, walkHeight } from './scene.ts'
 import type { BeachBall, CharacterMode, CircleBounds, GraffitiSplat, Player, Vec3 } from './types.ts'
@@ -73,6 +77,7 @@ export function createMultiplayer(options: {
   onLeave: (id: number) => void
   onOnlineCount: (count: number) => void
   onVideoAuthority: (entries: VideoAuthorityEntry[]) => void
+  onVideoPlaylist: (entries: VideoPlaylistEntry[]) => void
   onVideoState: (entries: VideoStateEntry[], preserveSameTrack: boolean) => void
   onBeachBalls: (balls: BeachBall[]) => void
   onGraffiti: (splats: GraffitiSplat[]) => void
@@ -227,6 +232,11 @@ export function createMultiplayer(options: {
       return
     }
 
+    if (type === VIDEO_PLAYLIST) {
+      options.onVideoPlaylist(decodeVideoPlaylist(view).entries)
+      return
+    }
+
     if (type === BEACH_BALLS) {
       options.onBeachBalls(decodeBeachBalls(view).balls)
       return
@@ -302,6 +312,10 @@ export function createMultiplayer(options: {
     send(encodeVideoState({ entries: options.videoState() }))
   }
 
+  function sendVideoPlaylist(entries: VideoPlaylistEntry[]) {
+    send(encodeVideoPlaylist({ entries }))
+  }
+
   return {
     players,
     get selfId() {
@@ -328,6 +342,7 @@ export function createMultiplayer(options: {
     },
     sendMotion,
     sendVideoState,
+    sendVideoPlaylist,
     sendBeachBalls(balls: BeachBall[]) {
       send(encodeBeachBalls({ balls }))
     },

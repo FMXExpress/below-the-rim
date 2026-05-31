@@ -16,11 +16,12 @@ export const GRAFFITI = 13
 export const ADMIN = 14
 export const MODERATION = 15
 export const VIDEO_AUTHORITY = 16
+export const VIDEO_PLAYLIST = 17
 
 export const roomCount = 3
 export const messageMaxLength = 120
 export const positionScale = 100
-export const protocolVersion = 24
+export const protocolVersion = 25
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -70,6 +71,15 @@ export type VideoAuthorityEntry = {
 
 export type VideoAuthorityPacket = {
   entries: VideoAuthorityEntry[]
+}
+
+export type VideoPlaylistEntry = {
+  zone: VideoZone
+  ids: string[]
+}
+
+export type VideoPlaylistPacket = {
+  entries: VideoPlaylistEntry[]
 }
 
 export type BeachBallPacket = {
@@ -270,6 +280,64 @@ export function decodeVideoAuthority(view: DataView): VideoAuthorityPacket {
     })
     offset += 3
   }
+
+  return { entries }
+}
+
+export function encodeVideoPlaylist(packet: VideoPlaylistPacket) {
+  const encoded = packet.entries.map(entry => ({
+    zone: entry.zone,
+    ids: entry.ids.map(id => textEncoder.encode(id)),
+  }))
+  const size = 2 + encoded.reduce((total, entry) =>
+    total + 2 + entry.ids.reduce((idsTotal, id) => idsTotal + 2 + id.length, 0), 0)
+  const data = new ArrayBuffer(size)
+  const view = new DataView(data)
+  let offset = 2
+
+  view.setUint8(0, VIDEO_PLAYLIST)
+  view.setUint8(1, encoded.length)
+
+  for (const entry of encoded) {
+    view.setUint8(offset, videoZoneToProtocol(entry.zone))
+    view.setUint8(offset + 1, entry.ids.length)
+    offset += 2
+
+    for (const id of entry.ids) {
+      view.setUint16(offset, id.length)
+      new Uint8Array(data, offset + 2).set(id)
+      offset += 2 + id.length
+    }
+  }
+
+  return data
+}
+
+export function decodeVideoPlaylist(view: DataView): VideoPlaylistPacket {
+  expectAtLeastSize(view, 2)
+  const count = view.getUint8(1)
+  const entries: VideoPlaylistEntry[] = []
+  let offset = 2
+
+  for (let i = 0; i < count; i++) {
+    expectAtLeastSize(view, offset + 2)
+    const zone = protocolToVideoZone(view.getUint8(offset))
+    const idsCount = view.getUint8(offset + 1)
+    const ids: string[] = []
+
+    offset += 2
+    for (let j = 0; j < idsCount; j++) {
+      expectAtLeastSize(view, offset + 2)
+      const length = view.getUint16(offset)
+      expectAtLeastSize(view, offset + 2 + length)
+      ids.push(textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + offset + 2, length)))
+      offset += 2 + length
+    }
+
+    entries.push({ zone, ids })
+  }
+
+  expectSize(view, offset)
 
   return { entries }
 }

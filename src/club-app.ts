@@ -189,9 +189,11 @@ const chatUi = createChatUi(chatForm, chatInput, chatBubble, characterPosition)
 const adminIdRoot = document.createElement('div')
 const videoAuthorityZones = new Set<VideoZone>()
 let sendVideoStateNow = () => {}
+let sendVideoPlaylistNow = (_zone: VideoZone, _ids: string[]) => {}
 const djVideoUi = createDjVideoUi(djVideo, characterPosition, {
   recoverFocus: () => canvas.focus(),
   isAuthority: zone => videoAuthorityZones.has(zone),
+  onPlaylistDiscovered: (zone, ids) => sendVideoPlaylistNow(zone, ids),
   onStateChanged: () => sendVideoStateNow(),
 })
 const helpUi = createHelpUi()
@@ -876,6 +878,7 @@ multiplayer = createMultiplayer({
       }
     }
   },
+  onVideoPlaylist: entries => djVideoUi.applyPlaylists(entries),
   onVideoState: (entries, preserveSameTrack) => djVideoUi.applyStates(entries, preserveSameTrack),
   onBeachBalls: balls => {
     const stamp = performance.now()
@@ -932,6 +935,7 @@ multiplayer = createMultiplayer({
   videoState: () => djVideoUi.states(),
 })
 sendVideoStateNow = () => multiplayer.sendVideoState()
+sendVideoPlaylistNow = (zone, ids) => multiplayer.sendVideoPlaylist([{ zone, ids }])
 clubGlobal.clubMultiplayerClose = () => multiplayer.close()
 
 const styleActions: Record<

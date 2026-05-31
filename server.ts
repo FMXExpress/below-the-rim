@@ -16,6 +16,7 @@ import {
   decodeClientMotion,
   decodeGraffiti,
   decodeRoomChange,
+  decodeVideoPlaylist,
   decodeVideoState,
   encodeBeachBalls,
   encodeGraffiti,
@@ -27,6 +28,7 @@ import {
   encodeServerMotion,
   encodeSpawn,
   encodeVideoAuthority,
+  encodeVideoPlaylist,
   encodeVideoState,
   GRAFFITI,
   MESSAGE,
@@ -39,7 +41,9 @@ import {
   type SpawnPacket,
   truncateMessage,
   VIDEO_STATE,
+  VIDEO_PLAYLIST,
   type VideoStateEntry,
+  type VideoPlaylistEntry,
 } from './src/protocol.ts'
 import { outsideBounds, roomBounds, videoPlaylists, videoStartTimes, videoTracks } from './src/scene-data.ts'
 import { roomAt, seatAt } from './src/scene.ts'
@@ -61,8 +65,17 @@ type StoredVideoState = {
   entries: StoredVideoStateEntry[]
 }
 
+type StoredVideoPlaylists = {
+  entries: StoredVideoPlaylistEntry[]
+}
+
 type StoredVideoStateEntry = VideoStateEntry & {
   updatedAt: number
+}
+
+type StoredVideoPlaylistEntry = VideoPlaylistEntry & {
+  sourceIds: string[]
+  shuffledAt: number
 }
 
 type SocketData = {
@@ -85,9 +98,11 @@ const maxHairIndex = 32
 const memoryAssetMaxSize = 2 * 1024 * 1024
 const memoryAssets = new Map<string, MemoryAsset>()
 const videoDbPath = process.env.CLUB_VIDEO_DB ?? join(import.meta.dir, 'data', 'video.lmdb')
-const videoDb = open<StoredVideoState>({ path: videoDbPath, compression: true })
+const videoDb = open<StoredVideoState | StoredVideoPlaylists>({ path: videoDbPath, compression: true })
 let videoState = await loadVideoState()
+let videoPlaylistOrders = await loadVideoPlaylists()
 const videoAuthorities: Partial<Record<VideoZone, number>> = {}
+const videoPlaylistShuffleInterval = 60 * 60_000
 let beachBalls = createBeachBalls()
 const beachBallAuthorities = createBeachBalls().map(() => ({ client: 0, until: 0 }))
 const beachBallAuthorityDuration = 2000
@@ -99,6 +114,8 @@ const adminPass = process.env.ADMIN_PASS ?? ''
 const bannedIps = await loadBannedIps()
 let graffitiSplats = await loadGraffitiSplats()
 let nextGraffitiId = (graffitiSplats.at(-1)?.id ?? 0) + 1
+
+await shuffleExpiredVideoPlaylists(Date.now(), false)
 let nextId = 1
 
 type MemoryAsset = {
@@ -180,6 +197,7 @@ const server = Bun.serve<SocketData>({
       sendRoomState(client)
       sendVideoState(client)
       sendVideoAuthority(client)
+      sendVideoPlaylist(client)
       sendBeachBalls(client)
       if (socket.data.initialState) {
         sendGraffiti(client)
@@ -255,6 +273,11 @@ const server = Bun.serve<SocketData>({
           return
         }
 
+        if (type === VIDEO_PLAYLIST) {
+          await applyVideoPlaylist(client, validateVideoPlaylist(decodeVideoPlaylist(view).entries))
+          return
+        }
+
         if (type === BEACH_BALLS) {
           touchInteraction(client)
           const appliedBalls = applyBeachBalls(client, validateBeachBalls(decodeBeachBalls(view).balls))
@@ -315,6 +338,9 @@ console.log(`[server]: http://localhost:${server.port}`)
 
 setInterval(syncRooms, heartbeatInterval)
 setInterval(logStats, 60_000)
+setInterval(() => {
+  shuffleExpiredVideoPlaylists().catch(error => console.error(error))
+}, 60_000)
 
 function clientIp(request: Request) {
   return request.headers.get('cf-connecting-ip')
@@ -794,6 +820,10 @@ function sendVideoAuthority(client: Client) {
   client.socket.send(encodeVideoAuthority({ entries: currentVideoAuthority() }))
 }
 
+function sendVideoPlaylist(client: Client) {
+  client.socket.send(encodeVideoPlaylist({ entries: currentVideoPlaylist() }))
+}
+
 function broadcastVideoState(skip?: Client) {
   const data = encodeVideoState({ entries: currentVideoState() })
 
@@ -802,6 +832,14 @@ function broadcastVideoState(skip?: Client) {
       continue
     }
 
+    client.socket.send(data)
+  }
+}
+
+function broadcastVideoPlaylist() {
+  const data = encodeVideoPlaylist({ entries: currentVideoPlaylist() })
+
+  for (const client of clients.values()) {
     client.socket.send(data)
   }
 }
@@ -839,13 +877,23 @@ function initialVideoState(now = Date.now()): StoredVideoStateEntry[] {
 }
 
 async function loadVideoState() {
-  const saved = await videoDb.get('state')
+  const saved = await videoDb.get('state') as StoredVideoState | undefined
 
   return saved?.entries ?? initialVideoState()
 }
 
 async function saveVideoState() {
   await videoDb.put('state', { entries: videoState })
+}
+
+async function loadVideoPlaylists() {
+  const saved = await videoDb.get('playlists') as StoredVideoPlaylists | undefined
+
+  return saved?.entries ?? []
+}
+
+async function saveVideoPlaylists() {
+  await videoDb.put('playlists', { entries: videoPlaylistOrders })
 }
 
 function videoAuthority(client: Client) {
@@ -911,6 +959,80 @@ async function applyVideoState(client: Client, entries: VideoStateEntry[]) {
   broadcastVideoState(client)
 }
 
+async function applyVideoPlaylist(_client: Client, entries: VideoPlaylistEntry[]) {
+  const now = Date.now()
+  let changed = false
+
+  for (const entry of entries) {
+    const current = videoPlaylistOrders.find(current => current.zone === entry.zone)
+    const sourceKey = entry.ids.join('\n')
+
+    if (current && current.sourceIds.join('\n') === sourceKey && now - current.shuffledAt < videoPlaylistShuffleInterval) {
+      continue
+    }
+
+    setVideoPlaylistOrder(entry.zone, entry.ids, now)
+    changed = true
+  }
+
+  if (changed) {
+    await saveVideoPlaylists()
+    await saveVideoState()
+    broadcastVideoPlaylist()
+    broadcastVideoState()
+  }
+}
+
+function currentVideoPlaylist(): VideoPlaylistEntry[] {
+  return videoPlaylistOrders.map(entry => ({
+    zone: entry.zone,
+    ids: entry.ids,
+  }))
+}
+
+async function shuffleExpiredVideoPlaylists(now = Date.now(), broadcastChanges = true) {
+  const expired = videoPlaylistOrders.filter(entry => now - entry.shuffledAt >= videoPlaylistShuffleInterval)
+
+  for (const entry of expired) {
+    setVideoPlaylistOrder(entry.zone, entry.sourceIds, now)
+  }
+
+  if (expired.length > 0) {
+    await saveVideoPlaylists()
+    await saveVideoState()
+    if (broadcastChanges) {
+      broadcastVideoPlaylist()
+      broadcastVideoState()
+    }
+  }
+}
+
+function setVideoPlaylistOrder(zone: VideoZone, sourceIds: string[], now: number) {
+  const ids = shuffleVideoIds(sourceIds)
+
+  videoPlaylistOrders = [
+    ...videoPlaylistOrders.filter(entry => entry.zone !== zone),
+    { zone, ids, sourceIds, shuffledAt: now },
+  ]
+  videoState = videoState.map(entry => entry.zone === zone
+    ? { zone, id: ids[0]!, time: 0, updatedAt: now }
+    : entry)
+}
+
+function shuffleVideoIds(ids: string[]) {
+  const shuffled = [...ids]
+
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const id = shuffled[i]!
+
+    shuffled[i] = shuffled[j]!
+    shuffled[j] = id
+  }
+
+  return shuffled
+}
+
 function clientVideoZone(client: Client) {
   return roomVideoZone(client.room)
 }
@@ -943,6 +1065,34 @@ function validateVideoState(entries: VideoStateEntry[]) {
   }
 
   return entries.map(entry => videoStateEntry(entry))
+}
+
+function validateVideoPlaylist(entries: VideoPlaylistEntry[]) {
+  const seen = new Set<string>()
+
+  for (const entry of entries) {
+    if (!videoPlaylists[entry.zone]) {
+      throw new Error(`Invalid video playlist zone ${entry.zone}`)
+    }
+
+    if (seen.has(entry.zone)) {
+      throw new Error(`Duplicate video playlist zone ${entry.zone}`)
+    }
+
+    if (entry.ids.length === 0 || entry.ids.length > 255) {
+      throw new Error(`Invalid video playlist length ${entry.ids.length}`)
+    }
+
+    for (const id of entry.ids) {
+      if (!/^[\w-]{6,32}$/.test(id)) {
+        throw new Error(`Invalid video playlist id ${id}`)
+      }
+    }
+
+    seen.add(entry.zone)
+  }
+
+  return entries
 }
 
 function videoStateEntry(entry: VideoStateEntry): VideoStateEntry {
