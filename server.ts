@@ -1005,6 +1005,8 @@ async function applyAdminMessage(packet: ReturnType<typeof decodeAdminMessage>) 
 }
 
 async function banClient(id: number) {
+  broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id }))
+
   const client = [...clients.values()].find(next => next.id === id)
 
   if (!client) {
@@ -1019,7 +1021,9 @@ async function banClient(id: number) {
   console.log(`Admin ban: id=${id} ip=${client.ip}`)
 
   for (const next of banned) {
-    broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id: next.id }))
+    if (next.id !== id) {
+      broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id: next.id }))
+    }
   }
 
   setTimeout(() => {
