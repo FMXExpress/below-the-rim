@@ -291,7 +291,7 @@ const server = Bun.serve<SocketData>({
         throw new Error(`Invalid client packet type ${type}`)
       }
       catch (e) {
-        if (e instanceof Error && e.message.startsWith('Invalid movement ')) {
+        if (e instanceof Error && e.message.startsWith('Invalid ')) {
           return
         }
 
