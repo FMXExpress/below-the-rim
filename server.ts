@@ -3,7 +3,7 @@ import { extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { createBeachBalls } from './src/beach-balls.ts'
 import { hairPalette, jewelPalette, skinPalette } from './src/character-data.ts'
 import { accessoryPalette } from './src/character-style.ts'
-import { graffitiColors, maxGraffitiSplats } from './src/graffiti.ts'
+import { graffitiColors, graffitiWallBounds, graffitiWallCount, maxGraffitiSplats } from './src/graffiti.ts'
 import {
   ADMIN,
   BEACH_BALLS,
@@ -1206,10 +1206,16 @@ function validateGraffiti(splats: GraffitiSplat[]) {
   for (const splat of splats) {
     if (!Number.isInteger(splat.wall) || !Number.isInteger(splat.seed) || !Number.isInteger(splat.colorIndex)
       || !Number.isInteger(splat.radius) || !Number.isFinite(splat.x) || !Number.isFinite(splat.y)
-      || splat.wall > 3 || splat.x < -30
-      || splat.x > 30 || splat.y < -2 || splat.y > 4 || splat.seed > 65535
-      || splat.colorIndex >= graffitiColors.length || splat.radius < 0 || splat.radius > 255)
+      || splat.wall < 0 || splat.wall >= graffitiWallCount
+      || splat.seed < 0 || splat.seed > 65535 || splat.colorIndex < 0 || splat.colorIndex >= graffitiColors.length
+      || splat.radius < 0 || splat.radius > 255)
     {
+      throw new Error('Invalid graffiti splat')
+    }
+
+    const wall = graffitiWallBounds(splat.wall)
+
+    if (splat.x < wall.min || splat.x > wall.max || splat.y < wall.yMin || splat.y > wall.yMax) {
       throw new Error('Invalid graffiti splat')
     }
   }

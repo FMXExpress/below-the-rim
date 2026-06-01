@@ -1,12 +1,11 @@
 import { pack } from './geometry.ts'
 import { characterFloor } from './character-data.ts'
-import { roomBounds } from './scene-data.ts'
+import { outsideToiletDoor, outsideToilets, roomBounds, tent, tentDoor, tentDoorAngle } from './scene-data.ts'
 import type { WallProjector } from './projection.ts'
 import type { GraffitiSplat, Vec3, Vertex } from './types.ts'
 
 export const maxGraffitiSplats = 100000
 export const graffitiTextureSize = 1024
-export const graffitiCellSize = graffitiTextureSize / 2
 export const graffitiColors: Vec3[] = [
   [0.015, 0.012, 0.01],
   [1, 1, 1],
@@ -22,19 +21,114 @@ export const graffitiColors: Vec3[] = [
   [1, 0.03, 0.72],
 ]
 
+type GraffitiSides = 'front' | 'both'
+type PlaneGraffitiWall = {
+  kind: 'plane'
+  axis: 'x' | 'z'
+  value: number
+  min: number
+  max: number
+  yMin: number
+  yMax: number
+  normal: Vec3
+  sides: GraffitiSides
+}
+type CylinderGraffitiWall = {
+  kind: 'cylinder'
+  x: number
+  z: number
+  radius: number
+  min: number
+  max: number
+  yMin: number
+  yMax: number
+  segments: number
+  cutouts: { x: number; radius: number }[]
+  sides: GraffitiSides
+}
+type ConeGraffitiWall = {
+  kind: 'cone'
+  x: number
+  z: number
+  radius: number
+  min: number
+  max: number
+  yMin: number
+  yMax: number
+  xSegments: number
+  ySegments: number
+  cutouts: { x: number; radius: number }[]
+  sides: GraffitiSides
+}
+type GraffitiWall = PlaneGraffitiWall | CylinderGraffitiWall | ConeGraffitiWall
+type ScreenRay = ReturnType<typeof screenRay>
+
 const wallYMin = characterFloor + 0.03
 const wallYMax = 5
 const wallMargin = 0.03
 const wallEpsilon = 0.09
 const splatBaseScale = 0.38
 const splatRadiusScale = 1.9
+const graffitiAtlasColumns = 4
+const toiletLeft = outsideToilets.x - outsideToilets.width / 2
+const toiletRight = outsideToilets.x + outsideToilets.width / 2
+const toiletBack = outsideToilets.z - outsideToilets.depth / 2
+const toiletFront = outsideToilets.z + outsideToilets.depth / 2
+const toiletDoorBack = outsideToiletDoor.z - outsideToiletDoor.width / 2
+const toiletDoorFront = outsideToiletDoor.z + outsideToiletDoor.width / 2
+const toiletDoorSide = outsideToiletDoor.side === 'east' ? 1 : -1
+const toiletDoorX = toiletDoorSide > 0 ? toiletRight : toiletLeft
+const toiletOppositeX = toiletDoorSide > 0 ? toiletLeft : toiletRight
+const toiletTop = characterFloor + 2.55
+const toiletDoorTop = characterFloor + outsideToiletDoor.height + 0.05
+const tentWallMax = Math.PI * tent.radius
+const tentDoorCutout = Math.asin((tentDoor.width / 2 + 0.18) / tent.radius) * tent.radius
 
-const walls = [
-  { axis: 'z', value: roomBounds.front, min: roomBounds.left, max: roomBounds.right, normal: [0, 0, 1] as Vec3 },
-  { axis: 'z', value: roomBounds.back, min: roomBounds.left, max: roomBounds.right, normal: [0, 0, -1] as Vec3 },
-  { axis: 'x', value: roomBounds.left, min: roomBounds.back, max: roomBounds.front, normal: [-1, 0, 0] as Vec3 },
-  { axis: 'x', value: roomBounds.right, min: roomBounds.back, max: roomBounds.front, normal: [1, 0, 0] as Vec3 },
-] as const
+const walls: GraffitiWall[] = [
+  planeWall('z', roomBounds.front, roomBounds.left, roomBounds.right, wallYMin, wallYMax, [0, 0, 1], 'front'),
+  planeWall('z', roomBounds.back, roomBounds.left, roomBounds.right, wallYMin, wallYMax, [0, 0, -1], 'front'),
+  planeWall('x', roomBounds.left, roomBounds.back, roomBounds.front, wallYMin, wallYMax, [-1, 0, 0], 'front'),
+  planeWall('x', roomBounds.right, roomBounds.back, roomBounds.front, wallYMin, wallYMax, [1, 0, 0], 'front'),
+  planeWall('z', toiletFront, toiletLeft, toiletRight, wallYMin, toiletTop, [0, 0, 1], 'both'),
+  planeWall('z', toiletBack, toiletLeft, toiletRight, wallYMin, toiletTop, [0, 0, -1], 'both'),
+  planeWall('x', toiletOppositeX, toiletBack, toiletFront, wallYMin, toiletTop, [-toiletDoorSide, 0, 0], 'both'),
+  planeWall('x', toiletDoorX, toiletBack, toiletDoorBack, wallYMin, toiletTop, [toiletDoorSide, 0, 0], 'both'),
+  planeWall('x', toiletDoorX, toiletDoorFront, toiletFront, wallYMin, toiletTop, [toiletDoorSide, 0, 0], 'both'),
+  planeWall('x', toiletDoorX, toiletDoorBack, toiletDoorFront, toiletDoorTop, toiletTop, [toiletDoorSide, 0, 0],
+    'both'),
+  {
+    kind: 'cylinder',
+    x: tent.x,
+    z: tent.z,
+    radius: tent.radius,
+    min: -tentWallMax,
+    max: tentWallMax,
+    yMin: wallYMin,
+    yMax: characterFloor + tent.wallHeight,
+    segments: 72,
+    cutouts: [{ x: tentDoorAngle * tent.radius, radius: tentDoorCutout }],
+    sides: 'both',
+  },
+  {
+    kind: 'cone',
+    x: tent.x,
+    z: tent.z,
+    radius: tent.radius,
+    min: -tentWallMax,
+    max: tentWallMax,
+    yMin: characterFloor + tent.wallHeight,
+    yMax: characterFloor + tent.height,
+    xSegments: 72,
+    ySegments: 12,
+    cutouts: [],
+    sides: 'both',
+  },
+]
+export const graffitiWallCount = walls.length
+
+const graffitiAtlasRows = Math.ceil(graffitiWallCount / graffitiAtlasColumns)
+const graffitiCellWidth = graffitiTextureSize / graffitiAtlasColumns
+const graffitiCellHeight = graffitiTextureSize / graffitiAtlasRows
 
 export function sprayWallPoint(clientX: number, clientY: number, projector: WallProjector) {
   const ray = screenRay(clientX, clientY, projector)
@@ -59,24 +153,24 @@ export function addGraffitiGeometry(target: Vertex[], splats: GraffitiSplat[]) {
 
 export function addGraffitiWallGeometry(target: Vertex[]) {
   for (let wall = 0; wall < walls.length; wall++) {
-    const data = walls[wall]!
-    const u0 = wall % 2 * 0.5
-    const v0 = Math.floor(wall / 2) * 0.5
-    const u1 = u0 + 0.5
-    const v1 = v0 + 0.5
+    const data = wallAt(wall)
 
-    if (data.axis === 'x') {
-      const x = data.value + data.normal[0] * wallEpsilon
+    addGraffitiWallSurface(target, wall, data, 1)
 
-      addGraffitiQuad(target, [x, wallYMin, data.min], [x, wallYMin, data.max], [x, wallYMax, data.max],
-        [x, wallYMax, data.min], u0, v0, u1, v1)
+    if (data.sides === 'both') {
+      addGraffitiWallSurface(target, wall, data, -1)
     }
-    else {
-      const z = data.value + data.normal[2] * wallEpsilon
+  }
+}
 
-      addGraffitiQuad(target, [data.min, wallYMin, z], [data.max, wallYMin, z], [data.max, wallYMax, z],
-        [data.min, wallYMax, z], u0, v0, u1, v1)
-    }
+export function graffitiWallBounds(wallIndex: number) {
+  const wall = wallAt(wallIndex)
+
+  return {
+    min: wall.min,
+    max: wall.max,
+    yMin: wall.yMin,
+    yMax: wall.yMax,
   }
 }
 
@@ -116,10 +210,22 @@ function screenRay(clientX: number, clientY: number, projector: WallProjector) {
   }
 }
 
-function wallHit(wallIndex: number, ray: ReturnType<typeof screenRay>) {
-  const wall = walls[wallIndex]!
+function wallHit(wallIndex: number, ray: ScreenRay) {
+  const wall = wallAt(wallIndex)
+
+  return wall.kind === 'plane' ? planeWallHit(wall, ray)
+    : wall.kind === 'cylinder' ? cylinderWallHit(wall, ray)
+      : coneWallHit(wall, ray)
+}
+
+function planeWallHit(wall: PlaneGraffitiWall, ray: ScreenRay) {
   const component = wall.axis === 'x' ? ray.x : ray.z
   const eye = wall.axis === 'x' ? ray.eyeX : ray.eyeZ
+
+  if (component === 0) {
+    return
+  }
+
   const distance = (wall.value - eye) / component
 
   if (distance <= 0) {
@@ -131,7 +237,7 @@ function wallHit(wallIndex: number, ray: ReturnType<typeof screenRay>) {
   const worldZ = ray.eyeZ + ray.z * distance
   const along = wall.axis === 'x' ? worldZ : worldX
 
-  if (worldY < wallYMin || worldY > wallYMax || along < wall.min + wallMargin || along > wall.max - wallMargin) {
+  if (worldY < wall.yMin || worldY > wall.yMax || along < wall.min + wallMargin || along > wall.max - wallMargin) {
     return
   }
 
@@ -142,12 +248,96 @@ function wallHit(wallIndex: number, ray: ReturnType<typeof screenRay>) {
   }
 }
 
+function cylinderWallHit(wall: CylinderGraffitiWall, ray: ScreenRay) {
+  const x = ray.eyeX - wall.x
+  const z = ray.eyeZ - wall.z
+  const a = ray.x * ray.x + ray.z * ray.z
+  const b = 2 * (x * ray.x + z * ray.z)
+  const c = x * x + z * z - wall.radius * wall.radius
+  const determinant = b * b - 4 * a * c
+
+  if (a === 0 || determinant < 0) {
+    return
+  }
+
+  const root = Math.sqrt(determinant)
+  const first = (-b - root) / (2 * a)
+  const second = (-b + root) / (2 * a)
+  const distance = first > 0 ? first : second
+
+  if (distance <= 0) {
+    return
+  }
+
+  const worldX = ray.eyeX + ray.x * distance
+  const worldY = ray.eyeY + ray.y * distance
+  const worldZ = ray.eyeZ + ray.z * distance
+  const along = Math.atan2(worldX - wall.x, worldZ - wall.z) * wall.radius
+
+  if (worldY < wall.yMin || worldY > wall.yMax || along < wall.min || along > wall.max
+    || inWallCutout(wall, along))
+  {
+    return
+  }
+
+  return {
+    x: along,
+    y: worldY,
+    distance: distance * ray.length,
+  }
+}
+
+function coneWallHit(wall: ConeGraffitiWall, ray: ScreenRay) {
+  const x = ray.eyeX - wall.x
+  const z = ray.eyeZ - wall.z
+  const y = wall.yMax - ray.eyeY
+  const slope = wall.radius / (wall.yMax - wall.yMin)
+  const slopeSq = slope * slope
+  const rayY = -ray.y
+  const a = ray.x * ray.x + ray.z * ray.z - slopeSq * rayY * rayY
+  const b = 2 * (x * ray.x + z * ray.z - slopeSq * y * rayY)
+  const c = x * x + z * z - slopeSq * y * y
+  const determinant = b * b - 4 * a * c
+
+  if (a === 0 || determinant < 0) {
+    return
+  }
+
+  const root = Math.sqrt(determinant)
+  const first = (-b - root) / (2 * a)
+  const second = (-b + root) / (2 * a)
+  const distances = first < second ? [first, second] : [second, first]
+
+  for (const distance of distances) {
+    if (distance <= 0) {
+      continue
+    }
+
+    const worldX = ray.eyeX + ray.x * distance
+    const worldY = ray.eyeY + ray.y * distance
+    const worldZ = ray.eyeZ + ray.z * distance
+    const along = Math.atan2(worldX - wall.x, worldZ - wall.z) * wall.radius
+
+    if (worldY < wall.yMin || worldY > wall.yMax || along < wall.min || along > wall.max
+      || inWallCutout(wall, along))
+    {
+      continue
+    }
+
+    return {
+      x: along,
+      y: worldY,
+      distance: distance * ray.length,
+    }
+  }
+}
+
 function addGraffitiSplat(target: Vertex[], splat: GraffitiSplat) {
-  const wall = walls[splat.wall]!
+  const wall = wallAt(splat.wall)
   const color = graffitiColors[splat.colorIndex % graffitiColors.length]!
-  const tangent: Vec3 = wall.axis === 'x' ? [0, 0, 1] : [1, 0, 0]
-  const up: Vec3 = [0, 1, 0]
-  const center = wallPoint(splat.wall, splat.x, splat.y)
+  const tangent = wallTangent(wall, splat.x)
+  const up = wallUp(wall, splat.x)
+  const center = wallPoint(wall, splat.x, splat.y)
   const scale = graffitiSplatScale(splat.radius)
   const count = 3 + splat.seed % 3
 
@@ -168,14 +358,182 @@ function addGraffitiSplat(target: Vertex[], splat: GraffitiSplat) {
   }
 }
 
-function wallPoint(wallIndex: number, x: number, y: number): Vec3 {
-  const wall = walls[wallIndex]!
+function wallPoint(wall: GraffitiWall, x: number, y: number): Vec3 {
+  if (wall.kind === 'cylinder') {
+    return cylinderWallPoint(wall, x, y, 1)
+  }
+
+  if (wall.kind === 'cone') {
+    return coneWallPoint(wall, x, y, 1)
+  }
 
   if (wall.axis === 'x') {
     return [wall.value + wall.normal[0] * wallEpsilon, y, x]
   }
 
   return [x, y, wall.value + wall.normal[2] * wallEpsilon]
+}
+
+function wallTangent(wall: GraffitiWall, x: number): Vec3 {
+  if (wall.kind === 'cylinder' || wall.kind === 'cone') {
+    const angle = x / wall.radius
+
+    return [Math.cos(angle), 0, -Math.sin(angle)]
+  }
+
+  return wall.axis === 'x' ? [0, 0, 1] : [1, 0, 0]
+}
+
+function wallUp(wall: GraffitiWall, x: number): Vec3 {
+  if (wall.kind !== 'cone') {
+    return [0, 1, 0]
+  }
+
+  const angle = x / wall.radius
+  const slope = wall.radius / (wall.yMax - wall.yMin)
+  const length = Math.hypot(slope, 1)
+
+  return [
+    -Math.sin(angle) * slope / length,
+    1 / length,
+    -Math.cos(angle) * slope / length,
+  ]
+}
+
+function addGraffitiWallSurface(target: Vertex[], wallIndex: number, wall: GraffitiWall, side: 1 | -1) {
+  if (wall.kind === 'plane') {
+    addPlaneGraffitiWallSurface(target, wallIndex, wall, side)
+    return
+  }
+
+  if (wall.kind === 'cylinder') {
+    addCylinderGraffitiWallSurface(target, wallIndex, wall, side)
+    return
+  }
+
+  addConeGraffitiWallSurface(target, wallIndex, wall, side)
+}
+
+function addPlaneGraffitiWallSurface(target: Vertex[], wallIndex: number, wall: PlaneGraffitiWall, side: 1 | -1) {
+  const [u0, v0, u1, v1] = wallTextureBounds(wallIndex)
+
+  if (wall.axis === 'x') {
+    const x = wall.value + wall.normal[0] * wallEpsilon * side
+
+    addGraffitiQuad(target, [x, wall.yMin, wall.min], [x, wall.yMin, wall.max], [x, wall.yMax, wall.max],
+      [x, wall.yMax, wall.min], u0, v0, u1, v1)
+    return
+  }
+
+  const z = wall.value + wall.normal[2] * wallEpsilon * side
+
+  addGraffitiQuad(target, [wall.min, wall.yMin, z], [wall.max, wall.yMin, z], [wall.max, wall.yMax, z],
+    [wall.min, wall.yMax, z], u0, v0, u1, v1)
+}
+
+function addCylinderGraffitiWallSurface(
+  target: Vertex[],
+  wallIndex: number,
+  wall: CylinderGraffitiWall,
+  side: 1 | -1,
+) {
+  const [u0, v0, u1, v1] = wallTextureBounds(wallIndex)
+  const span = wall.max - wall.min
+
+  for (let i = 0; i < wall.segments; i++) {
+    const a = wall.min + span * i / wall.segments
+    const b = wall.min + span * (i + 1) / wall.segments
+    const mid = (a + b) / 2
+
+    if (inWallCutout(wall, mid)) {
+      continue
+    }
+
+    const left = u0 + (a - wall.min) / span * (u1 - u0)
+    const right = u0 + (b - wall.min) / span * (u1 - u0)
+
+    addGraffitiQuad(target, cylinderWallPoint(wall, a, wall.yMin, side), cylinderWallPoint(wall, b, wall.yMin, side),
+      cylinderWallPoint(wall, b, wall.yMax, side), cylinderWallPoint(wall, a, wall.yMax, side), left, v0, right, v1)
+  }
+}
+
+function cylinderWallPoint(wall: CylinderGraffitiWall, x: number, y: number, side: 1 | -1): Vec3 {
+  const angle = x / wall.radius
+  const radius = wall.radius + wallEpsilon * side
+
+  return [
+    wall.x + Math.sin(angle) * radius,
+    y,
+    wall.z + Math.cos(angle) * radius,
+  ]
+}
+
+function addConeGraffitiWallSurface(target: Vertex[], wallIndex: number, wall: ConeGraffitiWall, side: 1 | -1) {
+  const [u0, v0, u1, v1] = wallTextureBounds(wallIndex)
+  const xSpan = wall.max - wall.min
+  const ySpan = wall.yMax - wall.yMin
+
+  for (let yIndex = 0; yIndex < wall.ySegments; yIndex++) {
+    const bottomY = wall.yMin + ySpan * yIndex / wall.ySegments
+    const topY = wall.yMin + ySpan * (yIndex + 1) / wall.ySegments
+    const bottom = v1 - (bottomY - wall.yMin) / ySpan * (v1 - v0)
+    const top = v1 - (topY - wall.yMin) / ySpan * (v1 - v0)
+
+    for (let xIndex = 0; xIndex < wall.xSegments; xIndex++) {
+      const a = wall.min + xSpan * xIndex / wall.xSegments
+      const b = wall.min + xSpan * (xIndex + 1) / wall.xSegments
+      const mid = (a + b) / 2
+
+      if (inWallCutout(wall, mid)) {
+        continue
+      }
+
+      const left = u0 + (a - wall.min) / xSpan * (u1 - u0)
+      const right = u0 + (b - wall.min) / xSpan * (u1 - u0)
+
+      addGraffitiQuad(target, coneWallPoint(wall, a, bottomY, side), coneWallPoint(wall, b, bottomY, side),
+        coneWallPoint(wall, b, topY, side), coneWallPoint(wall, a, topY, side), left, top, right, bottom)
+    }
+  }
+}
+
+function coneWallPoint(wall: ConeGraffitiWall, x: number, y: number, side: 1 | -1): Vec3 {
+  const angle = x / wall.radius
+  const baseRadius = wall.radius * (wall.yMax - y) / (wall.yMax - wall.yMin)
+  const normal = coneWallNormal(wall, angle)
+  const point: Vec3 = [
+    wall.x + Math.sin(angle) * baseRadius,
+    y,
+    wall.z + Math.cos(angle) * baseRadius,
+  ]
+
+  return [
+    point[0] + normal[0] * wallEpsilon * side,
+    point[1] + normal[1] * wallEpsilon * side,
+    point[2] + normal[2] * wallEpsilon * side,
+  ]
+}
+
+function coneWallNormal(wall: ConeGraffitiWall, angle: number): Vec3 {
+  const slope = wall.radius / (wall.yMax - wall.yMin)
+  const length = Math.hypot(1, slope)
+
+  return [
+    Math.sin(angle) / length,
+    slope / length,
+    Math.cos(angle) / length,
+  ]
+}
+
+function wallTextureBounds(wall: number) {
+  const column = wall % graffitiAtlasColumns
+  const row = Math.floor(wall / graffitiAtlasColumns)
+  const u0 = column * graffitiCellWidth / graffitiTextureSize
+  const v0 = row * graffitiCellHeight / graffitiTextureSize
+  const u1 = (column + 1) * graffitiCellWidth / graffitiTextureSize
+  const v1 = (row + 1) * graffitiCellHeight / graffitiTextureSize
+
+  return [u0, v0, u1, v1] as const
 }
 
 function addSplatQuad(target: Vertex[], center: Vec3, tangent: Vec3, up: Vec3, sizeX: number, sizeY: number, color: Vec3) {
@@ -219,10 +577,10 @@ function addGraffitiQuad(
 
 function paintGraffitiSplat(context: CanvasRenderingContext2D, splat: GraffitiSplat) {
   const color = graffitiColors[splat.colorIndex % graffitiColors.length]!
-  const wall = walls[splat.wall]!
+  const wall = wallAt(splat.wall)
   const [x, y] = splatCanvasPoint(splat)
-  const pixelsPerMeterX = graffitiCellSize / (wall.max - wall.min)
-  const pixelsPerMeterY = graffitiCellSize / (wallYMax - wallYMin)
+  const pixelsPerMeterX = graffitiCellWidth / (wall.max - wall.min)
+  const pixelsPerMeterY = graffitiCellHeight / (wall.yMax - wall.yMin)
   const scale = graffitiSplatScale(splat.radius)
   const count = 3 + splat.seed % 3
 
@@ -261,15 +619,15 @@ function paintGraffitiSplat(context: CanvasRenderingContext2D, splat: GraffitiSp
 }
 
 function splatCanvasPoint(splat: GraffitiSplat) {
-  const wall = walls[splat.wall]!
-  const cellX = splat.wall % 2 * graffitiCellSize
-  const cellY = Math.floor(splat.wall / 2) * graffitiCellSize
+  const wall = wallAt(splat.wall)
+  const cellX = splat.wall % graffitiAtlasColumns * graffitiCellWidth
+  const cellY = Math.floor(splat.wall / graffitiAtlasColumns) * graffitiCellHeight
   const u = (splat.x - wall.min) / (wall.max - wall.min)
-  const v = 1 - (splat.y - wallYMin) / (wallYMax - wallYMin)
+  const v = 1 - (splat.y - wall.yMin) / (wall.yMax - wall.yMin)
 
   return [
-    cellX + u * graffitiCellSize,
-    cellY + v * graffitiCellSize,
+    cellX + u * graffitiCellWidth,
+    cellY + v * graffitiCellHeight,
   ]
 }
 
@@ -292,4 +650,47 @@ function random(seed: number, offset: number) {
   value = Math.imul(value ^ value >>> 13, 3266489917)
 
   return ((value ^ value >>> 16) >>> 0) / 4294967296
+}
+
+function wallAt(index: number) {
+  const wall = walls[index]
+
+  if (!wall) {
+    throw new Error(`Unknown graffiti wall ${index}`)
+  }
+
+  return wall
+}
+
+function planeWall(
+  axis: 'x' | 'z',
+  value: number,
+  min: number,
+  max: number,
+  yMin: number,
+  yMax: number,
+  normal: Vec3,
+  sides: GraffitiSides,
+): PlaneGraffitiWall {
+  return {
+    kind: 'plane',
+    axis,
+    value,
+    min,
+    max,
+    yMin,
+    yMax,
+    normal,
+    sides,
+  }
+}
+
+function inWallCutout(wall: CylinderGraffitiWall | ConeGraffitiWall, x: number) {
+  const size = wall.max - wall.min
+
+  return wall.cutouts.some(cutout => Math.abs(wrapDistance(x - cutout.x, size)) < cutout.radius)
+}
+
+function wrapDistance(value: number, size: number) {
+  return value - Math.round(value / size) * size
 }

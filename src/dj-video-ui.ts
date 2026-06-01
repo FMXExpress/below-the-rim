@@ -52,9 +52,8 @@ export function createDjVideoUi(
   const ready: Partial<Record<VideoZone, boolean>> = {}
   const pendingStarts: Partial<Record<VideoZone, number>> = {}
   const pendingLoops: Partial<Record<VideoZone, boolean>> = {}
-  const pendingTracks: Partial<Record<VideoZone, { id: string; time: number }>> = {}
-  const pendingEnded: Partial<Record<VideoZone, boolean>> = {}
   const playlistOrders: Partial<Record<VideoZone, string[]>> = {}
+  const nextTrackIds: Partial<Record<VideoZone, string>> = {}
   const reportedPlaylists: Partial<Record<VideoZone, string>> = {}
   let zone: VideoZone = roomAt(position)
   const setElementStyle = createStyleSetter(element.style)
@@ -110,19 +109,13 @@ export function createDjVideoUi(
       zone = roomAt(position)
     },
     syncCurrentTime() {
-      syncVideoTime(zone, players, ready, pendingStarts, times, trackIndexes, trackIds, playlistIds)
+      syncVideoTime(zone, players, ready, pendingStarts, times, trackIndexes, trackIds, playlistIds, playlistOrders,
+        nextTrackIds)
       pauseOtherVideos(zone, players, ready)
     },
     state() {
-      if (pendingEnded[zone] && pendingTracks[zone]) {
-        return {
-          zone,
-          id: pendingTracks[zone]!.id,
-          time: pendingTracks[zone]!.time,
-        }
-      }
-
-      syncVideoTime(zone, players, ready, pendingStarts, times, trackIndexes, trackIds, playlistIds)
+      syncVideoTime(zone, players, ready, pendingStarts, times, trackIndexes, trackIds, playlistIds, playlistOrders,
+        nextTrackIds)
       pauseOtherVideos(zone, players, ready)
 
       return {
@@ -136,23 +129,23 @@ export function createDjVideoUi(
         const sameTrack = trackIds[state.zone] === state.id
         const time = videoStateTime(state.zone, state.id, state.time)
 
-        if (sameTrack && preserveSameTrack && !(pendingEnded[state.zone] && pendingTracks[state.zone])) {
+        if (sameTrack && preserveSameTrack) {
           continue
         }
 
         if (!ready[state.zone]) {
           trackIds[state.zone] = state.id
           times[state.zone] = time
+          prepareNextPlaylistTrack(state.zone, trackIds, playlistOrders, nextTrackIds)
           pendingStarts[state.zone] = time
           continue
         }
 
         if (ready[state.zone]) {
           if (immediate && state.zone === zone) {
-            delete pendingEnded[state.zone]
-            delete pendingTracks[state.zone]
             trackIds[state.zone] = state.id
             times[state.zone] = time
+            prepareNextPlaylistTrack(state.zone, trackIds, playlistOrders, nextTrackIds)
             pendingStarts[state.zone] = times[state.zone]
             loadDirectVideoFromTime(state.zone, players, pendingStarts, times, trackIds)
             pauseOtherVideos(state.zone, players, ready)
@@ -160,11 +153,6 @@ export function createDjVideoUi(
           }
 
           if (sameTrack && state.zone === zone) {
-            if (pendingEnded[state.zone] && pendingTracks[state.zone]) {
-              playPendingTrack(state.zone, players, pendingStarts, pendingEnded, pendingTracks, times, trackIds)
-              pauseOtherVideos(state.zone, players, ready)
-              continue
-            }
             times[state.zone] = time
             pendingStarts[state.zone] = times[state.zone]
             if (!preserveSameTrack) {
@@ -180,22 +168,15 @@ export function createDjVideoUi(
           else if (state.zone !== zone) {
             trackIds[state.zone] = state.id
             times[state.zone] = time
+            prepareNextPlaylistTrack(state.zone, trackIds, playlistOrders, nextTrackIds)
             pendingStarts[state.zone] = times[state.zone]
             cueVideoFromTime(state.zone, players, pendingStarts, times, trackIndexes, trackIds, playlistIds)
             players[state.zone]!.pauseVideo()
           }
-          else if (videoPlaylists[state.zone] && preserveSameTrack && !immediate) {
-            pendingTracks[state.zone] = { id: state.id, time }
-            if (pendingEnded[state.zone]) {
-              playPendingTrack(state.zone, players, pendingStarts, pendingEnded, pendingTracks, times, trackIds)
-              pauseOtherVideos(state.zone, players, ready)
-            }
-          }
           else {
-            delete pendingEnded[state.zone]
-            delete pendingTracks[state.zone]
             trackIds[state.zone] = state.id
             times[state.zone] = time
+            prepareNextPlaylistTrack(state.zone, trackIds, playlistOrders, nextTrackIds)
             pendingStarts[state.zone] = times[state.zone]
             loadVideoFromTime(state.zone, players, pendingStarts, times, trackIndexes, trackIds, playlistIds)
             pauseOtherVideos(state.zone, players, ready)
@@ -206,6 +187,7 @@ export function createDjVideoUi(
     applyPlaylists(entries: Array<{ zone: VideoZone; ids: string[] }>) {
       for (const entry of entries) {
         playlistOrders[entry.zone] = entry.ids
+        prepareNextPlaylistTrack(entry.zone, trackIds, playlistOrders, nextTrackIds)
       }
     },
     playlists() {
@@ -239,7 +221,7 @@ export function createDjVideoUi(
 
                 if (videoPlaylists[area]) {
                   setTimeout(() => syncVideoTime(area, players, ready, pendingStarts, times, trackIndexes, trackIds,
-                    playlistIds, reportedPlaylists, options.onPlaylistDiscovered), 1000)
+                    playlistIds, playlistOrders, nextTrackIds, reportedPlaylists, options.onPlaylistDiscovered), 1000)
                 }
               },
               onStateChange(event) {
@@ -250,18 +232,9 @@ export function createDjVideoUi(
 
                 if (event.data === endedState) {
                   if (videoPlaylists[area]) {
-                    if (pendingTracks[area]) {
-                      playPendingTrack(area, players, pendingStarts, pendingEnded, pendingTracks, times, trackIds)
-                      pauseOtherVideos(area, players, ready)
-                    }
-                    else if (options.isAuthority?.(area) ?? true) {
-                      pendingEnded[area] = true
-                      requestNextPlaylistVideo(area, pendingTracks, times, trackIds, playlistOrders, options.onStateChanged)
-                    }
-                    else {
-                      pendingEnded[area] = true
-                      pendingStarts[area] = times[area]
-                      players[area]!.pauseVideo()
+                    playNextPlaylistVideo(area, players, pendingStarts, times, trackIds, playlistOrders, nextTrackIds)
+                    if (options.isAuthority?.(area) ?? true) {
+                      options.onStateChanged?.()
                     }
                   }
                   else {
@@ -271,7 +244,7 @@ export function createDjVideoUi(
                 }
                 else {
                   syncVideoTime(area, players, ready, pendingStarts, times, trackIndexes, trackIds, playlistIds,
-                    reportedPlaylists, options.onPlaylistDiscovered)
+                    playlistOrders, nextTrackIds, reportedPlaylists, options.onPlaylistDiscovered)
                 }
               },
             },
@@ -294,7 +267,8 @@ export function createDjVideoUi(
 
       if (nextZone !== zone) {
         if (ready[zone]) {
-          syncVideoTime(zone, players, ready, pendingStarts, times, trackIndexes, trackIds, playlistIds)
+          syncVideoTime(zone, players, ready, pendingStarts, times, trackIndexes, trackIds, playlistIds, playlistOrders,
+            nextTrackIds)
           players[zone]!.pauseVideo()
         }
 
@@ -522,42 +496,46 @@ function loopVideo(
   }, 0)
 }
 
-function requestNextPlaylistVideo(
-  area: VideoZone,
-  pendingTracks: Partial<Record<VideoZone, { id: string; time: number }>>,
-  times: Record<VideoZone, number>,
-  trackIds: Record<VideoZone, string>,
-  playlistOrders: Partial<Record<VideoZone, string[]>>,
-  onStateChanged?: () => void,
-) {
-  const order = playlistOrders[area]!
-  const index = order.indexOf(trackIds[area])
-  const id = order[(index + 1) % order.length]!
-
-  pendingTracks[area] = { id, time: 0 }
-  trackIds[area] = id
-  times[area] = 0
-  onStateChanged?.()
-}
-
-function playPendingTrack(
+function playNextPlaylistVideo(
   area: VideoZone,
   players: Partial<Record<VideoZone, YouTubePlayer>>,
   pendingStarts: Partial<Record<VideoZone, number>>,
-  pendingEnded: Partial<Record<VideoZone, boolean>>,
-  pendingTracks: Partial<Record<VideoZone, { id: string; time: number }>>,
   times: Record<VideoZone, number>,
   trackIds: Record<VideoZone, string>,
+  playlistOrders: Partial<Record<VideoZone, string[]>>,
+  nextTrackIds: Partial<Record<VideoZone, string>>,
 ) {
-  const track = pendingTracks[area]!
+  prepareNextPlaylistTrack(area, trackIds, playlistOrders, nextTrackIds)
+  const id = nextTrackIds[area]
 
-  delete pendingEnded[area]
-  delete pendingTracks[area]
-  trackIds[area] = track.id
-  times[area] = track.time
-  pendingStarts[area] = track.time
-  players[area]!.loadVideoById({ videoId: track.id, startSeconds: track.time })
+  if (!id) {
+    throw new Error(`Missing next video track for ${area}`)
+  }
+
+  trackIds[area] = id
+  times[area] = 0
+  pendingStarts[area] = 0
+  prepareNextPlaylistTrack(area, trackIds, playlistOrders, nextTrackIds)
+  players[area]!.loadVideoById({ videoId: id, startSeconds: 0 })
   players[area]!.playVideo()
+}
+
+function prepareNextPlaylistTrack(
+  area: VideoZone,
+  trackIds: Record<VideoZone, string>,
+  playlistOrders: Partial<Record<VideoZone, string[]>>,
+  nextTrackIds: Partial<Record<VideoZone, string>>,
+) {
+  const order = playlistOrders[area]
+
+  if (!order?.length) {
+    delete nextTrackIds[area]
+    return
+  }
+
+  const index = order.indexOf(trackIds[area])
+
+  nextTrackIds[area] = order[(index + 1) % order.length]!
 }
 
 function shouldLoadPlaylist(
@@ -591,6 +569,8 @@ function syncVideoTime(
   trackIndexes: Record<VideoZone, number>,
   trackIds: Record<VideoZone, string>,
   playlistIds: Partial<Record<VideoZone, string[]>>,
+  playlistOrders: Partial<Record<VideoZone, string[]>>,
+  nextTrackIds: Partial<Record<VideoZone, string>>,
   reportedPlaylists?: Partial<Record<VideoZone, string>>,
   onPlaylistDiscovered?: (zone: VideoZone, ids: string[]) => void,
 ) {
@@ -608,7 +588,18 @@ function syncVideoTime(
       }
     }
 
-    trackIds[area] = players[area]!.getVideoData()?.video_id || trackIds[area]
+    const playerTrackId = players[area]!.getVideoData()?.video_id
+
+    if (pendingStart !== undefined && playerTrackId !== trackIds[area]) {
+      return
+    }
+
+    const trackId = playerTrackId || trackIds[area]
+
+    if (trackIds[area] !== trackId) {
+      trackIds[area] = trackId
+      prepareNextPlaylistTrack(area, trackIds, playlistOrders, nextTrackIds)
+    }
 
     if (pendingStart !== undefined && time < pendingStart - 0.5) {
       players[area]!.seekTo(pendingStart, true)

@@ -1,8 +1,22 @@
+import { characterFloor } from './character-data.ts'
 import { outsideMotif } from './constants.ts'
 import { tent } from './scene-data.ts'
 
-const tentVisibleRadiusSq = (tent.radius + 0.15) ** 2
-const tentInteriorRadiusSq = (tent.radius - 0.86) ** 2
+const tentX = glslFloat(tent.x)
+const tentZ = glslFloat(tent.z)
+const tentRadius = glslFloat(tent.radius)
+const tentVisibleRadiusSq = glslFloat((tent.radius + 0.15) ** 2)
+const tentInteriorRadiusSq = glslFloat((tent.radius - 0.86) ** 2)
+const tentWallTop = characterFloor + tent.wallHeight
+const tentTop = characterFloor + tent.height
+const tentWallTopGlsl = glslFloat(tentWallTop)
+const tentRoofHeightGlsl = glslFloat(tentTop - tentWallTop)
+const tentRoofShellBottom = glslFloat(tentWallTop - 0.15)
+const tentRoofShellTop = glslFloat(tentTop + 0.15)
+
+function glslFloat(value: number) {
+  return value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '.0')
+}
 
 export const vertex = `#version 300 es
 precision highp float;
@@ -88,7 +102,7 @@ out vec4 pixel;
 
 bool sceneVisible() {
   bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
-  vec2 tentOffset = worldPosition.xz - vec2(${tent.x}, ${tent.z});
+  vec2 tentOffset = worldPosition.xz - vec2(${tentX}, ${tentZ});
   bool tentPoint = dot(tentOffset, tentOffset) < ${tentVisibleRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
   bool tentInterior = dot(tentOffset, tentOffset) < ${tentInteriorRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
   bool shell = (
@@ -160,9 +174,13 @@ bool sceneVisible() {
   }
 
   bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
-  vec2 tentOffset = worldPosition.xz - vec2(${tent.x}, ${tent.z});
+  vec2 tentOffset = worldPosition.xz - vec2(${tentX}, ${tentZ});
+  float tentDistance = length(tentOffset);
+  float tentRoofT = clamp((worldPosition.y - ${tentWallTopGlsl}) / ${tentRoofHeightGlsl}, 0.0, 1.0);
+  float tentRoofRadius = mix(${tentRadius}, 0.0, tentRoofT);
   bool tentPoint = dot(tentOffset, tentOffset) < ${tentVisibleRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
   bool tentInterior = dot(tentOffset, tentOffset) < ${tentInteriorRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
+  bool tentRoofShell = worldPosition.y > ${tentRoofShellBottom} && worldPosition.y < ${tentRoofShellTop} && abs(tentDistance - tentRoofRadius) < 0.24;
   bool shell = (
     abs(worldPosition.z - 4.0) < 0.18
     || abs(worldPosition.z + 24.0) < 0.18
@@ -172,6 +190,7 @@ bool sceneVisible() {
   bool door = abs(worldPosition.z - 4.0) < 0.22
     && worldPosition.x > -5.75 && worldPosition.x < -3.75
     && worldPosition.y > -2.15 && worldPosition.y < 0.75;
+  bool graffiti = hazeAmount > 5.5;
 
   if (renderZone == 0) {
     return !outsidePoint || door;
@@ -180,7 +199,7 @@ bool sceneVisible() {
     return tentPoint;
   }
 
-  return (outsidePoint && !tentInterior) || (shell && light < 0.12) || door;
+  return (outsidePoint && (!tentInterior || tentRoofShell || graffiti)) || (shell && light < 0.12) || door;
 }
 
 float hash(vec2 point) {
@@ -292,7 +311,7 @@ out vec4 pixel;
 
 bool sceneVisible() {
   bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
-  vec2 tentOffset = worldPosition.xz - vec2(${tent.x}, ${tent.z});
+  vec2 tentOffset = worldPosition.xz - vec2(${tentX}, ${tentZ});
   bool tentPoint = dot(tentOffset, tentOffset) < ${tentVisibleRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
   bool tentInterior = dot(tentOffset, tentOffset) < ${tentInteriorRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
   bool door = abs(worldPosition.z - 4.0) < 0.22
@@ -382,7 +401,7 @@ out vec4 pixel;
 
 bool sceneVisible() {
   bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
-  vec2 tentOffset = worldPosition.xz - vec2(${tent.x}, ${tent.z});
+  vec2 tentOffset = worldPosition.xz - vec2(${tentX}, ${tentZ});
   bool tentPoint = dot(tentOffset, tentOffset) < ${tentVisibleRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
   bool tentInterior = dot(tentOffset, tentOffset) < ${tentInteriorRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
   bool door = abs(worldPosition.z - 4.0) < 0.22
