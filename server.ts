@@ -1266,39 +1266,34 @@ async function applyAdminMessage(packet: ReturnType<typeof decodeAdminMessage>) 
     await banClient(packet.id)
   }
   else if (packet.command === 'randomTrack') {
-    await randomizeVideoTracks()
+    await randomizeVideoTrack(roomVideoZone(packet.id))
   }
 }
 
-async function randomizeVideoTracks() {
+async function randomizeVideoTrack(zone: VideoZone) {
   const now = Date.now()
-  let changed = false
 
-  for (const zone of Object.keys(videoPlaylists) as VideoZone[]) {
-    const order = videoPlaylistOrders.find(entry => entry.zone === zone)?.ids
-
-    if (!order) {
-      console.log(`Admin random track skipped: missing playlist order ${zone}`)
-      continue
-    }
-
-    const current = videoState.find(entry => entry.zone === zone)!
-    const live = liveVideoIds(zone)
-    const currentId = mostReportedVideoId(live) ?? current.id
-    const id = randomVideoId(order, currentId, new Set(live.keys()))
-
-    console.log(`[video] random ${zone}: current=${currentId} next=${id} order=${order.length}`)
-    videoState = videoState.map(entry => entry.zone === zone
-      ? { zone, id, time: 0, updatedAt: now }
-      : entry)
-    changed = true
-  }
-
-  if (!changed) {
-    console.log('Admin random track skipped: no playlist orders')
+  if (!videoPlaylists[zone]) {
+    console.log(`Admin random track skipped: no playlist ${zone}`)
     return
   }
 
+  const order = videoPlaylistOrders.find(entry => entry.zone === zone)?.ids
+
+  if (!order) {
+    console.log(`Admin random track skipped: missing playlist order ${zone}`)
+    return
+  }
+
+  const current = videoState.find(entry => entry.zone === zone)!
+  const live = liveVideoIds(zone)
+  const currentId = mostReportedVideoId(live) ?? current.id
+  const id = randomVideoId(order, currentId, new Set(live.keys()))
+
+  console.log(`[video] random ${zone}: current=${currentId} next=${id} order=${order.length}`)
+  videoState = videoState.map(entry => entry.zone === zone
+    ? { zone, id, time: 0, updatedAt: now }
+    : entry)
   await saveVideoState()
   broadcastVideoStateNow()
 }

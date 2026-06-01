@@ -322,8 +322,12 @@ adminRandomTrackSubmit.addEventListener('click', () => {
     multiplayer.sendVideoPlaylist(playlists)
   }
 
-  multiplayer.sendAdmin(adminPass, 'randomTrack', 0)
+  multiplayer.sendAdmin(adminPass, 'randomTrack', videoZoneRoom(djVideoUi.zone))
 })
+
+function videoZoneRoom(zone: VideoZone) {
+  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : 0
+}
 
 banCancel.addEventListener('click', () => {
   pendingBan = undefined

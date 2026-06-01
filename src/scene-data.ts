@@ -100,6 +100,7 @@ export const videoStartTimes: Record<VideoZone, number> = {
 export const videoPlaylists: Partial<Record<VideoZone, string>> = {
   inside: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
   outside: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
+  tent: 'PLue4XlmLp3HJwLqVNq9qBC1z5slCHuPSJ',
 }
 export const backDoor = { x: -4.75, z: 4, width: 1.45, height: 2.55 }
 export const roomBounds = { left: -7, right: 7, back: -24, front: 4 }
