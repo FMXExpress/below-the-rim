@@ -905,9 +905,7 @@ async function saveVideoPlaylists() {
   await videoDb.put('playlists', { entries: videoPlaylistOrders })
 }
 
-function videoAuthority(client: Client) {
-  const zone = clientVideoZone(client)
-
+function videoAuthority(client: Client, zone = clientVideoZone(client)) {
   if (!videoPlaylists[zone]) {
     return true
   }
@@ -957,13 +955,13 @@ function videoAuthorityActive(id: number, zone: VideoZone) {
 }
 
 async function applyVideoState(client: Client, entries: VideoStateEntry[]) {
-  const zone = clientVideoZone(client)
-  let entry = entries.find(entry => entry.zone === zone)!
+  let entry = entries[0]!
+  const zone = entry.zone
   const now = Date.now()
   const current = videoState.find(current => current.zone === zone)!
   const trackChanged = current.id !== entry.id
 
-  if (trackChanged && !videoAuthority(client)) {
+  if (trackChanged && !videoAuthority(client, zone)) {
     sendVideoState(client)
     return
   }
@@ -1082,7 +1080,7 @@ function validateVideoState(entries: VideoStateEntry[]) {
     seen.add(entry.zone)
   }
 
-  if (seen.size === 0 || seen.size > roomCount) {
+  if (seen.size !== 1) {
     throw new Error(`Invalid video state count ${seen.size}`)
   }
 
