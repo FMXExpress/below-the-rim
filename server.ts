@@ -985,6 +985,11 @@ async function applyVideoState(client: Client, entries: VideoStateEntry[]) {
   }
 
   if (trackChanged && videoPlaylists[zone]) {
+    if (entry.time >= 0.5) {
+      sendVideoState(client)
+      return
+    }
+
     entry = nextVideoPlaylistState(zone)
   }
 
