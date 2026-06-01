@@ -515,13 +515,11 @@ useAlternativeInput(alternativeInput)
 const wallProjector = createWallProjector({ eye: [0, 0, 1], center: [0, 0, 0] }, canvas)
 const pixelRatio = createAdaptivePixelRatio()
 const bloomScale = createAdaptiveBloomScale()
-const feedbackMaxAmount = 0.97
-const feedbackRampSeconds = 60 * 30 // 30 mins
+const feedbackMaxAmount = 0.91
 const feedbackToiletRampSeconds = 60
 const feedbackSitResetSeconds = 3
 let outsideTree: CircleBounds = { x: 0, z: 20.5, radius: 0.75 }
 let lastStamp = 0
-let feedbackStartStamp = 0
 let feedbackToiletStartStamp = 0
 let feedbackToiletStartAmount = 0
 let feedbackInToilets = false
@@ -1176,12 +1174,9 @@ function clearFeedback() {
 }
 
 function updateFeedbackAmount(stamp: number) {
-  const slow = feedbackRamp(stamp, feedbackStartStamp, 0, feedbackRampSeconds)
-  const toilet = feedbackToiletStartStamp === 0
+  feedback.amount = feedbackToiletStartStamp === 0
     ? 0
     : feedbackRamp(stamp, feedbackToiletStartStamp, feedbackToiletStartAmount, feedbackToiletRampSeconds)
-
-  feedback.amount = Math.max(slow, toilet)
 }
 
 function feedbackRamp(stamp: number, startStamp: number, startAmount: number, seconds: number) {
@@ -1209,9 +1204,6 @@ const draw = (stamp: number) => {
   bloomScale.update(delta, stamp)
   clubGlobal.clubPixelRatio = pixelRatio.ratio()
   resize()
-  if (feedbackStartStamp === 0) {
-    feedbackStartStamp = stamp
-  }
   localCharacter.update(delta, cameraController.turn, outsideTree, styleController.bottomMode, occupiedSeats,
     seat => takeNpcSeat(npcPlayers, seat, stamp * 0.001, outsideTree, occupiedSeats))
   updateFeedbackToiletVisit(stamp)
@@ -1221,7 +1213,6 @@ const draw = (stamp: number) => {
   if (sitting) {
     feedbackSitSeconds += delta
     if (!feedbackSitReset && feedbackSitSeconds >= feedbackSitResetSeconds) {
-      feedbackStartStamp = stamp
       feedbackToiletStartStamp = 0
       feedbackToiletStartAmount = 0
       feedbackInToilets = inToiletBounds(characterPosition[0], characterPosition[2])
