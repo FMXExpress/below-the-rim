@@ -215,7 +215,7 @@ html[data-touch-controls="true"] #online-indicator[data-hidden="true"] {
 
 #reaction-buttons {
   position: fixed;
-  right: 10px;
+  right: 8px;
   bottom: 48px;
   z-index: 110;
   display: grid;
