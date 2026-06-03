@@ -1,6 +1,33 @@
 import { projectWallPointInto } from './projection.ts'
 import type { ProjectedPoint, WallProjector } from './projection.ts'
+import { emojiReactionFromMessage } from './reactions.ts'
 import type { Vec3 } from './types.ts'
+
+type ChatBubble = {
+  element: HTMLDivElement
+  owner: number
+  position: Vec3
+  hideAt: number
+  shownAt: number
+  x: number
+  y: number
+  particles?: ReactionParticle[]
+}
+
+type ReactionParticle = {
+  delay: number
+  element: HTMLSpanElement
+  offsetX: number
+  offsetY: number
+  phase: number
+  rise: number
+  size: number
+}
+
+const bubbleDuration = 4000
+const reactionParticleCount = 8
+const reactionParticleDelay = 0.42
+const reactionParticleDuration = 0.56
 
 export function createChatUi(
   form: HTMLFormElement,
@@ -13,14 +40,7 @@ export function createChatUi(
   const anchor: Vec3 = [0, 0, 0]
   const point: ProjectedPoint = { x: 0, y: 0 }
   let bubbleId = 0
-  const bubbles = new Map<number, {
-    element: HTMLDivElement
-    owner: number
-    position: Vec3
-    hideAt: number
-    x: number
-    y: number
-  }>()
+  const bubbles = new Map<number, ChatBubble>()
 
   return {
     open() {
@@ -38,12 +58,18 @@ export function createChatUi(
     },
     show(id: number, text: string, bubblePosition: Vec3, stamp: number, color: string) {
       const key = ++bubbleId
-      const bubble = createBubble(bubbleRoot, id, bubblePosition)
+      const reaction = emojiReactionFromMessage(text)
+      const bubble = reaction
+        ? createReactionBubble(bubbleRoot, id, bubblePosition, reaction, key)
+        : createBubble(bubbleRoot, id, bubblePosition)
 
-      bubble.element.textContent = text
-      bubble.element.style.color = color
+      if (!reaction) {
+        bubble.element.textContent = text
+        bubble.element.style.color = color
+      }
       bubble.position = bubblePosition
-      bubble.hideAt = stamp + 4000
+      bubble.shownAt = stamp
+      bubble.hideAt = stamp + bubbleDuration
       bubbles.set(key, bubble)
     },
     remove(id: number) {
@@ -117,18 +143,23 @@ export function createChatUi(
           bubble.y = y
           bubble.element.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px)`
         }
+
+        if (bubble.particles) {
+          updateReactionParticles(bubble, stamp)
+        }
       }
     },
   }
 }
 
-function createBubble(root: HTMLDivElement, owner: number, position: Vec3) {
+function createBubble(root: HTMLDivElement, owner: number, position: Vec3): ChatBubble {
   const element = document.createElement('div')
   const bubble = {
     element,
     owner,
     position,
     hideAt: 0,
+    shownAt: 0,
     x: Number.NaN,
     y: Number.NaN,
   }
@@ -137,4 +168,72 @@ function createBubble(root: HTMLDivElement, owner: number, position: Vec3) {
   root.append(element)
 
   return bubble
+}
+
+function createReactionBubble(
+  root: HTMLDivElement,
+  owner: number,
+  position: Vec3,
+  reaction: string,
+  key: number,
+): ChatBubble {
+  const element = document.createElement('div')
+  const particles: ReactionParticle[] = []
+  const bubble: ChatBubble = {
+    element,
+    owner,
+    position,
+    hideAt: 0,
+    shownAt: 0,
+    x: Number.NaN,
+    y: Number.NaN,
+    particles,
+  }
+
+  element.className = 'chat-reaction'
+  for (let i = 0; i < reactionParticleCount; i++) {
+    const particle = document.createElement('span')
+    const seed = owner * 131 + key * 47 + i * 29
+
+    particle.className = 'chat-reaction-particle'
+    particle.textContent = reaction
+    element.append(particle)
+    particles.push({
+      delay: reactionNoise(seed + 1) * reactionParticleDelay,
+      element: particle,
+      offsetX: reactionNoise(seed + 2) * 72 - 36,
+      offsetY: reactionNoise(seed + 3) * 22,
+      phase: reactionNoise(seed + 4) * Math.PI * 2,
+      rise: 72 + reactionNoise(seed + 5) * 64,
+      size: 0.72 + reactionNoise(seed + 6) * 0.62,
+    })
+  }
+
+  root.append(element)
+
+  return bubble
+}
+
+function updateReactionParticles(bubble: ChatBubble, stamp: number) {
+  const progress = (stamp - bubble.shownAt) / (bubble.hideAt - bubble.shownAt)
+
+  for (const particle of bubble.particles!) {
+    const amount = Math.min(1, Math.max(0, (progress - particle.delay) / reactionParticleDuration))
+    const x = particle.offsetX + Math.sin(amount * Math.PI * 2 + particle.phase) * 9
+    const y = particle.offsetY - particle.rise * amount
+    const opacity = amount < 0.08
+      ? amount / 0.08
+      : 1 - Math.max(0, (amount - 0.68) / 0.32)
+    const scale = particle.size * (0.86 + amount * 0.28)
+
+    particle.element.style.opacity = String(Math.max(0, opacity))
+    particle.element.style.transform =
+      `translate(-50%, -50%) translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${scale.toFixed(3)})`
+  }
+}
+
+function reactionNoise(seed: number) {
+  const value = Math.sin(seed * 91.7) * 43758.5453123
+
+  return value - Math.floor(value)
 }

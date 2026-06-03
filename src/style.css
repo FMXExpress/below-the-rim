@@ -213,6 +213,76 @@ html[data-touch-controls="true"] #online-indicator[data-hidden="true"] {
   display: grid;
 }
 
+#reaction-buttons {
+  position: fixed;
+  right: 10px;
+  bottom: 48px;
+  z-index: 110;
+  display: grid;
+  gap: 8px;
+}
+
+#reaction-buttons[data-hidden="true"] {
+  display: none;
+}
+
+html[data-touch-controls="true"] #reaction-buttons[data-hidden="true"] {
+  display: grid;
+}
+
+.reaction-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  place-items: center;
+  color: white;
+  cursor: pointer;
+  font: 700 21px/1 "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", ui-sans-serif, system-ui, sans-serif;
+  padding: 2px;
+  text-shadow: 0 0 8px rgb(255 20 20 / 0.36);
+  touch-action: manipulation;
+}
+
+.reaction-button:active {
+  transform: translateY(1px);
+}
+
+#reaction-picker {
+  width: min(344px, calc(100dvw - 32px));
+  max-height: min(460px, calc(100dvh - 32px));
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(8 8 10 / 0.92);
+  box-shadow: 0 0 28px rgb(255 0 0 / 0.18);
+  padding: 10px;
+}
+
+#reaction-picker::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+#reaction-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  max-height: min(460px, calc(100dvh - 72px));
+  overflow: auto;
+}
+
+.reaction-picker-option {
+  display: grid;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+  font: 700 23px/1 "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", ui-sans-serif, system-ui, sans-serif;
+  padding: 0;
+  text-shadow: 0 0 8px rgb(255 20 20 / 0.36);
+}
+
 #support-link {
   position: fixed;
   right: 12px;
@@ -637,12 +707,17 @@ html[data-video-hint-dismissed="true"] #help-ui .help-box-video {
 }
 
 #chat-form,
-.chat-bubble {
+.chat-bubble,
+.chat-reaction {
   left: 0;
   top: 0;
   z-index: 20;
-  transition: opacity 120ms linear;
   will-change: transform;
+}
+
+#chat-form,
+.chat-bubble {
+  transition: opacity 120ms linear;
 }
 
 #chat-form {
@@ -686,4 +761,24 @@ html[data-video-hint-dismissed="true"] #help-ui .help-box-video {
   padding: 7px 10px;
   overflow-wrap: anywhere;
   pointer-events: none;
+}
+
+.chat-reaction {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.chat-reaction-particle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", ui-sans-serif, system-ui, sans-serif;
+  font-size: 30px;
+  line-height: 1;
+  opacity: 0;
+  text-shadow: 0 0 12px rgb(255 255 255 / 0.36), 0 0 22px rgb(255 0 90 / 0.24);
+  transform-origin: center;
+  will-change: opacity, transform;
 }

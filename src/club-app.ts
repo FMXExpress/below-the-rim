@@ -31,6 +31,7 @@ import { createPlayers, takeNpcSeat, updatePlayers } from './player-system.ts'
 import { createWallProjector, projectWallPointInto } from './projection.ts'
 import type { ProjectedPoint } from './projection.ts'
 import type { VideoEndedEntry } from './protocol.ts'
+import { emojiReactionFromMessage, pickerEmojis, reactionEmojis } from './reactions.ts'
 import { outsideBounds, outsideBuddha, outsidePalmTree, outsideToilets, roomBounds, tent, tentDoorAngle } from './scene-data.ts'
 import { createSceneLighting } from './scene-lighting.ts'
 import {
@@ -98,6 +99,7 @@ const {
   chatLog,
   onlineCount,
   onlineIndicator,
+  reactionButtons,
   supportLink,
   intro,
   introBar,
@@ -121,6 +123,7 @@ const vertexSize = 11
 let frameId = 0
 const saveKey = 'club-state'
 const helpSeenKey = 'club-help-seen'
+const reactionSlotsKey = 'club-reaction-slots'
 const savedState = readClubState(saveKey)
 const chatLogMax = 15
 let adminPass = ''
@@ -200,10 +203,110 @@ const djVideoUi = createDjVideoUi(djVideo, characterPosition, {
 const helpUi = createHelpUi()
 const helpSeen = localStorage.getItem(helpSeenKey) === 'true'
 const cameraController = createCameraController(canvas, characterPosition)
+const reactionSlotEmojis = loadReactionSlotEmojis()
 function syncOnlineIndicator() {
   onlineIndicator.dataset.hidden = String(helpUi.root.dataset.open === 'true')
+  reactionButtons.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   supportLink.dataset.hidden = String(helpUi.root.dataset.open === 'true')
 }
+
+function setupReactionButtons() {
+  const picker = createReactionPicker()
+
+  reactionSlotEmojis.forEach((emoji, index) => {
+    const button = document.createElement('button')
+    let longPress = 0
+    let pickerOpened = false
+
+    button.type = 'button'
+    button.className = 'reaction-button'
+    button.textContent = emoji
+    button.setAttribute('aria-label', emoji)
+    button.addEventListener('pointerdown', () => {
+      pickerOpened = false
+      clearTimeout(longPress)
+      longPress = setTimeout(() => {
+        pickerOpened = true
+        picker.open(index, button)
+      }, 450)
+    })
+    button.addEventListener('pointerup', () => clearTimeout(longPress))
+    button.addEventListener('pointercancel', () => clearTimeout(longPress))
+    button.addEventListener('pointerleave', () => clearTimeout(longPress))
+    button.addEventListener('contextmenu', event => event.preventDefault())
+    button.addEventListener('click', event => {
+      event.preventDefault()
+      if (pickerOpened) {
+        pickerOpened = false
+        return
+      }
+
+      sendChatMessage(reactionSlotEmojis[index]!)
+      canvas.focus()
+    })
+    reactionButtons.append(button)
+  })
+}
+
+function createReactionPicker() {
+  const dialog = document.createElement('dialog')
+  const grid = document.createElement('div')
+  let slot = 0
+  let button: HTMLButtonElement | undefined
+
+  dialog.id = 'reaction-picker'
+  grid.id = 'reaction-picker-grid'
+  for (const emoji of pickerEmojis) {
+    const option = document.createElement('button')
+
+    option.type = 'button'
+    option.className = 'reaction-picker-option'
+    option.textContent = emoji
+    option.setAttribute('aria-label', emoji)
+    option.addEventListener('click', () => {
+      reactionSlotEmojis[slot] = emoji
+      button!.textContent = emoji
+      button!.setAttribute('aria-label', emoji)
+      localStorage.setItem(reactionSlotsKey, JSON.stringify(reactionSlotEmojis))
+      dialog.close()
+      canvas.focus()
+    })
+    grid.append(option)
+  }
+  dialog.append(grid)
+  dialog.addEventListener('click', event => {
+    if (event.target === dialog) {
+      dialog.close()
+    }
+  })
+  document.body.append(dialog)
+
+  return {
+    open(index: number, target: HTMLButtonElement) {
+      slot = index
+      button = target
+      dialog.showModal()
+    },
+  }
+}
+
+function loadReactionSlotEmojis() {
+  const saved = localStorage.getItem(reactionSlotsKey)
+
+  if (!saved) {
+    return [...reactionEmojis]
+  }
+
+  const next = JSON.parse(saved) as string[]
+
+  if (next.length !== reactionEmojis.length || next.some(emoji => !emojiReactionFromMessage(emoji))) {
+    throw new Error('Invalid saved reaction emojis')
+  }
+
+  return next
+}
+
+setupReactionButtons()
 syncOnlineIndicator()
 adminIdRoot.id = 'admin-id-root'
 document.body.append(adminIdRoot)
@@ -1162,9 +1265,8 @@ function graffitiKey(splat: import('./types.ts').GraffitiSplat) {
   return `${splat.wall}:${splat.x}:${splat.y}:${splat.seed}:${splat.colorIndex}:${splat.radius}`
 }
 
-chatForm.addEventListener('submit', event => {
-  event.preventDefault()
-  const text = multiplayer.sendMessage(messageWithNickname(chatUi.submit()))
+function sendChatMessage(message: string) {
+  const text = multiplayer.sendMessage(messageWithNickname(message))
 
   if (text) {
     predictedMessages.set(text, (predictedMessages.get(text) ?? 0) + 1)
@@ -1172,6 +1274,11 @@ chatForm.addEventListener('submit', event => {
 
     chatUi.show(multiplayer.selfId, text, characterPosition, performance.now(), color)
   }
+}
+
+chatForm.addEventListener('submit', event => {
+  event.preventDefault()
+  sendChatMessage(chatUi.submit())
 })
 
 const resize = () => {
