@@ -117,20 +117,14 @@ export function updatePlayers(
       }
 
       occupiedSeats.delete(player.seat)
-      player.seat = undefined
-      player.sittingUntil = undefined
-      player.mode = 'run'
-      player.motionBlend = 1
-      player.input[0] = Math.sin(player.turn)
-      player.input[1] = 0
-      player.input[2] = Math.cos(player.turn)
-      player.position[0] += player.input[0] * 0.46
-      player.position[2] += player.input[2] * 0.46
-      player.leavingSeatUntil = time + leaveSeatTime
+      leaveSeat(player, time)
       choosePlayerDestination(player, time, outsideTree, occupiedSeats)
     }
 
     if (player.leavingSeatUntil && time < player.leavingSeatUntil) {
+      player.input[0] = 0
+      player.input[1] = 0
+      player.input[2] = 1
       player.pauseUntil = undefined
       player.sidestepUntil = undefined
       player.travelLateralUntil = undefined
@@ -202,17 +196,21 @@ export function takeNpcSeat(
   }
 
   occupiedSeats.delete(player.seat!)
+  leaveSeat(player, time)
+  choosePlayerDestination(player, time, outsideTree, occupiedSeats)
+}
+
+function leaveSeat(player: Player, time: number) {
   player.seat = undefined
   player.sittingUntil = undefined
   player.mode = 'run'
   player.motionBlend = 1
-  player.input[0] = Math.sin(player.turn)
+  player.input[0] = 0
   player.input[1] = 0
-  player.input[2] = Math.cos(player.turn)
-  player.position[0] += player.input[0] * 0.46
-  player.position[2] += player.input[2] * 0.46
+  player.input[2] = 1
+  player.position[0] += Math.sin(player.turn) * 0.46
+  player.position[2] += Math.cos(player.turn) * 0.46
   player.leavingSeatUntil = time + leaveSeatTime
-  choosePlayerDestination(player, time, outsideTree, occupiedSeats)
 }
 
 function updateRandomPause(player: Player, time: number) {
