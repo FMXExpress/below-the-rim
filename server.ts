@@ -247,10 +247,11 @@ const server = Bun.serve<SocketData>({
         if (type === MESSAGE) {
           const text = truncateMessage(decodeClientMessage(view))
           const normalizedText = normalizeChatText(text)
+          const emoji = emojiText(text)
           const slur = slurMatch(text)
 
           touchInteraction(client)
-          if (normalizedText && !binaryText(text) && !slur) {
+          if ((normalizedText || emoji) && !binaryText(text) && !slur) {
             console.log(`[chat] ${client.id} ${client.ip}: ${text}`)
             broadcastAll(encodeServerMessage({ id: client.id, text }))
           }
@@ -634,6 +635,11 @@ function validateMotion(client: Client, motion: MotionPacket) {
 
 function binaryText(text: string) {
   return /^[01]+$/.test(text)
+}
+
+function emojiText(text: string) {
+  return /^(?:[\p{Extended_Pictographic}\p{Emoji_Presentation}](?:\p{Emoji_Modifier}|\uFE0E|\uFE0F)*(?:\u200D[\p{Extended_Pictographic}\p{Emoji_Presentation}](?:\p{Emoji_Modifier}|\uFE0E|\uFE0F)*)*|\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3)$/u
+    .test(text.trim())
 }
 
 function slurMatch(text: string) {
