@@ -90,6 +90,11 @@ type StoredVideoPlaylistEntry = VideoPlaylistEntry & {
   sourceIds: string[]
 }
 
+type ChatHistoryEntry = {
+  id: number
+  text: string
+}
+
 type SocketData = {
   initialState: boolean
   ip: string
@@ -103,6 +108,7 @@ const clients = new Map<Bun.ServerWebSocket<SocketData>, Client>()
 const heartbeatInterval = 10_000
 const clientTimeout = 30_000
 const onlineActivityTimeout = 5 * 60_000
+const chatHistoryMax = 15
 const maxConnectionsPerIp = 4
 const maxClientSpeed = 8
 const maxClientStep = 1.2
@@ -120,6 +126,7 @@ if (initializeVideoQueuesFromPlaylists(Date.now())) {
   await saveVideoQueues()
 }
 let beachBalls = createBeachBalls()
+const chatHistory: ChatHistoryEntry[] = []
 const beachBallAuthorities = createBeachBalls().map(() => ({ client: 0, until: 0 }))
 const beachBallAuthorityDuration = 2000
 const adminPass = process.env.ADMIN_PASS ?? ''
@@ -208,6 +215,7 @@ const server = Bun.serve<SocketData>({
       addToRoom(client, 0)
       sendRoomState(client)
       sendNicknames(client)
+      sendChatHistory(client)
       sendVideoSync(client)
       sendBeachBalls(client)
       if (socket.data.initialState) {
@@ -257,6 +265,7 @@ const server = Bun.serve<SocketData>({
           touchInteraction(client)
           if ((normalizedText || emoji) && !binaryText(text) && !slur) {
             console.log(`[chat] ${client.id} ${client.ip}: ${text}`)
+            addChatHistory(client.id, text)
             broadcastAll(encodeServerMessage({ id: client.id, text }))
           }
 
@@ -858,6 +867,27 @@ function sendNicknames(client: Client) {
   }
 }
 
+function sendChatHistory(client: Client) {
+  for (const entry of chatHistory) {
+    client.socket.send(encodeServerMessage(entry))
+  }
+}
+
+function addChatHistory(id: number, text: string) {
+  chatHistory.push({ id, text })
+  while (chatHistory.length > chatHistoryMax) {
+    chatHistory.shift()
+  }
+}
+
+function removeChatHistory(id: number) {
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
+    if (chatHistory[i]!.id === id) {
+      chatHistory.splice(i, 1)
+    }
+  }
+}
+
 function setNickname(client: Client, text: string) {
   const nickname = text.trim()
 
@@ -1421,6 +1451,7 @@ function randomVideoId(ids: string[], exclude = new Set<string>()) {
 }
 
 async function banClient(id: number) {
+  removeChatHistory(id)
   broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id }))
 
   const client = [...clients.values()].find(next => next.id === id)
@@ -1439,6 +1470,7 @@ async function banClient(id: number) {
 }
 
 async function banClientSubnet(id: number) {
+  removeChatHistory(id)
   broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id }))
 
   const client = [...clients.values()].find(next => next.id === id)
@@ -1512,6 +1544,7 @@ function ipv6Parts(section: string) {
 function banClients(id: number, banned: Client[]) {
   for (const next of banned) {
     if (next.id !== id) {
+      removeChatHistory(next.id)
       broadcastAll(encodeModerationMessage({ command: 'deleteMessages', id: next.id }))
     }
   }
