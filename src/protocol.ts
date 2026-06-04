@@ -19,11 +19,13 @@ export const VIDEO_PROGRESS = 16
 export const VIDEO_PLAYLIST = 17
 export const VIDEO_ENDED = 18
 export const VIDEO_PLAYLIST_REQUEST = 19
+export const NICKNAME = 20
 
 export const roomCount = 3
 export const messageMaxLength = 120
+export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 31
+export const protocolVersion = 32
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -52,6 +54,11 @@ export type RoomStatePacket = {
 }
 
 export type MessagePacket = {
+  id: number
+  text: string
+}
+
+export type NicknamePacket = {
   id: number
   text: string
 }
@@ -620,6 +627,52 @@ export function encodeServerMessage(packet: MessagePacket) {
 }
 
 export function decodeServerMessage(view: DataView): MessagePacket {
+  expectAtLeastSize(view, 5)
+
+  const length = view.getUint16(3)
+  expectTextSize(view, 5, length)
+
+  return {
+    id: view.getUint16(1),
+    text: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 5, length)),
+  }
+}
+
+export function encodeClientNickname(text: string) {
+  const bytes = textEncoder.encode(text)
+  const data = new ArrayBuffer(3 + bytes.length)
+  const view = new DataView(data)
+
+  view.setUint8(0, NICKNAME)
+  view.setUint16(1, bytes.length)
+  new Uint8Array(data, 3).set(bytes)
+
+  return data
+}
+
+export function decodeClientNickname(view: DataView) {
+  expectAtLeastSize(view, 3)
+
+  const length = view.getUint16(1)
+  expectTextSize(view, 3, length)
+
+  return textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 3, length))
+}
+
+export function encodeServerNickname(packet: NicknamePacket) {
+  const bytes = textEncoder.encode(packet.text)
+  const data = new ArrayBuffer(5 + bytes.length)
+  const view = new DataView(data)
+
+  view.setUint8(0, NICKNAME)
+  view.setUint16(1, packet.id)
+  view.setUint16(3, bytes.length)
+  new Uint8Array(data, 5).set(bytes)
+
+  return data
+}
+
+export function decodeServerNickname(view: DataView): NicknamePacket {
   expectAtLeastSize(view, 5)
 
   const length = view.getUint16(3)

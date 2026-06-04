@@ -1,4 +1,4 @@
-import { projectWallPointInto } from './projection.ts'
+import { projectVisiblePointInto, projectWallPointInto } from './projection.ts'
 import type { ProjectedPoint, WallProjector } from './projection.ts'
 import { emojiReactionFromMessage } from './reactions.ts'
 import type { Vec3 } from './types.ts'
@@ -12,6 +12,17 @@ type ChatBubble = {
   x: number
   y: number
   particles?: ReactionParticle[]
+}
+
+type ChatLabel = {
+  color: string
+  element: HTMLDivElement
+  hideAt: number
+  owner: number
+  position: Vec3
+  text: string
+  x: number
+  y: number
 }
 
 type ReactionParticle = {
@@ -41,6 +52,7 @@ export function createChatUi(
   const point: ProjectedPoint = { x: 0, y: 0 }
   let bubbleId = 0
   const bubbles = new Map<number, ChatBubble>()
+  const labels = new Map<number, ChatLabel>()
 
   return {
     open() {
@@ -60,8 +72,20 @@ export function createChatUi(
       return text
     },
     show(id: number, text: string, bubblePosition: Vec3, stamp: number, color: string) {
-      const key = ++bubbleId
+      const label = labels.get(id)
       const reaction = emojiReactionFromMessage(text)
+
+      if (label) {
+        label.element.textContent = text
+        label.element.dataset.speaking = 'true'
+        label.hideAt = stamp + bubbleDuration
+        label.element.style.color = color
+        if (!reaction) {
+          return
+        }
+      }
+
+      const key = ++bubbleId
       const bubble = reaction
         ? createReactionBubble(bubbleRoot, id, bubblePosition, reaction, key)
         : createBubble(bubbleRoot, id, bubblePosition)
@@ -76,6 +100,13 @@ export function createChatUi(
       bubbles.set(key, bubble)
     },
     remove(id: number) {
+      const label = labels.get(id)
+
+      if (label) {
+        label.element.remove()
+        labels.delete(id)
+      }
+
       for (const [key, bubble] of bubbles) {
         if (bubble.owner === id) {
           bubble.element.remove()
@@ -84,7 +115,19 @@ export function createChatUi(
       }
     },
     removeMessages(id: number) {
-      this.remove(id)
+      for (const [key, bubble] of bubbles) {
+        if (bubble.owner === id) {
+          bubble.element.remove()
+          bubbles.delete(key)
+        }
+      }
+
+      const label = labels.get(id)
+
+      if (label) {
+        label.element.textContent = label.text
+        label.hideAt = 0
+      }
     },
     removeLatest(id: number) {
       let latestKey = 0
@@ -105,11 +148,42 @@ export function createChatUi(
       }
     },
     clear() {
+      for (const label of labels.values()) {
+        label.element.remove()
+      }
+
+      labels.clear()
       for (const bubble of bubbles.values()) {
         bubble.element.remove()
       }
 
       bubbles.clear()
+    },
+    setLabel(id: number, text: string, labelPosition: Vec3, color: string) {
+      let label = labels.get(id)
+
+      if (!text) {
+        if (label) {
+          label.element.remove()
+          labels.delete(id)
+        }
+
+        return
+      }
+
+      if (!label) {
+        label = createLabel(bubbleRoot, id, labelPosition)
+        labels.set(id, label)
+      }
+
+      label.text = text
+      label.position = labelPosition
+      label.color = color
+      if (label.hideAt === 0) {
+        label.element.textContent = text
+        label.element.dataset.speaking = 'false'
+      }
+      label.element.style.color = color
     },
     update(projector: WallProjector, stamp: number) {
       if (form.dataset.open === 'true') {
@@ -127,6 +201,16 @@ export function createChatUi(
         }
       }
 
+      for (const label of labels.values()) {
+        if (label.hideAt > 0 && stamp > label.hideAt) {
+          label.element.textContent = label.text
+          label.element.dataset.speaking = 'false'
+          label.hideAt = 0
+        }
+
+        positionElement(label, projector, point, anchor)
+      }
+
       for (const [id, bubble] of bubbles) {
         if (stamp > bubble.hideAt) {
           bubble.element.remove()
@@ -134,18 +218,7 @@ export function createChatUi(
           continue
         }
 
-        anchor[0] = bubble.position[0]
-        anchor[1] = bubble.position[1] + 1.05
-        anchor[2] = bubble.position[2]
-        projectWallPointInto(anchor, projector, point)
-        const x = Math.round(point.x)
-        const y = Math.round(point.y - 68)
-
-        if (x !== bubble.x || y !== bubble.y) {
-          bubble.x = x
-          bubble.y = y
-          bubble.element.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px)`
-        }
+        positionElement(bubble, projector, point, anchor)
 
         if (bubble.particles) {
           updateReactionParticles(bubble, stamp)
@@ -153,6 +226,25 @@ export function createChatUi(
       }
     },
   }
+}
+
+function createLabel(root: HTMLDivElement, owner: number, position: Vec3): ChatLabel {
+  const element = document.createElement('div')
+  const label = {
+    color: 'white',
+    element,
+    hideAt: 0,
+    owner,
+    position,
+    text: '',
+    x: Number.NaN,
+    y: Number.NaN,
+  }
+
+  element.className = 'chat-label'
+  root.append(element)
+
+  return label
 }
 
 function createBubble(root: HTMLDivElement, owner: number, position: Vec3): ChatBubble {
@@ -171,6 +263,31 @@ function createBubble(root: HTMLDivElement, owner: number, position: Vec3): Chat
   root.append(element)
 
   return bubble
+}
+
+function positionElement(
+  item: { element: HTMLElement; position: Vec3; x: number; y: number },
+  projector: WallProjector,
+  point: ProjectedPoint,
+  anchor: Vec3,
+) {
+  anchor[0] = item.position[0]
+  anchor[1] = item.position[1] + 1.05
+  anchor[2] = item.position[2]
+  if (!projectVisiblePointInto(anchor, projector, point)) {
+    item.element.dataset.visible = 'false'
+    return
+  }
+
+  item.element.dataset.visible = 'true'
+  const x = Math.round(point.x)
+  const y = Math.round(point.y - 68)
+
+  if (x !== item.x || y !== item.y) {
+    item.x = x
+    item.y = y
+    item.element.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px)`
+  }
 }
 
 function createReactionBubble(

@@ -568,7 +568,7 @@ function chatMessageColor(id: number, text: string) {
 }
 
 function chatMessageNickname(text: string) {
-  return /^<([^>\n]+)> /.exec(text)?.[1]
+  return /^<([^>\n]+)>(?: |$)/.exec(text)?.[1]
 }
 
 function chatNicknameHash(name: string) {
@@ -579,6 +579,39 @@ function chatNicknameHash(name: string) {
   }
 
   return hash
+}
+
+function nicknameLabel(name: string) {
+  return `<${name}>`
+}
+
+function syncChatFormColor() {
+  const next = nicknameInput.value.trim()
+  const label = next ? nicknameLabel(next) : ''
+
+  chatForm.style.color = chatMessageColor(multiplayer.selfId, label)
+}
+
+function syncNicknameLabels() {
+  syncChatFormColor()
+
+  for (const [id, player] of multiplayer.players) {
+    const name = playerNicknames.get(id)
+    const label = nicknameLabel(name ?? String(id))
+
+    chatUi.setLabel(id, label, player.position, chatMessageColor(id, name ? label : ''))
+  }
+}
+
+function syncRemoteNicknameLabel(id: number) {
+  const player = multiplayer.players.get(id)
+
+  if (player) {
+    const name = playerNicknames.get(id)
+    const label = nicknameLabel(name ?? String(id))
+
+    chatUi.setLabel(id, label, player.position, chatMessageColor(id, name ? label : ''))
+  }
 }
 
 function cycleIdle(direction: number) {
@@ -942,6 +975,7 @@ function localMoveAngle() {
 
 let multiplayer: ReturnType<typeof createMultiplayer>
 const predictedMessages = new Map<string, number>()
+const playerNicknames = new Map<number, string>()
 const beachBalls = createBeachBalls()
 let beachBallPoints = new Float32Array()
 const beachBallAuthorityUntil = new Map<number, number>()
@@ -961,6 +995,7 @@ multiplayer = createMultiplayer({
   localInput: localCharacter.input,
   localMode: () => localCharacter.mode,
   localIdleClipIndex: () => idleClipIndex,
+  localNickname: () => nickname,
   localStyle: () => ({
     topStyleIndex: styleController.topStyleIndex,
     bottomStyleIndex: styleController.bottomStyleIndex,
@@ -1001,6 +1036,16 @@ multiplayer = createMultiplayer({
   onDeleteMessages: id => {
     deleteChatLogMessages(id)
     chatUi.removeMessages(id)
+  },
+  onNickname: (id, text) => {
+    if (text) {
+      playerNicknames.set(id, text)
+    }
+    else {
+      playerNicknames.delete(id)
+    }
+
+    syncRemoteNicknameLabel(id)
   },
   onLeave: id => chatUi.remove(id),
   onOnlineCount: count => {
@@ -1101,7 +1146,7 @@ const styleActions: Record<
 }
 
 function messageWithNickname(text: string) {
-  return nickname && text ? `<${nickname}> ${text}` : text
+  return text ? `<${nickname || multiplayer.selfId}> ${text}` : text
 }
 
 function syncNickname() {
@@ -1111,6 +1156,7 @@ function syncNickname() {
     nickname = next
     nicknameInput.value = nickname
     saveCurrentClubState(true)
+    multiplayer.sendNickname()
   }
 }
 
@@ -1286,6 +1332,7 @@ function sendChatMessage(message: string) {
 }
 
 nicknameInput.addEventListener('change', syncNickname)
+nicknameInput.addEventListener('input', syncChatFormColor)
 
 chatForm.addEventListener('submit', event => {
   event.preventDefault()
@@ -1414,6 +1461,7 @@ const draw = (stamp: number) => {
 
   updatePlayers(npcPlayers, delta, stamp * 0.001, outsideTree, occupiedSeats)
   updateRemotePlayers(multiplayer.players.values(), delta, outsideTree)
+  syncNicknameLabels()
   takeRemoteSeats()
   renderPlayers.length = 0
   renderPlayers.push(...npcPlayers, ...multiplayer.players.values())

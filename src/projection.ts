@@ -226,3 +226,24 @@ export function projectWallPointInto(point: Vec3, projector: WallProjector, targ
 
   return target
 }
+
+export function projectVisiblePointInto(point: Vec3, projector: WallProjector, target: ProjectedPoint) {
+  const relativeX = point[0] - projector.eyeX
+  const relativeY = point[1] - projector.eyeY
+  const relativeZ = point[2] - projector.eyeZ
+  const viewX = projector.cameraXX * relativeX + projector.cameraXY * relativeY + projector.cameraXZ * relativeZ
+  const viewY = projector.cameraYX * relativeX + projector.cameraYY * relativeY + projector.cameraYZ * relativeZ
+  const viewZ = projector.cameraZX * relativeX + projector.cameraZY * relativeY + projector.cameraZZ * relativeZ
+  const depth = -viewZ
+  const ndcX = (viewX * projector.f / projector.aspect) / depth
+  const ndcY = (viewY * projector.f) / depth
+
+  if (depth <= 0 || ndcX < -1 || ndcX > 1 || ndcY < -1 || ndcY > 1) {
+    return
+  }
+
+  target.x = (ndcX * 0.5 + 0.5) * projector.clientWidth
+  target.y = (0.5 - ndcY * 0.5) * projector.clientHeight
+
+  return target
+}

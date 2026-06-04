@@ -14,6 +14,7 @@ import {
   decodeBeachBalls,
   decodeClientMessage,
   decodeClientMotion,
+  decodeClientNickname,
   decodeGraffiti,
   decodeRoomChange,
   decodeVideoEnded,
@@ -27,12 +28,15 @@ import {
   encodeRoomState,
   encodeServerMessage,
   encodeServerMotion,
+  encodeServerNickname,
   encodeSpawn,
   encodeVideoPlaylistRequest,
   encodeVideoSync,
   GRAFFITI,
   MESSAGE,
   modeCount,
+  NICKNAME,
+  nicknameMaxLength,
   type MotionPacket,
   positionScale,
   protocolToScene,
@@ -59,6 +63,7 @@ type Client = {
   lastSeen: number
   lastMotionAt: number
   poseSynced: boolean
+  nickname: string
   room: number
   socket: Bun.ServerWebSocket<SocketData>
   pose: SpawnPacket
@@ -178,6 +183,7 @@ const server = Bun.serve<SocketData>({
         lastInteractionAt: now,
         lastSeen: now,
         lastMotionAt: now,
+        nickname: '',
         poseSynced: false,
         room: 0,
         socket,
@@ -204,6 +210,7 @@ const server = Bun.serve<SocketData>({
       clients.set(socket, client)
       addToRoom(client, 0)
       sendRoomState(client)
+      sendNicknames(client)
       sendVideoSync(client)
       sendBeachBalls(client)
       if (socket.data.initialState) {
@@ -256,6 +263,12 @@ const server = Bun.serve<SocketData>({
             broadcastAll(encodeServerMessage({ id: client.id, text }))
           }
 
+          return
+        }
+
+        if (type === NICKNAME) {
+          touchInteraction(client)
+          setNickname(client, decodeClientNickname(view))
           return
         }
 
@@ -838,6 +851,25 @@ function sendRoomState(client: Client) {
     room: client.room,
     players: [...rooms[client.room]!.values()].map(player => player.pose),
   }))
+}
+
+function sendNicknames(client: Client) {
+  for (const next of clients.values()) {
+    if (next.nickname) {
+      client.socket.send(encodeServerNickname({ id: next.id, text: next.nickname }))
+    }
+  }
+}
+
+function setNickname(client: Client, text: string) {
+  const nickname = text.trim()
+
+  if (nickname.length > nicknameMaxLength || nickname.includes('\n') || nickname.includes('<') || nickname.includes('>')) {
+    throw new Error(`Invalid nickname ${nickname}`)
+  }
+
+  client.nickname = nickname
+  broadcastAll(encodeServerNickname({ id: client.id, text: nickname }))
 }
 
 function sendBeachBalls(client: Client) {

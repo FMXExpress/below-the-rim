@@ -9,6 +9,7 @@ import {
   decodeGraffiti,
   decodeOnline,
   decodeModerationMessage,
+  decodeServerNickname,
   decodeRoomState,
   decodeServerMessage,
   decodeServerMotion,
@@ -17,6 +18,7 @@ import {
   decodeVideoSync,
   encodeAdminMessage,
   encodeClientMessage,
+  encodeClientNickname,
   encodeClientMotion,
   encodeHeartbeat,
   encodeBeachBalls,
@@ -28,6 +30,7 @@ import {
   encodeVideoProgress,
   MESSAGE,
   modeToProtocol,
+  NICKNAME,
   protocolToAngle,
   protocolToMode,
   protocolToScene,
@@ -63,6 +66,7 @@ export function createMultiplayer(options: {
   localInput: Vec3
   localMode: () => CharacterMode
   localIdleClipIndex: () => number
+  localNickname: () => string
   localStyle: () => {
     topStyleIndex: number
     bottomStyleIndex: number
@@ -74,6 +78,7 @@ export function createMultiplayer(options: {
   initialRoom: number
   onRoomState: (room: number) => void
   onMessage: (id: number, text: string) => void
+  onNickname: (id: number, text: string) => void
   onDeleteMessages: (id: number) => void
   onLeave: (id: number) => void
   onOnlineCount: (count: number) => void
@@ -112,6 +117,7 @@ export function createMultiplayer(options: {
       videoProgress = setInterval(() => sendVideoProgress(), videoProgressInterval)
       room = options.initialRoom
       sendMotion()
+      sendNickname()
       send(encodeRoomChange(room))
       flush()
     })
@@ -244,6 +250,13 @@ export function createMultiplayer(options: {
       return
     }
 
+    if (type === NICKNAME) {
+      const nickname = decodeServerNickname(view)
+
+      options.onNickname(nickname.id, nickname.text)
+      return
+    }
+
     if (type === MODERATION) {
       const message = decodeModerationMessage(view)
 
@@ -314,6 +327,10 @@ export function createMultiplayer(options: {
     send(encodeVideoEnded({ entry }))
   }
 
+  function sendNickname() {
+    queue(encodeClientNickname(options.localNickname()))
+  }
+
   return {
     players,
     get selfId() {
@@ -335,6 +352,7 @@ export function createMultiplayer(options: {
 
       return next
     },
+    sendNickname,
     sendAdmin(pass: string, command: 'ban' | 'banSubnet' | 'randomTrack', id: number) {
       queue(encodeAdminMessage({ pass, command, id }))
     },
