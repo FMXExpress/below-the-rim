@@ -38,6 +38,7 @@ export function getDomElements() {
 
   chatInput.id = 'chat-input'
   chatInput.maxLength = 120
+  chatInput.placeholder = 'message...'
   chatInput.autocomplete = 'off'
 
   chatSubmit.type = 'submit'
