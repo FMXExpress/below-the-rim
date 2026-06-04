@@ -11,27 +11,55 @@ import {
 import { collideRoom, isOutside, seatAt, seats, walkHeight } from './scene.ts'
 import type { CircleBounds, Player, PlayerDestination, PlayerStyle, Vec3 } from './types.ts'
 
-const danceFloorSideRange = 3.1
-const outsideDanceFloorSideRange = 4.8
-const danceFloorBackRange = [0, 5.4] as const
-const danceFloorDistance = 0.9
-const outsideDanceFloorBackRange = [0, 8.4] as const
-const outsideDanceFloorDistance = 0.9
-const kioskDestinationRadius = [1.9, 6.4] as const
-const treeDestinationRadius = [2.6, 9.5] as const
-const waypointArriveRadius = 0.75
-const destinationArriveRadius = 1.35
-const seatArriveRadius = 0.7
-const destinationLinger = [10, 30] as const
-const destinationJitter = [0.35, 0.9] as const
-const travelTargetJitter = 0.85
-const travelTargetJitterTime = [5, 10] as const
-const travelLateralTime = [0.6, 1.4] as const
-const randomPause = [2, 5] as const
-const blockedPause = [10, 30] as const
-const initialSeatedPlayerCount = 4
-const leaveSeatTime = 1.4
-const treeDestinationSpots = 12
+const npcConfig = {
+  initialSeatedCount: 12,
+  leaveSeatTime: 1.4,
+  arrive: {
+    waypoint: 0.75,
+    destination: 1.35,
+    seat: 0.7,
+  },
+  destination: {
+    weights: {
+      insideDj: 0.2,
+      outsideDj: 0.42,
+      lounge: 0.58,
+      stool: 0.72,
+      tree: 0.84,
+      kiosk: 0.94,
+    },
+    linger: [10, 30] as const,
+    jitter: [0.35, 0.9] as const,
+    danceFloor: {
+      sideRange: 3.1,
+      backRange: [0, 5.4] as const,
+      distance: 0.9,
+    },
+    outsideDanceFloor: {
+      sideRange: 4.8,
+      backRange: [0, 8.4] as const,
+      distance: 0.9,
+    },
+    kioskRadius: [1.9, 6.4] as const,
+    treeRadius: [2.6, 9.5] as const,
+    treeSpots: 12,
+  },
+  decision: {
+    interval: [1.2, 3.4] as const,
+    repickChance: 0.05,
+  },
+  travel: {
+    targetJitter: 0.85,
+    targetJitterTime: [5, 10] as const,
+    lateralTime: [0.6, 1.4] as const,
+  },
+  pause: {
+    random: [2, 5] as const,
+    blocked: [10, 30] as const,
+    randomInputChance: 0.22,
+    destinationJitterChance: 0.45,
+  },
+}
 const doorInside: Vec3 = [backDoor.x, characterFloor, roomBounds.front - 0.75]
 const doorOutside: Vec3 = [backDoor.x, characterFloor, roomBounds.front + 0.75]
 
@@ -70,7 +98,7 @@ export function createPlayers(count: number, outsideTree: CircleBounds, occupied
       seed,
     }
 
-    if (i < initialSeatedPlayerCount) {
+    if (i < npcConfig.initialSeatedCount) {
       sitInitialPlayer(player, initialSeats[(i * 4 + 1) % initialSeats.length]!, occupiedSeats)
     }
 
@@ -211,7 +239,7 @@ function leaveSeat(player: Player, time: number) {
   player.input[2] = 1
   player.position[0] += Math.sin(player.turn) * 0.46
   player.position[2] += Math.cos(player.turn) * 0.46
-  player.leavingSeatUntil = time + leaveSeatTime
+  player.leavingSeatUntil = time + npcConfig.leaveSeatTime
 }
 
 function updateRandomPause(player: Player, time: number) {
@@ -234,7 +262,7 @@ function updateRandomPause(player: Player, time: number) {
     return false
   }
 
-  player.pauseUntil = time + seededRange(player.seed, Math.floor(time * 6.1), randomPause[0], randomPause[1])
+  player.pauseUntil = time + seededRange(player.seed, Math.floor(time * 6.1), npcConfig.pause.random[0], npcConfig.pause.random[1])
   player.input[0] = 0
   player.input[1] = 0
   player.input[2] = 0
@@ -273,9 +301,10 @@ function updateDestinationPlayer(
   }
 
   if (time >= player.nextDecision) {
-    player.nextDecision = time + seededRange(player.seed, Math.floor(time * 3.1), 1.2, 3.4)
+    player.nextDecision = time + seededRange(player.seed, Math.floor(time * 3.1), npcConfig.decision.interval[0],
+      npcConfig.decision.interval[1])
 
-    if (seededRandom(player.seed, Math.floor(time * 9.7)) < 0.05) {
+    if (seededRandom(player.seed, Math.floor(time * 9.7)) < npcConfig.decision.repickChance) {
       choosePlayerDestination(player, time, outsideTree, occupiedSeats)
       return
     }
@@ -290,7 +319,7 @@ function updateDestinationPlayer(
   const destinationDz = player.destination.position[2] - player.position[2]
   const destinationDistance = Math.sqrt(destinationDx * destinationDx + destinationDz * destinationDz)
 
-  if (!atDestinationSide && distance < waypointArriveRadius) {
+  if (!atDestinationSide && distance < npcConfig.arrive.waypoint) {
     player.input[0] = 0
     player.input[1] = 0
     player.input[2] = 0
@@ -298,8 +327,8 @@ function updateDestinationPlayer(
   }
 
   const arriveRadius = player.destination.kind === 'lounge' || player.destination.kind === 'stool'
-    ? seatArriveRadius
-    : destinationArriveRadius
+    ? npcConfig.arrive.seat
+    : npcConfig.arrive.destination
 
   if (atDestinationSide && destinationDistance < arriveRadius) {
     if (player.destination.kind === 'lounge' || player.destination.kind === 'stool') {
@@ -313,14 +342,14 @@ function updateDestinationPlayer(
 
     if (!player.lingeringUntil) {
       player.lingeringUntil = time
-        + seededRange(player.seed, Math.floor(time * 2.9), destinationLinger[0], destinationLinger[1])
+        + seededRange(player.seed, Math.floor(time * 2.9), npcConfig.destination.linger[0], npcConfig.destination.linger[1])
       player.nextDecision = time
     }
 
     if (time >= player.nextDecision) {
       chooseDestinationJitter(player, delta, time)
       player.nextDecision = time
-        + seededRange(player.seed, Math.floor(time * 3.1), destinationJitter[0], destinationJitter[1])
+        + seededRange(player.seed, Math.floor(time * 3.1), npcConfig.destination.jitter[0], npcConfig.destination.jitter[1])
     }
 
     turnTowardDestination(player, delta)
@@ -362,7 +391,7 @@ function travelLateralInput(player: Player, time: number) {
   }
 
   player.travelLateralUntil = time + seededRange(player.seed, Math.floor(time * 2.1),
-    travelLateralTime[0], travelLateralTime[1])
+    npcConfig.travel.lateralTime[0], npcConfig.travel.lateralTime[1])
   player.travelLateralDirection = seededRandom(player.seed, Math.floor(time * 2.7)) < 0.5 ? -1 : 1
 
   return player.travelLateralDirection
@@ -399,7 +428,7 @@ function pauseBlockedPlayer(
   outsideTree: CircleBounds,
   occupiedSeats: Set<string>,
 ) {
-  const pauseUntil = time + seededRange(player.seed, Math.floor(time * 6.7), blockedPause[0], blockedPause[1])
+  const pauseUntil = time + seededRange(player.seed, Math.floor(time * 6.7), npcConfig.pause.blocked[0], npcConfig.pause.blocked[1])
 
   player.input[0] = 0
   player.input[1] = 0
@@ -439,7 +468,7 @@ function travelTarget(player: Player, time: number) {
   }
 
   const angle = seededRange(player.seed, Math.floor(time * 2.9), -Math.PI, Math.PI)
-  const radius = seededRange(player.seed, Math.floor(time * 3.7), 0, travelTargetJitter)
+  const radius = seededRange(player.seed, Math.floor(time * 3.7), 0, npcConfig.travel.targetJitter)
 
   player.travelTarget = [
     player.destination.position[0] + Math.sin(angle) * radius,
@@ -447,7 +476,7 @@ function travelTarget(player: Player, time: number) {
     player.destination.position[2] + Math.cos(angle) * radius,
   ]
   player.nextTravelTargetAt = time + seededRange(player.seed, Math.floor(time * 4.1),
-    travelTargetJitterTime[0], travelTargetJitterTime[1])
+    npcConfig.travel.targetJitterTime[0], npcConfig.travel.targetJitterTime[1])
 
   return player.travelTarget
 }
@@ -483,7 +512,7 @@ function sitPlayer(
   player.motionBlend = 0
   player.mode = player.resolvedStyle.bottomMode === 'pants' ? 'manSitting' : 'womanSitting'
   player.sittingUntil = time
-    + seededRange(player.seed, Math.floor(time * 2.3), destinationLinger[0], destinationLinger[1])
+    + seededRange(player.seed, Math.floor(time * 2.3), npcConfig.destination.linger[0], npcConfig.destination.linger[1])
   player.nextDecision = player.sittingUntil
   player.lingeringUntil = undefined
   player.pauseUntil = undefined
@@ -498,7 +527,7 @@ function sitPlayer(
 function chooseRandomInput(player: Player, delta: number, time: number) {
   const random = seededRandom(player.seed, Math.floor(time * 7.7))
 
-  if (random < 0.22) {
+  if (random < npcConfig.pause.randomInputChance) {
     player.input[0] = 0
     player.input[1] = 0
     player.input[2] = 0
@@ -518,7 +547,7 @@ function chooseRandomInput(player: Player, delta: number, time: number) {
 function chooseDestinationJitter(player: Player, delta: number, time: number) {
   const random = seededRandom(player.seed, Math.floor(time * 7.7))
 
-  if (random < 0.45) {
+  if (random < npcConfig.pause.destinationJitterChance) {
     player.input[0] = 0
     player.input[1] = 0
     player.input[2] = 0
@@ -541,29 +570,30 @@ function playerDestination(
   occupiedSeats: Set<string>,
 ): PlayerDestination {
   const pick = seededRandom(seed, step + 100)
+  const weights = npcConfig.destination.weights
 
-  if (pick < 0.35) {
+  if (pick < weights.insideDj) {
     return djDestination(seed, step, true)
   }
 
-  if (pick < 0.75) {
+  if (pick < weights.outsideDj) {
     return djDestination(seed, step, false)
   }
 
-  if (pick < 0.83) {
-    return treeDestination(seed, step, outsideTree)
-  }
-
-  if (pick < 0.88) {
-    return kioskDestination(seed, step)
-  }
-
-  if (pick < 0.95) {
+  if (pick < weights.lounge) {
     return seatDestination(seed, step, occupiedSeats, 'lounge') ?? treeDestination(seed, step, outsideTree)
   }
 
-  if (pick < 0.98) {
+  if (pick < weights.stool) {
     return seatDestination(seed, step, occupiedSeats, 'stool') ?? kioskDestination(seed, step)
+  }
+
+  if (pick < weights.tree) {
+    return treeDestination(seed, step, outsideTree)
+  }
+
+  if (pick < weights.kiosk) {
+    return kioskDestination(seed, step)
   }
 
   return randomDestination(seed, step)
@@ -577,7 +607,7 @@ function choosePlayerDestination(
 ) {
   player.destination = playerDestination(player.seed, Math.floor(time / 6 + player.seed), outsideTree, occupiedSeats)
   player.lingeringUntil = player.destination.kind === 'random'
-    ? time + seededRange(player.seed, Math.floor(time * 2.9), destinationLinger[0], destinationLinger[1])
+    ? time + seededRange(player.seed, Math.floor(time * 2.9), npcConfig.destination.linger[0], npcConfig.destination.linger[1])
     : undefined
   player.nextDecision = time
   player.nextPauseDecision = time + seededRange(player.seed, Math.floor(time * 4.7), 2, 6)
@@ -591,18 +621,18 @@ function choosePlayerDestination(
 }
 
 function djDestination(seed: number, step: number, inside: boolean) {
-  const sideRange = inside ? danceFloorSideRange : outsideDanceFloorSideRange
+  const sideRange = inside ? npcConfig.destination.danceFloor.sideRange : npcConfig.destination.outsideDanceFloor.sideRange
   const jitterAmount = inside ? 0.45 : 0.8
   const jitterX = seededRange(seed, step + 102, -sideRange, sideRange)
     + seededRange(seed, step + 111, -jitterAmount, jitterAmount)
-  const jitterZ = seededRange(seed, step + 103, danceFloorBackRange[0], danceFloorBackRange[1])
+  const jitterZ = seededRange(seed, step + 103, npcConfig.destination.danceFloor.backRange[0], npcConfig.destination.danceFloor.backRange[1])
     + seededRange(seed, step + 112, -jitterAmount, jitterAmount)
 
   return inside
     ? danceFloorDestination(djBooth, false, 1, jitterX, jitterZ)
     : danceFloorDestination(outsideDjBooth, true, -1, jitterX,
-      seededRange(seed, step + 103, outsideDanceFloorBackRange[0], outsideDanceFloorBackRange[1])
-        + seededRange(seed, step + 112, -jitterAmount, jitterAmount), outsideDanceFloorDistance)
+      seededRange(seed, step + 103, npcConfig.destination.outsideDanceFloor.backRange[0], npcConfig.destination.outsideDanceFloor.backRange[1])
+        + seededRange(seed, step + 112, -jitterAmount, jitterAmount), npcConfig.destination.outsideDanceFloor.distance)
 }
 
 function seatDestination(
@@ -629,29 +659,29 @@ function seatDestination(
     position: [seat.position[0] + Math.sin(seat.turn) * offset, characterFloor, seat.position[2] + Math.cos(seat.turn)
         * offset],
     lookAt: seat.position,
-    linger: [destinationLinger[0], destinationLinger[1]],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }
 
 function treeDestination(seed: number, step: number, outsideTree: CircleBounds): PlayerDestination {
-  const spot = Math.floor(seededRange(seed, step + 106, 0, treeDestinationSpots))
-  const spread = Math.PI / treeDestinationSpots
-  const angle = spot / treeDestinationSpots * Math.PI * 2 + seededRange(seed, step + 109, -spread, spread)
-  const distance = seededRange(seed, step + 107, outsideTree.radius + treeDestinationRadius[0],
-    outsideTree.radius + treeDestinationRadius[1])
+  const spot = Math.floor(seededRange(seed, step + 106, 0, npcConfig.destination.treeSpots))
+  const spread = Math.PI / npcConfig.destination.treeSpots
+  const angle = spot / npcConfig.destination.treeSpots * Math.PI * 2 + seededRange(seed, step + 109, -spread, spread)
+  const distance = seededRange(seed, step + 107, outsideTree.radius + npcConfig.destination.treeRadius[0],
+    outsideTree.radius + npcConfig.destination.treeRadius[1])
 
   return {
     kind: 'tree',
     outside: true,
     position: [outsideTree.x + Math.sin(angle) * distance, characterFloor, outsideTree.z + Math.cos(angle) * distance],
     lookAt: [outsideTree.x, characterFloor, outsideTree.z],
-    linger: [destinationLinger[0], destinationLinger[1]],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }
 
 function kioskDestination(seed: number, step: number): PlayerDestination {
   const angle = seededRange(seed, step + 113, 0, Math.PI * 2)
-  const distance = seededRange(seed, step + 114, kioskDestinationRadius[0], kioskDestinationRadius[1])
+  const distance = seededRange(seed, step + 114, npcConfig.destination.kioskRadius[0], npcConfig.destination.kioskRadius[1])
 
   return {
     kind: 'kiosk',
@@ -659,7 +689,7 @@ function kioskDestination(seed: number, step: number): PlayerDestination {
     position: [outsideHutBar.x + Math.sin(angle) * distance, characterFloor,
       outsideHutBar.z + Math.cos(angle) * distance],
     lookAt: [outsideHutBar.x, characterFloor, outsideHutBar.z],
-    linger: [destinationLinger[0], destinationLinger[1]],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }
 
@@ -668,7 +698,7 @@ function randomDestination(seed: number, step: number): PlayerDestination {
     kind: 'random',
     outside: seededRandom(seed, step + 108) < 0.5,
     position: [0, characterFloor, 0],
-    linger: [destinationLinger[0], destinationLinger[1]],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }
 
@@ -678,14 +708,14 @@ function danceFloorDestination(
   forward: number,
   jitterX: number,
   jitterZ: number,
-  distance = danceFloorDistance,
+  distance = npcConfig.destination.danceFloor.distance,
 ): PlayerDestination {
   return {
     kind: 'dj',
     outside,
     position: [bounds.x + jitterX, characterFloor, bounds.z + forward * (bounds.depth * 0.5 + distance + jitterZ)],
     lookAt: [bounds.x, characterFloor, bounds.z],
-    linger: [destinationLinger[0], destinationLinger[1]],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }
 
