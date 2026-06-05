@@ -58,10 +58,12 @@ export function createChatUi(
     isOpen() {
       return form.dataset.open === 'true'
     },
-    open() {
+    open(focus = true) {
       input.value = ''
       form.dataset.open = 'true'
-      input.focus()
+      if (focus) {
+        input.focus()
+      }
     },
     close() {
       input.value = ''
@@ -71,12 +73,12 @@ export function createChatUi(
         document.activeElement.blur()
       }
     },
-    toggle() {
+    toggle(focus = true) {
       if (form.dataset.open === 'true') {
         this.close()
       }
       else {
-        this.open()
+        this.open(focus)
       }
     },
     submit() {

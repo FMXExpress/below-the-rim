@@ -1027,7 +1027,7 @@ html[data-touch-controls="true"] #online-indicator {
   pointer-events: auto;
 }
 
-html[data-touch-controls="true"] #chat-form[data-open="true"] ~ #online-indicator {
+html[data-touch-controls="true"] #chat-form[data-open="true"]~#online-indicator {
   display: grid;
 }
 
@@ -1035,12 +1035,12 @@ html[data-touch-controls="true"] #online-indicator[data-hidden="true"] {
   display: none;
 }
 
-html[data-touch-controls="true"] #chat-form[data-open="true"] ~ #online-indicator[data-hidden="true"] {
+html[data-touch-controls="true"] #chat-form[data-open="true"]~#online-indicator[data-hidden="true"] {
   display: grid;
 }
 
 html[data-touch-controls="true"] #chat-log {
-  max-height: min(46dvh, calc(100dvh - 160px));
+  max-height: min(30.1dvh, calc(100dvh - 160px));
 }
 
 @media (max-width: 720px) {

@@ -1933,7 +1933,7 @@ bindKeyboardInput({
   stopJumping: () => localCharacter.stopJumping(),
   startWave: () => localCharacter.startWave(),
   stopWave: () => localCharacter.stopWave(),
-  openChatInput: () => chatUi.open(),
+  openChatInput: () => openChatInput(),
   setAlternativeInput: useAlternativeInput,
   toggleHelp: () => {
     const open = helpUi.toggle()
@@ -1957,7 +1957,7 @@ addEventListener('keydown', event => {
 
 createMobileControls({
   ...styleActions,
-  openChatInput: () => chatUi.toggle(),
+  openChatInput: () => toggleChatInput(false),
 })
 bindTapDestination({
   canvas,
@@ -2099,6 +2099,24 @@ function sendChatMessage(message: string) {
     const color = addChatLogMessage(multiplayer.selfId, text)
 
     chatUi.show(multiplayer.selfId, text, characterPosition, performance.now(), color)
+  }
+}
+
+function scrollChatLogToBottom() {
+  requestAnimationFrame(() => {
+    chatLog.scrollTop = chatLog.scrollHeight
+  })
+}
+
+function openChatInput(focus = true) {
+  chatUi.open(focus)
+  scrollChatLogToBottom()
+}
+
+function toggleChatInput(focus = true) {
+  chatUi.toggle(focus)
+  if (chatUi.isOpen()) {
+    scrollChatLogToBottom()
   }
 }
 
