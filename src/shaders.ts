@@ -823,6 +823,26 @@ vec2 skyPoint(vec2 point) {
   return vec2(atan(direction.x, direction.z) / 6.2831853 + 0.5, asin(direction.y) / 3.14159265 + 0.5);
 }
 
+vec3 sceneWithSky(vec2 point) {
+  vec4 source = texture(scene, point);
+  vec3 color = source.rgb;
+
+  if (renderSky == 1) {
+    float sky = 1.0 - smoothstep(0.02, 0.12, distance(color, vec3(0.28, 0.55, 0.92)));
+    vec2 skyUv = skyPoint(point);
+
+    color = mix(color, ${outsideMotif === 'night' ? 'nightSky(skyUv)' : 'afternoonSky(skyUv)'}, sky);
+  }
+  else if (renderSky == 2) {
+    vec2 skyUv = skyPoint(point);
+    skyUv.x = fract(skyUv.x + 0.55);
+
+    color = mix(nightSky(skyUv), color, source.a);
+  }
+
+  return color;
+}
+
 void main() {
   vec4 source = texture(scene, uv);
   vec3 base = source.rgb;
@@ -870,26 +890,34 @@ void main() {
       tripNoise(uv * 13.0 + vec2(-time * 0.45, time * 0.62))
     ) - 0.5;
     vec2 liquidUv = uv + wobble * feedbackAmount * 0.055;
-    vec4 liquidSource = texture(scene, liquidUv);
-    vec3 liquidScene = liquidSource.rgb;
-
-    if (renderSky == 1) {
-      float sky = 1.0 - smoothstep(0.02, 0.12, distance(liquidScene, vec3(0.28, 0.55, 0.92)));
-      vec2 skyUv = skyPoint(liquidUv);
-
-      liquidScene = mix(liquidScene, ${outsideMotif === 'night' ? 'nightSky(skyUv)' : 'afternoonSky(skyUv)'}, sky);
-    }
-    else if (renderSky == 2) {
-      vec2 skyUv = skyPoint(liquidUv);
-      skyUv.x = fract(skyUv.x + 0.55);
-
-      liquidScene = mix(nightSky(skyUv), liquidScene, liquidSource.a);
-    }
-
+    vec3 liquidScene = sceneWithSky(liquidUv);
     vec3 liquidBloom = bright(texture(bloom, liquidUv)) * 2.8;
     vec3 liquid = vec3(1.0) - exp(-(liquidScene + liquidBloom) * 1.05);
 
     tripped = mix(tripped, liquid, smoothstep(0.0, 0.85, feedbackAmount) * 0.82);
+  }
+  else if (tripKind == 2 && feedbackAmount > 0.001) {
+    vec2 texel = 1.0 / bloomResolution;
+    float amount = smoothstep(0.0, 0.85, feedbackAmount);
+    float height = 22.5;
+    float edgeFalloff = smoothstep(0.05, 0.72, length(uv - 0.5));
+    float n0 = tripNoise(uv * 18.0 + vec2(time * 0.45, -time * 0.31));
+    float nx = tripNoise((uv + vec2(texel.x, 0.0)) * 18.0 + vec2(time * 0.45, -time * 0.31));
+    float ny = tripNoise((uv + vec2(0.0, texel.y)) * 18.0 + vec2(time * 0.45, -time * 0.31));
+    vec2 normal = normalize(vec2(n0 - nx, n0 - ny) * height + vec2(0.001));
+    vec2 light = normalize(vec2(abs(sin(time * 0.05)), -abs(cos(time * 0.025))));
+    float shade = 0.72 + dot(-light, normal) * 0.24;
+    vec2 radial = (uv - 0.5) * 0.0075;
+    vec2 bump = normal * texel * 24.0 * amount * edgeFalloff;
+    vec2 redUv = uv - radial * 0.5 + bump;
+    vec2 greenUv = uv + bump * 0.55;
+    vec2 blueUv = uv + radial + bump;
+    vec3 displaced = vec3(sceneWithSky(redUv).r, sceneWithSky(greenUv).g, sceneWithSky(blueUv).b);
+    vec3 bloomDisplaced = vec3(texture(bloom, redUv).r, texture(bloom, greenUv).g, texture(bloom, blueUv).b) * 3.4;
+    vec3 painted = vec3(1.0) - exp(-(displaced * shade + bloomDisplaced) * 1.05);
+    float noise = 0.94 + tripRand(floor(uv * bloomResolution.xy) + floor(time * 60.0)) * 0.08;
+
+    tripped = mix(tripped, painted * noise, amount * 0.78);
   }
 
   pixel = vec4(tripped, 1.0);
