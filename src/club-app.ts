@@ -994,8 +994,11 @@ function inOutsidePlantClearance(x: number, z: number) {
   const buddhaDistanceZ = z - outsideBuddha.z
   const palmDistanceX = x - outsidePalmTree.x
   const palmDistanceZ = z - outsidePalmTree.z
+  const roomPadding = 1.4
 
   return inToiletBounds(x, z, 2.6)
+    || (x > roomBounds.left - roomPadding && x < roomBounds.right + roomPadding
+      && z > roomBounds.back - roomPadding && z < roomBounds.front + roomPadding)
     || (tentDistanceX * tentDistanceX + tentDistanceZ * tentDistanceZ) < (tent.radius + 1.6) * (tent.radius + 1.6)
     || (buddhaDistanceX * buddhaDistanceX + buddhaDistanceZ * buddhaDistanceZ) < 5.6
     || (palmDistanceX * palmDistanceX + palmDistanceZ * palmDistanceZ) < 3.2
