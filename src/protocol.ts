@@ -25,7 +25,7 @@ export const roomCount = 3
 export const messageMaxLength = 120
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 34
+export const protocolVersion = 35
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
