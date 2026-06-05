@@ -81,10 +81,15 @@ export function createChatUi(
         this.open(focus)
       }
     },
-    submit() {
+    submit(close = true) {
       const text = input.value.trim()
 
-      this.close()
+      if (close) {
+        this.close()
+      }
+      else {
+        input.value = ''
+      }
 
       return text
     },

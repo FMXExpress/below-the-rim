@@ -2145,7 +2145,7 @@ nicknameInput.addEventListener('input', syncChatFormColor)
 
 chatForm.addEventListener('submit', event => {
   event.preventDefault()
-  sendChatMessage(chatUi.submit())
+  sendChatMessage(chatUi.submit(document.documentElement.dataset.touchControls !== 'true'))
 })
 
 addEventListener('keydown', event => {

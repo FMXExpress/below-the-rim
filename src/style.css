@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+* {
+  outline: none;
+}
+
 :root {
   color-scheme: dark;
   font-family:
