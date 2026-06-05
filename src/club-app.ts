@@ -116,6 +116,26 @@ const {
   introStart,
 } = getDomElements()
 
+function syncViewportSize() {
+  const viewport = visualViewport
+  const offsetLeft = viewport?.offsetLeft ?? 0
+  const offsetTop = viewport?.offsetTop ?? 0
+  const width = viewport?.width ?? innerWidth
+  const height = viewport?.height ?? innerHeight
+
+  document.documentElement.style.setProperty('--app-bottom', `${Math.max(0, innerHeight - height - offsetTop)}px`)
+  document.documentElement.style.setProperty('--app-height', `${height}px`)
+  document.documentElement.style.setProperty('--app-left', `${offsetLeft}px`)
+  document.documentElement.style.setProperty('--app-top', `${offsetTop}px`)
+  document.documentElement.style.setProperty('--app-width', `${width}px`)
+  scrollTo(0, 0)
+}
+
+syncViewportSize()
+addEventListener('resize', syncViewportSize)
+visualViewport?.addEventListener('resize', syncViewportSize)
+visualViewport?.addEventListener('scroll', syncViewportSize)
+
 const gl = canvas.getContext('webgl2', {
   antialias: false,
   alpha: false,
@@ -909,6 +929,13 @@ let introHidden = false
 let videoPlaying = false
 let introWaveSent = false
 
+intro.addEventListener('touchmove', event => {
+  if (!introHidden) {
+    event.preventDefault()
+    scrollTo(0, 0)
+  }
+}, { passive: false })
+
 function startIntro() {
   syncNickname(introNicknameInput.value)
   if (!introWaveSent) {
@@ -919,12 +946,33 @@ function startIntro() {
   introStart.dataset.playing = String(videoPlaying)
 }
 
+function submitIntroNickname() {
+  syncNickname(introNicknameInput.value)
+  introNicknameInput.blur()
+  canvas.focus()
+}
+
 introStart.addEventListener('click', startIntro)
 introNicknameInput.addEventListener('change', () => syncNickname(introNicknameInput.value))
 introNicknameInput.addEventListener('input', syncChatFormColor)
+function handleIntroNicknameKey(event: KeyboardEvent) {
+  if (event.key !== 'Enter') {
+    return
+  }
+
+  event.preventDefault()
+  submitIntroNickname()
+}
+introNicknameInput.addEventListener('keydown', handleIntroNicknameKey)
+introNicknameInput.addEventListener('keyup', handleIntroNicknameKey)
 addEventListener('keydown', event => {
   if (!introHidden && event.key === 'Enter' && document.activeElement !== chatInput) {
     event.preventDefault()
+    if (document.activeElement === introNicknameInput) {
+      submitIntroNickname()
+      return
+    }
+
     startIntro()
   }
 })

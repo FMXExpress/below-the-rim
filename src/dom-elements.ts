@@ -26,7 +26,7 @@ export function getDomElements() {
   const introProgress = document.createElement('div')
 
   canvas.id = 'scene'
-  canvas.className = 'block h-dvh w-dvw'
+  canvas.className = 'block'
   canvas.tabIndex = -1
 
   djVideo.id = 'dj-video'
@@ -85,6 +85,7 @@ export function getDomElements() {
   introNicknameInput.maxLength = 32
   introNicknameInput.placeholder = 'nickname'
   introNicknameInput.setAttribute('autocomplete', 'nickname')
+  introNicknameInput.setAttribute('enterkeyhint', 'done')
   introStart.type = 'button'
   introStart.textContent = 'enter'
   introProgress.textContent = '0%'

@@ -17,6 +17,7 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
   let dragY = 0
   let pitch = 0
   let dragging = false
+  let dragTouchId = -1
   let dragMoved = false
   let holdingManualCamera = false
   let manualCameraHoldUntil = 0
@@ -76,6 +77,48 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
   canvas.addEventListener('pointercancel', event => {
     dragging = false
     releasePointerCapture(canvas, event.pointerId)
+  })
+
+  canvas.addEventListener('touchstart', event => {
+    if (dragTouchId !== -1 || interactiveTarget(event.target)) {
+      return
+    }
+
+    const touch = event.changedTouches[0]!
+
+    event.preventDefault()
+    dragTouchId = touch.identifier
+    startDrag(touch.clientX, touch.clientY)
+  }, { passive: false })
+
+  canvas.addEventListener('touchmove', event => {
+    const touch = [...event.changedTouches].find(next => next.identifier === dragTouchId)
+
+    if (!touch) {
+      return
+    }
+
+    event.preventDefault()
+    moveDrag(touch.clientX, touch.clientY)
+  }, { passive: false })
+
+  canvas.addEventListener('touchend', event => {
+    const touch = [...event.changedTouches].find(next => next.identifier === dragTouchId)
+
+    if (touch) {
+      event.preventDefault()
+      dragging = false
+      dragTouchId = -1
+    }
+  }, { passive: false })
+
+  canvas.addEventListener('touchcancel', event => {
+    const touch = [...event.changedTouches].find(next => next.identifier === dragTouchId)
+
+    if (touch) {
+      dragging = false
+      dragTouchId = -1
+    }
   })
 
   document.addEventListener('mousedown', event => {

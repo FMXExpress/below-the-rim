@@ -5,6 +5,11 @@
 }
 
 :root {
+  --app-bottom: 0px;
+  --app-height: 100dvh;
+  --app-left: 0px;
+  --app-top: 0px;
+  --app-width: 100dvw;
   color-scheme: dark;
   font-family:
     "Iansui", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -14,12 +19,26 @@
 html,
 body {
   margin: 0;
-  min-width: 100dvw;
-  min-height: 100dvh;
+  width: 100%;
+  height: 100%;
+  overflow: clip;
+  overscroll-behavior: none;
+  scrollbar-width: none;
+  touch-action: none;
+}
+
+html {
+  position: fixed;
+  inset: 0;
 }
 
 body {
   background: #000;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
 }
 
 ::selection {
@@ -30,6 +49,16 @@ body {
 canvas {
   image-rendering: pixelated;
   touch-action: none;
+}
+
+#scene {
+  position: fixed;
+  left: var(--app-left);
+  top: var(--app-top);
+  width: var(--app-width);
+  height: var(--app-height);
+  max-width: 100%;
+  max-height: 100%;
 }
 
 #dj-video {
@@ -43,14 +72,19 @@ canvas {
 
 #intro {
   position: fixed;
-  inset: 0;
+  left: var(--app-left);
+  top: var(--app-top);
+  width: var(--app-width);
+  height: var(--app-height);
   z-index: 100;
   display: grid;
   place-items: center;
   background: #000;
   color: rgb(245 245 245);
   opacity: 1;
+  overflow: hidden;
   pointer-events: auto;
+  touch-action: none;
   transition: opacity 520ms ease;
 }
 
@@ -211,7 +245,7 @@ canvas {
 #online-indicator {
   position: fixed;
   left: 12px;
-  bottom: 12px;
+  bottom: calc(12px + var(--app-bottom));
   z-index: 110;
   display: grid;
   width: max-content;
@@ -240,7 +274,7 @@ html[data-touch-controls="true"] #online-indicator[data-hidden="true"] {
 #reaction-buttons {
   position: fixed;
   right: 8px;
-  bottom: 80px;
+  bottom: calc(80px + var(--app-bottom));
   z-index: 110;
   display: grid;
   gap: 8px;
@@ -326,7 +360,7 @@ html[data-touch-controls="true"] #reaction-buttons[data-hidden="true"] {
 #rooms-button,
 #support-link {
   position: fixed;
-  bottom: 12px;
+  bottom: calc(12px + var(--app-bottom));
   z-index: 110;
   display: grid;
   width: 24px;
@@ -340,7 +374,7 @@ html[data-touch-controls="true"] #reaction-buttons[data-hidden="true"] {
 }
 
 #rooms-button {
-  bottom: 48px;
+  bottom: calc(48px + var(--app-bottom));
   right: 12px;
   border: 0;
   appearance: none;
@@ -842,13 +876,13 @@ html[data-touch-controls="true"] #support-link[data-hidden="true"] {
 
 .help-box-speak {
   left: 24px;
-  bottom: 24px;
+  bottom: calc(24px + var(--app-bottom));
   width: 164px;
 }
 
 .help-box-alternative {
   left: 24px;
-  bottom: 78px;
+  bottom: calc(78px + var(--app-bottom));
   width: 164px;
 }
 
@@ -1055,7 +1089,7 @@ html[data-touch-controls="true"] #chat-log {
 
   .help-cluster-move {
     right: 12px;
-    bottom: 12px;
+    bottom: calc(12px + var(--app-bottom));
   }
 
   .help-cluster-move .help-row {
@@ -1070,12 +1104,12 @@ html[data-touch-controls="true"] #chat-log {
 
   .help-box-speak {
     left: 12px;
-    bottom: 118px;
+    bottom: calc(118px + var(--app-bottom));
   }
 
   .help-box-alternative {
     left: 12px;
-    bottom: 168px;
+    bottom: calc(168px + var(--app-bottom));
   }
 
   .help-box-toggle {
