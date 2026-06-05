@@ -85,6 +85,7 @@ export function renderClubFrame(options: {
     amount: number
     current: Target
     next: Target
+    tripKind: number
   }
   light: {
     count: number
@@ -109,6 +110,8 @@ export function renderClubFrame(options: {
     skyForward: WebGLUniformLocation
     skyRight: WebGLUniformLocation
     skyUp: WebGLUniformLocation
+    time: WebGLUniformLocation
+    tripKind: WebGLUniformLocation
   }
   program: WebGLProgram
   roomUniforms: RoomUniforms
@@ -281,6 +284,8 @@ export function renderClubFrame(options: {
   gl.bindTexture(gl.TEXTURE_2D, options.feedback.current.color)
   gl.uniform1i(options.post.feedback, 2)
   gl.uniform1f(options.post.feedbackAmount, options.feedback.amount)
+  gl.uniform1f(options.post.time, options.time)
+  gl.uniform1i(options.post.tripKind, options.feedback.tripKind)
   gl.uniform2f(options.post.bloomResolution, options.bloomTarget.width, options.bloomTarget.height)
   gl.uniform1i(options.post.renderSky, options.sky ? 1 : options.skyline ? 2 : 0)
   if (options.sky || options.skyline) {

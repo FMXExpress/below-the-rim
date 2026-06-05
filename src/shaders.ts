@@ -608,7 +608,9 @@ uniform sampler2D bloom;
 uniform sampler2D feedback;
 uniform vec2 bloomResolution;
 uniform float feedbackAmount;
+uniform float time;
 uniform int renderSky;
+uniform int tripKind;
 uniform vec3 skyForward;
 uniform vec3 skyRight;
 uniform vec3 skyUp;
@@ -625,6 +627,96 @@ vec3 bright(vec4 texel) {
 
   return redGlow * vec3(1.0, 0.035, 0.012) + greenGlow * vec3(0.04, 0.65, 0.08)
     + blueGlow * vec3(0.0, 0.067, 1.0);
+}
+
+float tripSfract(float n) {
+  return smoothstep(0.0, 1.0, fract(n));
+}
+
+float tripRand(vec2 n) {
+  return fract(abs(sin(dot(n, vec2(5.3357, -5.8464)))) * 256.75 + 0.325);
+}
+
+float tripNoise(vec2 n) {
+  float h1 = mix(tripRand(vec2(floor(n.x), floor(n.y))), tripRand(vec2(ceil(n.x), floor(n.y))), tripSfract(n.x));
+  float h2 = mix(tripRand(vec2(floor(n.x), ceil(n.y))), tripRand(vec2(ceil(n.x), ceil(n.y))), tripSfract(n.x));
+
+  return mix(h1, h2, tripSfract(n.y));
+}
+
+vec3 tripBackground(vec3 dir) {
+  float sky = dot(dir, vec3(0.0, -1.0, 0.0)) * 0.5 + 0.5;
+  float sun = pow(dot(dir, normalize(vec3(1.0, 0.7, 0.9))) * 0.5 + 0.5, 32.0);
+  vec2 p = vec2(dir.x + dir.z, dir.y - dir.z);
+  float clouds = tripNoise(p * 8.0) * tripNoise(p * 9.0) * tripNoise(p * 10.0) * tripNoise(p * 11.0) * sky;
+  vec3 total = vec3(sky * 0.6 + 0.05 + sun + clouds, sky * 0.8 + 0.075 + pow(sun, 1.5) + clouds,
+    sky + 0.2 + pow(sun, 4.0) + clouds);
+  vec2 groundUv = dir.xz / max(abs(dir.y), 0.05);
+  vec3 ground = texture(scene, fract(groundUv * 0.08 + vec2(time * 0.018, 0.0))).rrr * vec3(1.1, 1.0, 0.9);
+
+  return mix(total, ground, clamp((sky - 0.6) * 64.0, 0.0, 1.0));
+}
+
+float tripModel(vec3 pos) {
+  vec3 p = pos + vec3(time * 0.2, 0.0, 0.0)
+    + vec3(tripNoise(pos.xz), 0.0, tripNoise(pos.xz + 8.0)) * 0.2;
+  float height = 0.1 * pow(tripNoise(p.xz + vec2(time * 0.7, time * 0.6)) * 0.5
+    + tripNoise(p.xz * 8.0 + vec2(time)) * 0.35
+    + tripNoise(p.xz * 16.0 + vec2(0.0, time * 0.5)) * 0.1
+    + tripNoise(p.xz * 24.0) * 0.05, 0.25);
+
+  return p.y - height;
+}
+
+float tripIntersection(vec3 ro, vec3 rd) {
+  float h = 0.002;
+  float t = 0.0;
+
+  for (int i = 0; i < 54; i++) {
+    if (h < 0.001 || t > 10.0) {
+      break;
+    }
+
+    h = tripModel(ro + rd * t);
+    t += h * 0.8;
+  }
+
+  return t < 10.0 ? t : -1.0;
+}
+
+vec3 tripNormal(vec3 pos) {
+  const float eps = 0.002;
+  const vec3 v1 = vec3(1.0, -1.0, -1.0);
+  const vec3 v2 = vec3(-1.0, -1.0, 1.0);
+  const vec3 v3 = vec3(-1.0, 1.0, -1.0);
+  const vec3 v4 = vec3(1.0, 1.0, 1.0);
+
+  return normalize(v1 * tripModel(pos + v1 * eps) + v2 * tripModel(pos + v2 * eps)
+    + v3 * tripModel(pos + v3 * eps) + v4 * tripModel(pos + v4 * eps));
+}
+
+vec3 tripColor(vec2 point) {
+  vec2 p = (-bloomResolution.xy + 2.0 * point * bloomResolution.xy) / bloomResolution.y;
+  vec2 dir = vec2(sin(time * 0.13), cos(time * 0.11)) * 0.2;
+  vec3 ro = vec3(0.0, 0.5, 0.0);
+  vec3 ta = ro + normalize(vec3(dir.x, 0.08 + dir.y * 0.2, 1.0));
+  vec3 ww = normalize(ta - ro);
+  vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
+  vec3 vv = normalize(cross(uu, ww));
+  vec3 rd = normalize(mat3(uu, vv, ww) * vec3(p.xy, 2.0));
+  vec3 col = tripBackground(rd);
+  float t = tripIntersection(ro, rd);
+
+  if (t > -0.5) {
+    vec3 pos = ro + t * rd;
+    vec3 nor = tripNormal(pos);
+    vec3 ref = tripBackground(reflect(rd, nor));
+    vec3 mal = mix(tripBackground(refract(rd, nor, 0.8)), ref, clamp(dot(ref, vec3(0.333333)) * 1.5, 0.0, 1.0));
+
+    col = mix(tripBackground(rd), mal, 1.0 - clamp(t * t / 90.0, 0.0, 1.0));
+  }
+
+  return pow(clamp(col, 0.0, 1.0), vec3(0.4545));
 }
 
 vec3 afternoonSky(vec2 point) {
@@ -770,6 +862,36 @@ void main() {
   vec2 feedbackUv = (uv - 0.5) * 0.992 + 0.5;
   vec3 history = texture(feedback, feedbackUv).rgb * feedbackAmount;
 
-  pixel = vec4(max(current, history), 1.0);
+  vec3 tripped = max(current, history);
+
+  if (tripKind == 1 && feedbackAmount > 0.001) {
+    vec2 wobble = vec2(
+      tripNoise(uv * 12.0 + vec2(time * 0.7, time * 0.4)),
+      tripNoise(uv * 13.0 + vec2(-time * 0.45, time * 0.62))
+    ) - 0.5;
+    vec2 liquidUv = uv + wobble * feedbackAmount * 0.055;
+    vec4 liquidSource = texture(scene, liquidUv);
+    vec3 liquidScene = liquidSource.rgb;
+
+    if (renderSky == 1) {
+      float sky = 1.0 - smoothstep(0.02, 0.12, distance(liquidScene, vec3(0.28, 0.55, 0.92)));
+      vec2 skyUv = skyPoint(liquidUv);
+
+      liquidScene = mix(liquidScene, ${outsideMotif === 'night' ? 'nightSky(skyUv)' : 'afternoonSky(skyUv)'}, sky);
+    }
+    else if (renderSky == 2) {
+      vec2 skyUv = skyPoint(liquidUv);
+      skyUv.x = fract(skyUv.x + 0.55);
+
+      liquidScene = mix(nightSky(skyUv), liquidScene, liquidSource.a);
+    }
+
+    vec3 liquidBloom = bright(texture(bloom, liquidUv)) * 2.8;
+    vec3 liquid = vec3(1.0) - exp(-(liquidScene + liquidBloom) * 1.05);
+
+    tripped = mix(tripped, liquid, smoothstep(0.0, 0.85, feedbackAmount) * 0.82);
+  }
+
+  pixel = vec4(tripped, 1.0);
 }
 `

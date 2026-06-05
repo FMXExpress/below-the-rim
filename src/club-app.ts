@@ -1031,6 +1031,7 @@ const bloomScale = createAdaptiveBloomScale()
 const feedbackMaxAmount = 0.91
 const feedbackToiletRampSeconds = 60
 const feedbackSitResetSeconds = 3
+const tripKinds = [0, 1] as const
 let outsideTree: CircleBounds = { x: 0, z: 20.5, radius: 0.75 }
 let lastStamp = 0
 let graphicsPaused = document.hidden
@@ -1043,6 +1044,8 @@ let feedbackToiletStartAmount = 0
 let feedbackInToilets = false
 let feedbackSitSeconds = 0
 let feedbackSitReset = false
+let tripCycle = shuffledTripKinds()
+let tripCycleIndex = 0
 let buddhaLoaded = false
 let palmTreeLoaded = false
 let rocksLoaded = false
@@ -1227,6 +1230,8 @@ const postRenderSky = gl.getUniformLocation(postProgram, 'renderSky')
 const postSkyForward = gl.getUniformLocation(postProgram, 'skyForward')
 const postSkyRight = gl.getUniformLocation(postProgram, 'skyRight')
 const postSkyUp = gl.getUniformLocation(postProgram, 'skyUp')
+const postTime = gl.getUniformLocation(postProgram, 'time')!
+const postTripKind = gl.getUniformLocation(postProgram, 'tripKind')!
 const array = gl.createVertexArray()
 const buffer = gl.createBuffer()
 const lightArray = gl.createVertexArray()
@@ -1253,6 +1258,7 @@ const feedback = {
   amount: 0,
   current: createTarget(gl, 1, 1),
   next: createTarget(gl, 1, 1),
+  tripKind: 0,
 }
 const stride = vertexSize * Float32Array.BYTES_PER_ELEMENT
 const strobeGeometry = createStrobeGeometry()
@@ -2405,12 +2411,37 @@ function feedbackRamp(stamp: number, startStamp: number, startAmount: number, se
 function updateFeedbackToiletVisit(stamp: number) {
   const inToilets = inToiletBounds(characterPosition[0], characterPosition[2])
 
-  if (inToilets && !feedbackInToilets) {
+  if (!inToilets && feedbackInToilets) {
+    feedback.tripKind = nextTripKind()
     feedbackToiletStartStamp = stamp
-    feedbackToiletStartAmount = feedback.amount
+    feedbackToiletStartAmount = feedbackMaxAmount
+    feedback.amount = feedbackMaxAmount
   }
 
   feedbackInToilets = inToilets
+}
+
+function nextTripKind() {
+  if (tripCycleIndex >= tripCycle.length) {
+    tripCycle = shuffledTripKinds()
+    tripCycleIndex = 0
+  }
+
+  return tripCycle[tripCycleIndex++]!
+}
+
+function shuffledTripKinds() {
+  const next = [...tripKinds]
+
+  for (let i = next.length - 1; i > 0; i--) {
+    const index = Math.floor(Math.random() * (i + 1))
+    const value = next[i]!
+
+    next[i] = next[index]!
+    next[index] = value
+  }
+
+  return next
 }
 
 function requestIdle(callback: () => void) {
@@ -2640,6 +2671,8 @@ const draw = (stamp: number) => {
       skyForward: postSkyForward,
       skyRight: postSkyRight,
       skyUp: postSkyUp,
+      time: postTime,
+      tripKind: postTripKind,
     },
     program,
     roomUniforms: {
