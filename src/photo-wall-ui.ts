@@ -95,6 +95,8 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   viewerClose.className = 'photo-viewer-control photo-viewer-close'
   viewerImage.alt = 'photo'
   viewerImage.className = 'photo-viewer-image'
+  viewerImage.decoding = 'async'
+  viewerImage.loading = 'eager'
   viewerPrevious.type = 'button'
   viewerPrevious.textContent = '👈'
   viewerPrevious.setAttribute('aria-label', 'previous photo')
@@ -466,7 +468,17 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     viewerAnimation?.cancel()
     viewerClosing = false
     delete viewer.dataset.closing
-    const tilt = setViewerPhoto(photo, index)
+    let tilt: number
+    try {
+      tilt = await setViewerPhoto(photo, index)
+    }
+    catch (e) {
+      console.error(e)
+      return
+    }
+    if (openId !== viewerOpenId) {
+      return
+    }
     if (!viewer.open) {
       viewer.showModal()
     }
@@ -566,7 +578,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
 
       if (page.photos[nextIndex]) {
         await preloadFullPhoto(page.photos[nextIndex]!)
-        animateViewerSwap(page.photos[nextIndex]!, nextIndex, direction)
+        await animateViewerSwap(page.photos[nextIndex]!, nextIndex, direction)
         return
       }
 
@@ -578,10 +590,11 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     }
   }
 
-  function setViewerPhoto(photo: Photo, index: number) {
-    viewedPhoto = photo
+  async function setViewerPhoto(photo: Photo, index: number) {
     viewerImage.src = photo.url
     viewerImage.alt = new Date(photo.createdAt).toLocaleString()
+    await viewerImage.decode()
+    viewedPhoto = photo
 
     const tilt = photoTilt(photo)
 
@@ -733,9 +746,9 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     }
   }
 
-  function animateViewerSwap(photo: Photo, index: number, direction: -1 | 1) {
+  async function animateViewerSwap(photo: Photo, index: number, direction: -1 | 1) {
     if (viewerMotion.matches) {
-      setViewerPhoto(photo, index)
+      await setViewerPhoto(photo, index)
       viewerSlideBusy = false
       return
     }
@@ -744,7 +757,6 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     const currentPhoto = viewedPhoto!
     const outgoing = viewerPolaroid.cloneNode(true) as HTMLElement
     const currentTilt = photoTilt(currentPhoto)
-    const nextTilt = photoTilt(photo)
     const distance = Math.max(innerWidth, currentRect.width) + currentRect.width
     const incomingX = direction > 0 ? distance : -distance
     const outgoingX = -incomingX
@@ -753,7 +765,15 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     prepareSlideClone(outgoing, currentRect)
     viewerStage.append(outgoing)
     viewerPolaroid.style.visibility = 'hidden'
-    setViewerPhoto(photo, index)
+    let nextTilt: number
+    try {
+      nextTilt = await setViewerPhoto(photo, index)
+    }
+    catch (e) {
+      outgoing.remove()
+      viewerPolaroid.style.visibility = ''
+      throw e
+    }
     viewerPolaroid.getBoundingClientRect()
     viewerPolaroid.style.visibility = ''
 
