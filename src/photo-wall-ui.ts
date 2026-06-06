@@ -21,6 +21,11 @@ type PhotoPage = {
   total: number
 }
 
+type PhotoElement = {
+  image: HTMLImageElement
+  item: HTMLDivElement
+}
+
 const refreshInterval = 30_000
 const viewerMotion = matchMedia('(prefers-reduced-motion: reduce)')
 const viewerMotionDuration = 560
@@ -41,7 +46,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   const viewerPrevious = document.createElement('button')
   const viewerNext = document.createElement('button')
   const viewerClose = document.createElement('button')
-  const photoElements = new Map<number, HTMLImageElement>()
+  const photoElements = new Map<number, PhotoElement>()
   let viewerAnimation: Animation | undefined
   let viewerClosing = false
   let viewerSlideBusy = false
@@ -234,34 +239,39 @@ export function createPhotoWallUi(element: HTMLElement, options: {
       grid.scrollTop = 0
     }
 
-    grid.replaceChildren()
-    photoElements.clear()
+    const visiblePhotos = new Set<number>()
 
     for (let i = 0; i < page.photos.length; i++) {
       const photo = page.photos[i]!
-      const item = document.createElement('div')
-      const image = document.createElement('img')
+      const element = photoElements.get(photo.timestamp) ?? createPhotoElement()
 
-      item.className = 'photo-wall-item'
-      item.tabIndex = 0
-      image.src = photo.url
-      image.alt = new Date(photo.createdAt).toLocaleString()
-      image.loading = i < 9 ? 'eager' : 'lazy'
-      photoElements.set(photo.timestamp, image)
-      item.append(image)
-      item.addEventListener('click', () => {
-        openViewer(photo, page.photos.indexOf(photo), image.getBoundingClientRect())
-      })
-      item.addEventListener('keydown', event => {
+      visiblePhotos.add(photo.timestamp)
+      photoElements.set(photo.timestamp, element)
+      element.image.src = photo.url
+      element.image.alt = new Date(photo.createdAt).toLocaleString()
+      element.image.loading = i < 9 ? 'eager' : 'lazy'
+      element.item.onclick = () => {
+        openViewer(photo, page.photos.indexOf(photo), element.image.getBoundingClientRect())
+      }
+      element.item.onkeydown = event => {
         if (event.key !== 'Enter' && event.key !== ' ') {
           return
         }
 
         event.preventDefault()
-        openViewer(photo, page.photos.indexOf(photo), image.getBoundingClientRect())
-      })
+        openViewer(photo, page.photos.indexOf(photo), element.image.getBoundingClientRect())
+      }
 
-      grid.append(item)
+      if (grid.children[i] !== element.item) {
+        grid.insertBefore(element.item, grid.children[i] ?? null)
+      }
+    }
+
+    for (const [timestamp, element] of photoElements) {
+      if (!visiblePhotos.has(timestamp)) {
+        element.item.remove()
+        photoElements.delete(timestamp)
+      }
     }
 
     if (scrollTop !== undefined) {
@@ -294,6 +304,17 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     }
   }
 
+  function createPhotoElement(): PhotoElement {
+    const item = document.createElement('div')
+    const image = document.createElement('img')
+
+    item.className = 'photo-wall-item'
+    item.tabIndex = 0
+    item.append(image)
+
+    return { image, item }
+  }
+
   function openViewer(
     photo: Photo,
     index = page.photos.findIndex(item => item.timestamp === photo.timestamp),
@@ -307,7 +328,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     if (!viewer.open) {
       viewer.showModal()
     }
-    const targetSourceRect = sourceRect ?? photoElements.get(photo.timestamp)?.getBoundingClientRect()
+    const targetSourceRect = sourceRect ?? photoElements.get(photo.timestamp)?.image.getBoundingClientRect()
 
     viewerSourceRect = targetSourceRect
     if (animate && targetSourceRect) {
@@ -395,7 +416,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     viewerPolaroid.style.setProperty('--photo-viewer-tilt', `${tilt}deg`)
     syncViewerNav(index)
 
-    const source = photoElements.get(photo.timestamp)
+    const source = photoElements.get(photo.timestamp)?.image
 
     viewerSourceRect = source?.getBoundingClientRect()
 
