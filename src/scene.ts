@@ -1,11 +1,11 @@
 import { characterFloor } from './character-data.ts'
 import { clamp } from './math.ts'
-import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, outsideBounds, outsideBuddha, outsideCouches,
-  outsideDjBooth, outsideDjSpeakers, outsideFoodTruck, outsideFoodTruckSize, outsideFoodTruckTurn, outsideHut,
-  outsideHutBar, outsideHutBarStools, outsideHutDeckHeight, outsidePalmTree,
-  outsideStage, outsideToiletDoor, outsideToilets, loftBounds, loftCornerFigures, loftCouches, loftDjBooth,
-  loftDjSpeakers, loftPlants, loftTables, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor,
-  tentDoorAngle, tentPole, tentVideoAngle } from './scene-data.ts'
+import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, loftBounds, loftCornerFigures, loftCouches,
+  loftDjBooth, loftDjSpeakers, loftPlants, loftTables, outsideBounds, outsideBuddha, outsideCouches, outsideDjBooth,
+  outsideDjSpeakers, outsideFoodTruck, outsideFoodTruckSize, outsideFoodTruckTurn, outsideHut, outsideHutBar,
+  outsideHutBarStools, outsideHutDeckHeight, outsidePalmTree, outsideStage, outsideToiletDoor, outsideToilets,
+  roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentDoorAngle, tentPole,
+  tentVideoAngle } from './scene-data.ts'
 import type { Bounds, CircleBounds, Vec3, VideoZone } from './types.ts'
 
 export type Seat = {
@@ -113,7 +113,7 @@ function isAtTentDoor(position: Vec3, padding = 0) {
   const distance = Math.hypot(position[0] - tent.x, position[2] - tent.z)
 
   return Math.abs(angleDistance(pointAngle(position[0], position[2]), tentDoorAngle))
-    < Math.asin((tentDoor.width / 2 + padding) / tent.radius)
+      < Math.asin((tentDoor.width / 2 + padding) / tent.radius)
     && distance > tent.radius - 1
 }
 
@@ -351,11 +351,13 @@ function inTentWall(x: number, z: number, padding: number) {
   const dz = z - tent.z
   const distance = Math.sqrt(dx * dx + dz * dz)
 
-  return distance < tent.radius + padding && distance > tent.radius - 0.62 && !isAtTentDoor([x, characterFloor, z], padding)
+  return distance < tent.radius + padding && distance > tent.radius - 0.62
+    && !isAtTentDoor([x, characterFloor, z], padding)
 }
 
 export function seatAt(position: Vec3, occupiedSeats = emptySeats, padding = 0.46, includeOccupied = false,
-  loft = false):
+  loft = false
+):
   | Seat
   | undefined
 {
@@ -364,8 +366,8 @@ export function seatAt(position: Vec3, occupiedSeats = emptySeats, padding = 0.4
   }
 
   const buddha = cachedBuddhaSeat
-  const tent = tentSeat(position, occupiedSeats, includeOccupied) ?? tentCenterSeat(position, occupiedSeats,
-    includeOccupied)
+  const tent = tentSeat(position, occupiedSeats, includeOccupied)
+    ?? tentCenterSeat(position, occupiedSeats, includeOccupied)
 
   if (tent) {
     return tent
@@ -564,9 +566,12 @@ function stoolSeat(stool: Bounds, index: number): Seat {
 const cachedBuddhaSeat = buddhaSeat()
 const cachedTentSeats = tentSeats()
 const cachedTentCenterSeats = tentCenterSeats()
-const cachedOutsideCouchSeatsByCouch = outsideCouches.map((couch, index) => couchSeats(couch, 'couch', index, walkHeight))
-const cachedLoftCouchSeatsByCouch = loftCouches.map((couch, index) => couchSeats(couch, 'loft-couch', index,
-  walkLoftHeight))
+const cachedOutsideCouchSeatsByCouch = outsideCouches.map((couch, index) =>
+  couchSeats(couch, 'couch', index, walkHeight)
+)
+const cachedLoftCouchSeatsByCouch = loftCouches.map((couch, index) =>
+  couchSeats(couch, 'loft-couch', index, walkLoftHeight)
+)
 const cachedOutsideCouchSeats = cachedOutsideCouchSeatsByCouch.flat()
 const cachedStoolSeats = seatStools.map((stool, index) => stoolSeat(stool, index))
 const cachedSeats = [
@@ -809,8 +814,8 @@ function platformHeight(x: number, z: number) {
   }
 
   if ([...djSpeakerCollisions, ...outsideDjSpeakerCollisions, ...tentDjSpeakerCollisions].some(bounds =>
-    inPaddedBounds(x, z, bounds)))
-  {
+    inPaddedBounds(x, z, bounds)
+  )) {
     return speakerTop
   }
 

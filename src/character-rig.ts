@@ -145,7 +145,8 @@ export function sampleCharacterPose(
       characterPoseJointSet, blendCache, cacheFrame, placedPose)
 
     return placeCharacterPose(pose, player.position, player.turn, characterPoseJoints, characterGroundJointIndices,
-      characterScale, placedPose, jumpStartGround(rig, characterPoseJoints, characterPoseJointSet, characterGroundJointIndices))
+      characterScale, placedPose,
+      jumpStartGround(rig, characterPoseJoints, characterPoseJointSet, characterGroundJointIndices))
   }
 
   if (player.mode === 'manSitting' || player.mode === 'womanSitting') {
@@ -166,8 +167,9 @@ export function sampleCharacterPose(
       characterScale, placedPose)
   }
 
-  const base = basePose ?? sampleBasePose(rig, time, characterPoseJoints, characterPoseJointSet,
-    player.idleClipIndex ?? 0, undefined, player.motionBlend > 0 || player.mode === 'wave' || player.mode === 'waveOut')
+  const base = basePose
+    ?? sampleBasePose(rig, time, characterPoseJoints, characterPoseJointSet, player.idleClipIndex ?? 0, undefined,
+      player.motionBlend > 0 || player.mode === 'wave' || player.mode === 'waveOut')
   const { stand } = base
 
   if (player.mode === 'wave' || player.mode === 'waveOut') {
@@ -425,9 +427,11 @@ function setTransformOrigin(matrix: Mat4, target: Vec3[], index: number) {
 }
 
 function sampleChannelTransform(origin: Vec3, channel: PackedChannel, tick: number, target: Mat4) {
-  const position = channel.position ? sampleVec3TrackInto(channel.position, tick, samplePosition)
+  const position = channel.position
+    ? sampleVec3TrackInto(channel.position, tick, samplePosition)
     : channel.positionConstant ?? origin
-  const rotation = channel.rotation ? sampleQuatTrackInto(channel.rotation, tick, sampleRotation)
+  const rotation = channel.rotation
+    ? sampleQuatTrackInto(channel.rotation, tick, sampleRotation)
     : channel.rotationConstant ?? identityQuat
 
   if (channel.scale) {
@@ -937,7 +941,7 @@ function packQuatTrack(keys: [number, Quat][]): PackedQuatTrack {
     const offset = i * 4
     const value = key[1]
     const length = Math.sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2] + value[3]
-      * value[3])
+        * value[3])
 
     times[i] = key[0]
     values[offset] = value[0] / length

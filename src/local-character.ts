@@ -177,8 +177,9 @@ export function createLocalCharacter(keys: Set<string>) {
       if (hasDestination) {
         if (path.length === 0) {
           try {
-            path = loft ? [[destination[0], destination[1], destination[2]]] : findPath(position, destination,
-              outsideTree)
+            path = loft
+              ? [[destination[0], destination[1], destination[2]]]
+              : findPath(position, destination, outsideTree)
           }
           catch (e) {
             void e
@@ -300,7 +301,8 @@ export function createLocalCharacter(keys: Set<string>) {
       const previousPosition: Vec3 = [position[0], position[1], position[2]]
 
       if (jumpTime > 0) {
-        const floorY = loft ? walkLoftHeight(position[0], position[1], position[2])
+        const floorY = loft
+          ? walkLoftHeight(position[0], position[1], position[2])
           : walkHeight(position[0], position[1], position[2])
 
         position[1] = floorY + jumpOffset(jumpElapsed)
@@ -364,7 +366,8 @@ export function createLocalCharacter(keys: Set<string>) {
         turn = smoothAngle(turn, Math.atan2(direction[0], direction[2]), 10, delta)
       }
 
-      const floorY = loft ? walkLoftHeight(position[0], position[1], position[2])
+      const floorY = loft
+        ? walkLoftHeight(position[0], position[1], position[2])
         : walkHeight(position[0], position[1], position[2])
 
       if (jumpTime > 0) {

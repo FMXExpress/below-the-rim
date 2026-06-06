@@ -242,7 +242,10 @@ function actionRow(action: StyleAction) {
   return row
 }
 
-function screenGroundPoint(x: number, y: number, canvas: HTMLCanvasElement, projector: WallProjector): Vec3 | undefined {
+function screenGroundPoint(x: number, y: number, canvas: HTMLCanvasElement, projector: WallProjector):
+  | Vec3
+  | undefined
+{
   const rect = canvas.getBoundingClientRect()
   const ndcX = ((x - rect.left) / rect.width) * 2 - 1
   const ndcY = 1 - ((y - rect.top) / rect.height) * 2

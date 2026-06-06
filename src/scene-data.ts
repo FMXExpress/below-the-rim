@@ -164,11 +164,14 @@ export const outsideFoodTruck: CircleBounds = {
   radius: 1.8,
 }
 export const outsideFoodTruckSize = { width: 2.46, depth: 5.5, height: 2.4 }
-export const outsideFoodTruckTurn = Math.atan2(outsideFoodTruck.z - tent.z + 8, outsideFoodTruck.x - tent.x) - Math.PI / 2
+export const outsideFoodTruckTurn = Math.atan2(outsideFoodTruck.z - tent.z + 8, outsideFoodTruck.x - tent.x)
+  - Math.PI / 2
 const foodTruckRight: Vec3 = [Math.cos(outsideFoodTruckTurn), 0, Math.sin(outsideFoodTruckTurn)]
 const foodTruckForward: Vec3 = [-Math.sin(outsideFoodTruckTurn), 0, Math.cos(outsideFoodTruckTurn)]
 const foodTruckToStage: Vec3 = [outsideStage.x - outsideFoodTruck.x, 0, outsideStage.z - outsideFoodTruck.z]
-const foodTruckStageSide = foodTruckRight[0] * foodTruckToStage[0] + foodTruckRight[2] * foodTruckToStage[2] > 0 ? 1 : -1
+const foodTruckStageSide = foodTruckRight[0] * foodTruckToStage[0] + foodTruckRight[2] * foodTruckToStage[2] > 0
+  ? 1
+  : -1
 export const outsideFoodTruckFoodWall = {
   x: outsideFoodTruck.x + foodTruckRight[0] * outsideFoodTruckSize.width / 2 * foodTruckStageSide,
   y: characterFloor + outsideFoodTruckSize.height * 0.62,

@@ -37,9 +37,9 @@ import {
   GRAFFITI,
   MESSAGE,
   modeCount,
+  type MotionPacket,
   NICKNAME,
   nicknameMaxLength,
-  type MotionPacket,
   positionScale,
   protocolToScene,
   protocolVersion,
@@ -1385,7 +1385,9 @@ function removeChatHistory(space: SpaceState, id: number) {
 function setNickname(client: Client, text: string) {
   const nickname = text.trim()
 
-  if (nickname.length > nicknameMaxLength || nickname.includes('\n') || nickname.includes('<') || nickname.includes('>')) {
+  if (nickname.length > nicknameMaxLength || nickname.includes('\n') || nickname.includes('<')
+    || nickname.includes('>'))
+  {
     throw new Error(`Invalid nickname ${nickname}`)
   }
 
@@ -1588,7 +1590,8 @@ function syncLoftMusic(space: SpaceState, room: LoftRoom) {
   space.musicSource = room.musicSource
   if (room.musicKind === 'video') {
     setVideoPlaylistOrder(space, 'loft', [room.musicSource])
-    setVideoQueue(space, { zone: 'loft', currentId: room.musicSource, nextId: room.musicSource, time: 0, updatedAt: Date.now() })
+    setVideoQueue(space, { zone: 'loft', currentId: room.musicSource, nextId: room.musicSource, time: 0,
+      updatedAt: Date.now() })
     return
   }
 

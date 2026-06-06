@@ -124,7 +124,7 @@ export function resolvePlayerStyle(style: PlayerStyle): ResolvedPlayerStyle {
   const skinColorIndex = normalizeIndex(style.skinColorIndex, skinPalette.length)
   const accessoryIndex = normalizeIndex(style.accessoryIndex, accessoryPalette.length + 1)
   const key = (((topIndex * jewelPalette.length * 2 + bottomIndex) * hairPalette.length + hairColorIndex)
-    * skinPalette.length + skinColorIndex) * (accessoryPalette.length + 1) + accessoryIndex
+          * skinPalette.length + skinColorIndex) * (accessoryPalette.length + 1) + accessoryIndex
   const cached = resolvedStyleCache.get(key)
 
   if (cached) {

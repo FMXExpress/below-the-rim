@@ -235,16 +235,16 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
         : zone === 'tent'
         ? clamp(ideal[0], tent.x - tent.radius + 1, tent.x + tent.radius - 1)
         : outside
-          ? clamp(ideal[0], outsideBounds.left + 1, outsideBounds.right - 1)
-          : clamp(ideal[0], roomBounds.left + 0.4, roomBounds.right - 0.4)
+        ? clamp(ideal[0], outsideBounds.left + 1, outsideBounds.right - 1)
+        : clamp(ideal[0], roomBounds.left + 0.4, roomBounds.right - 0.4)
       ideal[1] = clamp(ideal[1], characterFloor + 0.35, 4.3)
       ideal[2] = zone === 'loft'
         ? clamp(ideal[2], loftBounds.back + 0.65, loftBounds.front - 0.65)
         : zone === 'tent'
         ? clamp(ideal[2], tent.z - tent.radius + 1, tent.z + tent.radius - 1)
         : outside
-          ? clamp(ideal[2], outsideBounds.back + 1, outsideBounds.front - 1)
-          : clamp(ideal[2], roomBounds.back + 0.2, insideCameraFront)
+        ? clamp(ideal[2], outsideBounds.back + 1, outsideBounds.front - 1)
+        : clamp(ideal[2], roomBounds.back + 0.2, insideCameraFront)
       clampCameraToZone(ideal, zone, characterPosition)
 
       if (crossingOutside && ideal[2] < insideCameraFront) {
@@ -267,8 +267,8 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
       }
       clampCameraToZone(position, zone, characterPosition)
 
-      position[1] = Math.max(position[1], (loft ? characterFloor : walkHeight(position[0], characterPosition[1],
-        position[2])) + 0.35)
+      position[1] = Math.max(position[1],
+        (loft ? characterFloor : walkHeight(position[0], characterPosition[1], position[2])) + 0.35)
     },
   }
 }

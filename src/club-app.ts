@@ -19,9 +19,9 @@ import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import {
   addGraffitiWallGeometry,
   createGraffitiCanvas,
+  foodTruckGraffitiTriangle,
   graffitiColors,
   graffitiRadiusForScreenDistance,
-  foodTruckGraffitiTriangle,
   maxGraffitiSplats,
   paintGraffitiSplats,
   paintLoftPaintingTextures,
@@ -281,15 +281,50 @@ const helpSeen = localStorage.getItem(helpSeenKey) === 'true'
 const cameraController = createCameraController(canvas, characterPosition)
 const reactionSlotEmojis = loadReactionSlotEmojis()
 const foodTruckEmojis = [
-  '🍕', '🍔', '🌭', '🌮', '🌯', '🥙',
-  '🍟', '🍗', '🍖', '🥨', '🥐', '🥯',
-  '🍩', '🍪', '🧁', '🍰', '🍦', '🍧',
-  '🍉', '🍌', '🍓', '🥝', '🍍', '🥤',
+  '🍕',
+  '🍔',
+  '🌭',
+  '🌮',
+  '🌯',
+  '🥙',
+  '🍟',
+  '🍗',
+  '🍖',
+  '🥨',
+  '🥐',
+  '🥯',
+  '🍩',
+  '🍪',
+  '🧁',
+  '🍰',
+  '🍦',
+  '🍧',
+  '🍉',
+  '🍌',
+  '🍓',
+  '🥝',
+  '🍍',
+  '🥤',
 ] as const
 const drinkWallEmojis = [
-  '🍺', '🍻', '🥂', '🍷', '🍸', '🍹',
-  '🍾', '🥃', '🧉', '🍶', '☕', '🧃',
-  '🥤', '🧋', '🍵', '🫖', '🥛', '💧',
+  '🍺',
+  '🍻',
+  '🥂',
+  '🍷',
+  '🍸',
+  '🍹',
+  '🍾',
+  '🥃',
+  '🧉',
+  '🍶',
+  '☕',
+  '🧃',
+  '🥤',
+  '🧋',
+  '🍵',
+  '🫖',
+  '🥛',
+  '💧',
 ] as const
 const foodTruckWall = createEmojiDomWall('food-truck-wall', 'food-truck-emoji', foodTruckEmojis)
 const foodTruckWallProjection = createDomWallProjection(foodTruckWall, {
@@ -351,7 +386,7 @@ function setupReactionButtons() {
       sendChatMessage(reactionSlotEmojis[index]!)
       canvas.focus()
     })
-  reactionButtons.append(button)
+    reactionButtons.append(button)
   })
 }
 
@@ -3411,7 +3446,7 @@ const { addLocalReflection, addSunLitTriangle } = createSceneLighting({
   getTree: () => outsideTree,
   strobeReflection: (point, normal) => strobeController.reflection(point, normal),
 })
-const npcPlayers = createPlayers(180, outsideTree, occupiedSeats)
+const npcPlayers = createPlayers(250, outsideTree, occupiedSeats)
 const renderPlayers: Player[] = [...npcPlayers]
 const characterRenderSystem = createCharacterRenderSystem({
   boxInstanceBuffer: characterBoxInstanceBuffer,

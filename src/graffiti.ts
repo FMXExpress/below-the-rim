@@ -324,8 +324,8 @@ function paintAbstractTile(
   context.fillStyle = '#ffffff'
   for (let i = 0; i < 3; i++) {
     context.beginPath()
-    context.ellipse(x + width * (0.28 + i * 0.22), y + height * (0.32 + i * 0.16), width * 0.2,
-      height * 0.1, seed + i * 0.7, 0, Math.PI * 2)
+    context.ellipse(x + width * (0.28 + i * 0.22), y + height * (0.32 + i * 0.16), width * 0.2, height * 0.1,
+      seed + i * 0.7, 0, Math.PI * 2)
     context.fill()
   }
   context.restore()

@@ -1,6 +1,6 @@
 import { projectedQuadTransform, projectWallPointWithMinDepthInto } from './projection.ts'
-import { createStyleSetter } from './style-setter.ts'
 import type { ProjectedPoint, WallProjector } from './projection.ts'
+import { createStyleSetter } from './style-setter.ts'
 import type { Vec3 } from './types.ts'
 
 export type DomWall = {

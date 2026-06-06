@@ -68,7 +68,7 @@ export function createHelpUi() {
   const speak = helpBox({ keys: ['space'], label: 'speak' })
   const alternative = helpBox({ keys: ['tab'], label: 'alt inputs' })
   const toggle = helpBox({ keys: ['h'], label: 'help' })
-  const video = helpNote("If the video doesn't start, press play on it")
+  const video = helpNote('If the video doesn\'t start, press play on it')
 
   root.id = 'help-ui'
   root.dataset.open = 'true'

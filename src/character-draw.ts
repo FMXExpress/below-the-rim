@@ -14,8 +14,8 @@ import { characterView, characterVisibilityInto } from './character-visibility.t
 import { clamp, normalizeIndex } from './math.ts'
 import { roomAt } from './scene.ts'
 import type {
-  CharacterMode,
   CharacterLight,
+  CharacterMode,
   CharacterPart,
   CharacterRig,
   HairMesh,
@@ -367,8 +367,7 @@ function addSprayCan(
   const torso = pose[spine2Index]!
 
   addSprayCanAtHand(target, boxInstances, torso, pose[rightForeArmIndex]!, pose[rightHandIndex]!, player, turn, style,
-    light,
-    localReflection)
+    light, localReflection)
 }
 
 function addSprayCanAtHand(
@@ -403,10 +402,10 @@ function addSprayCanAtHand(
   glowstickSide[0] = sideX * handSide
   glowstickSide[1] = 0
   glowstickSide[2] = sideZ * handSide
-  addCharacterBox(target, boxInstances, glowstickA, glowstickB, 0.13, 0.13, color, 0.12, player.turn,
-    localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
-  addCharacterBox(target, boxInstances, glowstickA, glowstickB, 0.145, 0.035, color, 0.12, player.turn,
-    localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
+  addCharacterBox(target, boxInstances, glowstickA, glowstickB, 0.13, 0.13, color, 0.12, player.turn, localReflection,
+    light, 0, turn.sin, turn.cos, { side: glowstickSide })
+  addCharacterBox(target, boxInstances, glowstickA, glowstickB, 0.145, 0.035, color, 0.12, player.turn, localReflection,
+    light, 0, turn.sin, turn.cos, { side: glowstickSide })
 
   sprayCanCapA[0] = centerX
   sprayCanCapA[1] = centerY + 0.12
@@ -414,8 +413,8 @@ function addSprayCanAtHand(
   sprayCanCapB[0] = centerX
   sprayCanCapB[1] = centerY + 0.18
   sprayCanCapB[2] = centerZ
-  addCharacterBox(target, boxInstances, sprayCanCapA, sprayCanCapB, 0.1, 0.1, color, 0.12, player.turn,
-    localReflection, light, 0, turn.sin, turn.cos, { side: glowstickSide })
+  addCharacterBox(target, boxInstances, sprayCanCapA, sprayCanCapB, 0.1, 0.1, color, 0.12, player.turn, localReflection,
+    light, 0, turn.sin, turn.cos, { side: glowstickSide })
 
   sprayCanNozzleA[0] = centerX + sideX * handSide * 0.035
   sprayCanNozzleA[1] = centerY + 0.19
@@ -423,8 +422,8 @@ function addSprayCanAtHand(
   sprayCanNozzleB[0] = centerX + sideX * handSide * 0.13
   sprayCanNozzleB[1] = centerY + 0.19
   sprayCanNozzleB[2] = centerZ + sideZ * handSide * 0.13
-  addCharacterBox(target, boxInstances, sprayCanNozzleA, sprayCanNozzleB, 0.035, 0.035, color, 0.12,
-    player.turn, localReflection, light, 0, turn.sin, turn.cos, { side: sprayCanNozzleSide })
+  addCharacterBox(target, boxInstances, sprayCanNozzleA, sprayCanNozzleB, 0.035, 0.035, color, 0.12, player.turn,
+    localReflection, light, 0, turn.sin, turn.cos, { side: sprayCanNozzleSide })
 }
 
 function handSideSign(hand: Vec3, torso: Vec3, sideX: number, sideZ: number) {
@@ -445,8 +444,8 @@ function sampleAndCacheBasePose(
   idleClipIndex: number,
   includeRun: boolean,
 ) {
-  const pose = sampleBasePose(rig, time, characterPoseJoints, characterPoseJointSet, idleClipIndex,
-    basePoses.get(key), includeRun)
+  const pose = sampleBasePose(rig, time, characterPoseJoints, characterPoseJointSet, idleClipIndex, basePoses.get(key),
+    includeRun)
 
   basePoses.set(key, pose)
 

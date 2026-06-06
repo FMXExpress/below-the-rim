@@ -3,32 +3,35 @@ import { resolvePlayerStyle } from './character-style.ts'
 import { lengthSq } from './math.ts'
 import {
   angleToProtocol,
-  decodeKeys,
-  decodeLeave,
+  BEACH_BALLS,
   decodeBeachBalls,
   decodeGraffiti,
-  decodeOnline,
+  decodeKeys,
+  decodeLeave,
   decodeModerationMessage,
-  decodeServerNickname,
+  decodeOnline,
   decodeRoomState,
   decodeServerMessage,
   decodeServerMotion,
+  decodeServerNickname,
   decodeSpawn,
   decodeVideoPlaylistRequest,
   decodeVideoSync,
   encodeAdminMessage,
-  encodeClientMessage,
-  encodeClientNickname,
-  encodeClientMotion,
-  encodeHeartbeat,
   encodeBeachBalls,
+  encodeClientMessage,
+  encodeClientMotion,
+  encodeClientNickname,
   encodeGraffiti,
+  encodeHeartbeat,
   encodeKeys,
   encodeRoomChange,
   encodeVideoEnded,
   encodeVideoPlaylist,
   encodeVideoProgress,
+  GRAFFITI,
   MESSAGE,
+  MODERATION,
   modeToProtocol,
   NICKNAME,
   protocolToAngle,
@@ -42,17 +45,14 @@ import {
   S_SPAWN,
   sceneToProtocol,
   type SpawnPacket,
+  truncateMessage,
+  VIDEO_PLAYLIST_REQUEST,
+  VIDEO_SYNC,
   type VideoEndedEntry,
   type VideoPlaylistEntry,
   type VideoPlaylistRequestPacket,
   type VideoProgressEntry,
   type VideoSyncEntry,
-  truncateMessage,
-  BEACH_BALLS,
-  GRAFFITI,
-  MODERATION,
-  VIDEO_PLAYLIST_REQUEST,
-  VIDEO_SYNC,
 } from './protocol.ts'
 import { collideRoom, isOutside, seatAt, walkHeight } from './scene.ts'
 import type { BeachBall, CharacterMode, CircleBounds, GraffitiSplat, Player, Vec3 } from './types.ts'
@@ -376,7 +376,9 @@ export function createMultiplayer(options: {
       const angle = angleToProtocol(keys === 0 ? options.localTurn() : options.localMoveAngle())
       const height = sceneToProtocol(options.localPosition[1])
 
-      if (keys !== lastKeys || protocolMode !== lastMode || height !== lastHeight || (keys !== 0 && angle !== lastAngle)) {
+      if (keys !== lastKeys || protocolMode !== lastMode || height !== lastHeight
+        || (keys !== 0 && angle !== lastAngle))
+      {
         sendMotion()
       }
     },

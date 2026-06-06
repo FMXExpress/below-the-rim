@@ -1,9 +1,9 @@
 import { characterFloor } from './character-data.ts'
+import { reserveFloats } from './character-geometry.ts'
+import type { VertexWriter } from './character-geometry.ts'
 import { clamp } from './math.ts'
 import { outsideBounds } from './scene-data.ts'
 import { collideSphereRoom, walkHeight } from './scene.ts'
-import { reserveFloats } from './character-geometry.ts'
-import type { VertexWriter } from './character-geometry.ts'
 import type { BeachBall, CircleBounds, Vec3 } from './types.ts'
 
 export const beachBallRadius = 0.52

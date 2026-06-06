@@ -299,8 +299,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     index = page.photos.findIndex(item => item.timestamp === photo.timestamp),
     sourceRect?: DOMRect,
     animate = true,
-  )
-  {
+  ) {
     viewerAnimation?.cancel()
     viewerClosing = false
     delete viewer.dataset.closing
@@ -572,7 +571,8 @@ function sortedPhotos(photos: Photo[]) {
   const photosByTimestamp = new Map(photos.map(photo => [photo.timestamp, photo]))
 
   return [...photosByTimestamp.values()].sort((a, b) =>
-    b.createdAt === a.createdAt ? b.timestamp - a.timestamp : b.createdAt - a.createdAt)
+    b.createdAt === a.createdAt ? b.timestamp - a.timestamp : b.createdAt - a.createdAt
+  )
 }
 
 async function jsonApiResponse<T>(response: Response, label: string): Promise<T> {

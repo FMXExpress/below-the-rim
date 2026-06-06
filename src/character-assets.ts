@@ -113,7 +113,9 @@ async function loadCharacterAsset(path: string, name: string, onProgress?: LoadP
   return scene
 }
 
-export async function loadCharacterDance(rig: Awaited<ReturnType<typeof loadCharacterAssets>>['rig'], idleClipIndex: number) {
+export async function loadCharacterDance(rig: Awaited<ReturnType<typeof loadCharacterAssets>>['rig'],
+  idleClipIndex: number)
+{
   if (idleClipIndex <= 0) {
     return
   }

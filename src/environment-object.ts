@@ -4,8 +4,9 @@ import { addBox, addDisc, addGrassQuad, addQuad, addTriangle, pack, packSmoke } 
 import { add, mix, scale, subtract } from './math.ts'
 import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, landscapeBounds, outsideBounds, outsideCouches,
   outsideDjBooth, outsideDjSpeakers, outsideHut, outsideHutBar, outsideHutBarStools, outsideHutDeckHeight,
-  outsidePhotoWall, outsideStage, outsideToiletDoor, outsideToilets, outsideVideoScreenWall, roomBounds, tent, tentCenterBench, tentDjBooth,
-  tentDjSpeakers, tentDoor, tentPole, tentDoorAngle, tentVideoAngle, tentVideoWall } from './scene-data.ts'
+  outsidePhotoWall, outsideStage, outsideToiletDoor, outsideToilets, outsideVideoScreenWall, roomBounds, tent,
+  tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentDoorAngle, tentPole, tentVideoAngle,
+  tentVideoWall } from './scene-data.ts'
 import { strobeTarget } from './strobe-object.ts'
 import type { Bounds, StrobeLight, Vec3, Vertex, VideoZone } from './types.ts'
 
@@ -254,8 +255,7 @@ function addTentDoorFrame(target: Vertex[], floor: number) {
 
   addBox(target, left[0], left[1], left[2], 0.12, tentDoor.height, 0.12, fuchsia, 3.2)
   addBox(target, right[0], right[1], right[2], 0.12, tentDoor.height, 0.12, fuchsia, 3.2)
-  addBox(target, tentDoor.x, floor + tentDoor.height + 0.05, tentDoor.z, 0.12, 0.1, tentDoor.width + 0.24,
-    fuchsia, 3.2)
+  addBox(target, tentDoor.x, floor + tentDoor.height + 0.05, tentDoor.z, 0.12, 0.1, tentDoor.width + 0.24, fuchsia, 3.2)
 }
 
 function addTentDoorOccluder(target: Vertex[], floor: number) {
@@ -267,8 +267,8 @@ function addTentDoorOccluder(target: Vertex[], floor: number) {
   const left: Vec3 = [center[0] - side[0] * tentDoor.width / 2, 0, center[2] - side[2] * tentDoor.width / 2]
   const right: Vec3 = [center[0] + side[0] * tentDoor.width / 2, 0, center[2] + side[2] * tentDoor.width / 2]
 
-  addQuad(target, [right[0], bottom, right[2]], [left[0], bottom, left[2]], [left[0], top, left[2]],
-    [right[0], top, right[2]], [0.001, 0.001, 0.001], 0)
+  addQuad(target, [right[0], bottom, right[2]], [left[0], bottom, left[2]], [left[0], top, left[2]], [right[0], top,
+    right[2]], [0.001, 0.001, 0.001], 0)
 }
 
 function addTentPole(target: Vertex[], floor: number) {
@@ -611,10 +611,10 @@ function addTentDjBooth(target: Vertex[], accent: Vec3, accentGlow: number) {
   addBox(target, booth.x, y + 0.33, booth.z, booth.width, 0.66, booth.depth, body, 0)
   addBox(target, booth.x + direction * 0.045, y + 0.7, booth.z, booth.width + 0.28 * scale, 0.12,
     booth.depth + 0.38 * scale, top, 0)
-  addBox(target, booth.x + direction * 0.21, y + 0.81, booth.z - 0.82 * scale, 0.465 * scale, 0.039,
-    0.645 * scale, dark, 0)
-  addBox(target, booth.x + direction * 0.21, y + 0.81, booth.z + 0.82 * scale, 0.465 * scale, 0.039,
-    0.645 * scale, dark, 0)
+  addBox(target, booth.x + direction * 0.21, y + 0.81, booth.z - 0.82 * scale, 0.465 * scale, 0.039, 0.645 * scale,
+    dark, 0)
+  addBox(target, booth.x + direction * 0.21, y + 0.81, booth.z + 0.82 * scale, 0.465 * scale, 0.039, 0.645 * scale,
+    dark, 0)
   addDisc(target, [booth.x + direction * 0.21, y + 0.84, booth.z - 0.82 * scale], 0.21 * scale, 0.27 * scale, 'y',
     accent, accentGlow)
   addDisc(target, [booth.x + direction * 0.21, y + 0.84, booth.z + 0.82 * scale], 0.21 * scale, 0.27 * scale, 'y',

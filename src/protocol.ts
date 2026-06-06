@@ -231,8 +231,7 @@ export function encodeVideoSync(packet: VideoSyncPacket) {
     currentBytes: textEncoder.encode(entry.currentId),
     nextBytes: textEncoder.encode(entry.nextId),
   }))
-  const size = 2 + encoded.reduce((total, entry) =>
-    total + 9 + entry.currentBytes.length + entry.nextBytes.length, 0)
+  const size = 2 + encoded.reduce((total, entry) => total + 9 + entry.currentBytes.length + entry.nextBytes.length, 0)
   const data = new ArrayBuffer(size)
   const view = new DataView(data)
   let offset = 2
@@ -366,8 +365,8 @@ export function encodeVideoPlaylist(packet: VideoPlaylistPacket) {
     zone: entry.zone,
     ids: entry.ids.map(id => textEncoder.encode(id)),
   }))
-  const size = 2 + encoded.reduce((total, entry) =>
-    total + 2 + entry.ids.reduce((idsTotal, id) => idsTotal + 2 + id.length, 0), 0)
+  const size = 2
+    + encoded.reduce((total, entry) => total + 2 + entry.ids.reduce((idsTotal, id) => idsTotal + 2 + id.length, 0), 0)
   const data = new ArrayBuffer(size)
   const view = new DataView(data)
   let offset = 2

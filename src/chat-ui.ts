@@ -388,8 +388,9 @@ function updateReactionParticles(bubble: ChatBubble, stamp: number) {
     const scale = particle.size * (0.86 + amount * 0.28)
 
     particle.element.style.opacity = String(Math.max(0, opacity))
-    particle.element.style.transform =
-      `translate(-50%, -50%) translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${scale.toFixed(3)})`
+    particle.element.style.transform = `translate(-50%, -50%) translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${
+      scale.toFixed(3)
+    })`
   }
 }
 

@@ -4,7 +4,8 @@ import { triangleAreaSquared } from './character-geometry.ts'
 import { outsideMotif } from './constants.ts'
 import { add } from './math.ts'
 import { landscapeBounds, roomBounds } from './scene-data.ts'
-import { addTreeShadowReceiver, createTreeMeshes, treeCollision, treeMeshColor, uploadTreeShadowMap } from './tree-object.ts'
+import { addTreeShadowReceiver, createTreeMeshes, treeCollision, treeMeshColor,
+  uploadTreeShadowMap } from './tree-object.ts'
 import type { CircleBounds, TreeMesh, Vec3, Vertex } from './types.ts'
 
 type OutsideTreeOptions = {

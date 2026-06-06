@@ -1,14 +1,14 @@
 import { characterFloor } from './character-data.ts'
 import { addDjBoothAt, addLowPolyCouch } from './environment-object.ts'
-import { paintingTextureBounds } from './graffiti.ts'
 import { addBox, addDisc, addQuad, pack } from './geometry.ts'
+import { paintingTextureBounds } from './graffiti.ts'
 import {
   loftBounds,
   loftCornerFigures,
   loftCouches,
-  loftDoor,
   loftDjBooth,
   loftDjSpeakers,
+  loftDoor,
   loftTables,
   loftVideoWall,
 } from './scene-data.ts'
@@ -43,14 +43,14 @@ export function addLoftRoom(target: Vertex[]) {
   const front = bounds.front
 
   addQuad(target, [left, floor, front], [right, floor, front], [right, floor, back], [left, floor, back], beige, 0)
-  addQuad(target, [left, ceiling, back], [right, ceiling, back], [right, ceiling, front], [left, ceiling, front],
-    [0.09, 0.072, 0.055], 0)
+  addQuad(target, [left, ceiling, back], [right, ceiling, back], [right, ceiling, front], [left, ceiling, front], [0.09,
+    0.072, 0.055], 0)
   addSkylineEnvironment(target)
   addWindowWall(target, 'back')
   addWindowWall(target, 'left')
   addWindowWall(target, 'right')
-  addQuad(target, [right, floor, front], [left, floor, front], [left, ceiling, front], [right, ceiling, front], warmWall,
-    0)
+  addQuad(target, [right, floor, front], [left, floor, front], [left, ceiling, front], [right, ceiling, front],
+    warmWall, 0)
   addLoftDoor(target)
   addLoftPaintings(target)
   addLoftRug(target)
@@ -73,8 +73,8 @@ function addWindowWall(target: Vertex[], side: 'back' | 'left' | 'right') {
   const top = ceiling
 
   if (side === 'back') {
-    addQuad(target, [bounds.left, bottom, bounds.back], [bounds.right, bottom, bounds.back],
-      [bounds.right, top, bounds.back], [bounds.left, top, bounds.back], glass, 0.04, -0.025)
+    addQuad(target, [bounds.left, bottom, bounds.back], [bounds.right, bottom, bounds.back], [bounds.right, top,
+      bounds.back], [bounds.left, top, bounds.back], glass, 0.04, -0.025)
     for (const x of [-9.4, -5.7, -2, 2, 5.7, 9.4]) {
       addBox(target, x, windowCenterY, bounds.back + 0.04, 0.08, windowHeight, 0.08, frame, 0)
     }
@@ -84,8 +84,8 @@ function addWindowWall(target: Vertex[], side: 'back' | 'left' | 'right') {
 
   const x = side === 'left' ? bounds.left : bounds.right
 
-  addQuad(target, [x, bottom, bounds.front], [x, bottom, bounds.back], [x, top, bounds.back],
-    [x, top, bounds.front], glass, 0.035, -0.025)
+  addQuad(target, [x, bottom, bounds.front], [x, bottom, bounds.back], [x, top, bounds.back], [x, top, bounds.front],
+    glass, 0.035, -0.025)
   for (const z of [-9.6, -5.8, -2, 1.8, 5.6, 9.4]) {
     addBox(target, x, windowCenterY, z, 0.08, windowHeight, 0.08, frame, 0)
   }
@@ -146,14 +146,14 @@ function addSkylineEnvironment(target: Vertex[]) {
   const ground: Vec3 = [0.018, 0.02, 0.027]
   const horizon: Vec3 = [0.026, 0.032, 0.045]
 
-  addQuad(target, [-76, skylineGround, 76], [76, skylineGround, 76], [76, skylineGround, -76],
-    [-76, skylineGround, -76], ground, 0.02)
-  addQuad(target, [-54, skylineBase, bounds.back - 34], [54, skylineBase, bounds.back - 34],
-    [54, skylineGround, bounds.back - 34], [-54, skylineGround, bounds.back - 34], horizon, 0.025)
-  addQuad(target, [bounds.left - 34, skylineBase, 54], [bounds.left - 34, skylineBase, -54],
-    [bounds.left - 34, skylineGround, -54], [bounds.left - 34, skylineGround, 54], horizon, 0.022)
-  addQuad(target, [bounds.right + 34, skylineBase, -54], [bounds.right + 34, skylineBase, 54],
-    [bounds.right + 34, skylineGround, 54], [bounds.right + 34, skylineGround, -54], horizon, 0.022)
+  addQuad(target, [-76, skylineGround, 76], [76, skylineGround, 76], [76, skylineGround, -76], [-76, skylineGround,
+    -76], ground, 0.02)
+  addQuad(target, [-54, skylineBase, bounds.back - 34], [54, skylineBase, bounds.back - 34], [54, skylineGround,
+    bounds.back - 34], [-54, skylineGround, bounds.back - 34], horizon, 0.025)
+  addQuad(target, [bounds.left - 34, skylineBase, 54], [bounds.left - 34, skylineBase, -54], [bounds.left - 34,
+    skylineGround, -54], [bounds.left - 34, skylineGround, 54], horizon, 0.022)
+  addQuad(target, [bounds.right + 34, skylineBase, -54], [bounds.right + 34, skylineBase, 54], [bounds.right + 34,
+    skylineGround, 54], [bounds.right + 34, skylineGround, -54], horizon, 0.022)
   addSkylineStrip(target, 'back', 15, -34, 4.9)
   addSkylineStrip(target, 'back', 10, -26, 5.5)
   addSkylineStrip(target, 'left', 13, -27, 4.8)
@@ -218,10 +218,12 @@ function addBuilding(
   const body: Vec3 = index % 6 === 0 ? [0.09, 0.105, 0.125] : index % 6 === 1
     ? [0.062, 0.076, 0.11]
     : index % 6 === 2
-      ? [0.12, 0.13, 0.145]
-      : index % 6 === 3
-        ? [0.048, 0.068, 0.09]
-        : index % 6 === 4 ? [0.14, 0.15, 0.165] : [0.072, 0.088, 0.118]
+    ? [0.12, 0.13, 0.145]
+    : index % 6 === 3
+    ? [0.048, 0.068, 0.09]
+    : index % 6 === 4
+    ? [0.14, 0.15, 0.165]
+    : [0.072, 0.088, 0.118]
 
   addBox(target, x, skylineBase + height / 2, z, width, height, depth, body, 0.04)
   addBuildingWindows(target, x, z, width, depth, height, side, index)
@@ -269,10 +271,11 @@ function addBuildingWindows(
         const y = windowY(row)
         const color = windowColor(row, column, salt)
 
-        addQuad(target, [centerX + u * span - 0.08, y - 0.065, faceZ],
-          [centerX + u * span + 0.08, y - 0.065, faceZ],
-          [centerX + u * span + 0.08, y + 0.065, faceZ],
-          [centerX + u * span - 0.08, y + 0.065, faceZ], color, 0.08)
+        addQuad(target, [centerX + u * span - 0.08, y - 0.065, faceZ], [centerX + u * span + 0.08, y - 0.065, faceZ], [
+          centerX + u * span + 0.08,
+          y + 0.065,
+          faceZ,
+        ], [centerX + u * span - 0.08, y + 0.065, faceZ], color, 0.08)
       }
     }
   }
@@ -290,10 +293,9 @@ function addBuildingWindows(
         const y = windowY(row)
         const color = windowColor(row, column, salt)
 
-        addQuad(target, [faceX, y - 0.065, centerZ + u * span + 0.08 * sign],
-          [faceX, y - 0.065, centerZ + u * span - 0.08 * sign],
-          [faceX, y + 0.065, centerZ + u * span - 0.08 * sign],
-          [faceX, y + 0.065, centerZ + u * span + 0.08 * sign], color, 0.065)
+        addQuad(target, [faceX, y - 0.065, centerZ + u * span + 0.08 * sign], [faceX, y - 0.065,
+          centerZ + u * span - 0.08 * sign], [faceX, y + 0.065, centerZ + u * span - 0.08 * sign], [faceX, y + 0.065,
+          centerZ + u * span + 0.08 * sign], color, 0.065)
       }
     }
   }

@@ -67,8 +67,8 @@ export function createPhotoWallRenderer(gl: WebGL2RenderingContext) {
       const images = await Promise.all(urls.slice(0, atlasColumns * atlasRows).map(loadImage))
 
       for (let i = 0; i < images.length; i++) {
-        drawImageCover(context, images[i]!, i % atlasColumns * atlasCellSize, Math.floor(i / atlasColumns) * atlasCellSize,
-          atlasCellSize, atlasCellSize)
+        drawImageCover(context, images[i]!, i % atlasColumns * atlasCellSize,
+          Math.floor(i / atlasColumns) * atlasCellSize, atlasCellSize, atlasCellSize)
       }
 
       gl.bindTexture(gl.TEXTURE_2D, texture)
@@ -114,12 +114,24 @@ function photoWallGeometry() {
   domWallCorners(wall, a, b, c, d)
 
   return new Float32Array([
-    ...a, 0, 0,
-    ...b, 1, 0,
-    ...c, 1, 1,
-    ...a, 0, 0,
-    ...c, 1, 1,
-    ...d, 0, 1,
+    ...a,
+    0,
+    0,
+    ...b,
+    1,
+    0,
+    ...c,
+    1,
+    1,
+    ...a,
+    0,
+    0,
+    ...c,
+    1,
+    1,
+    ...d,
+    0,
+    1,
   ])
 }
 

@@ -1,7 +1,8 @@
 import { loadAssimpScene, loadAssimpScenes } from './assimp-loader.ts'
 import { triangleAreaSquared } from './character-geometry.ts'
 import { add, compose, identity, mix, multiply, nodeTransform, slerp, transformOrigin } from './math.ts'
-import type { AssimpChannel, AssimpMesh, AssimpNode, AssimpScene, CircleBounds, Mat4, Quat, Vec3, Vertex } from './types.ts'
+import type { AssimpChannel, AssimpMesh, AssimpNode, AssimpScene, CircleBounds, Mat4, Quat, Vec3,
+  Vertex } from './types.ts'
 
 type StaticMesh = {
   color: Vec3
