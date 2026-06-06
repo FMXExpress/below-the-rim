@@ -219,7 +219,8 @@ function poseCache(poses: Vec3[][], index: number) {
 }
 
 function usesDirectClip(character: CharacterInput) {
-  return character.mode === 'jump' || character.mode === 'manSitting' || character.mode === 'womanSitting'
+  return character.mode === 'jump' || character.mode === 'breakdance' || character.mode === 'manSitting'
+    || character.mode === 'womanSitting'
 }
 
 function directClipPoseKey(character: CharacterInput, time: number) {
@@ -232,6 +233,9 @@ function directClipModeKey(mode: CharacterMode | undefined) {
   }
   if (mode === 'womanSitting') {
     return 2
+  }
+  if (mode === 'breakdance') {
+    return 4
   }
 
   return 3

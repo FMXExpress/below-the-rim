@@ -40,14 +40,15 @@ const remainingDanceClipFiles = danceClipFilesBySize.slice(cheapDanceClipCount)
 export const danceIdleClipLoadOrder = [...cheapDanceClipFiles, ...remainingDanceClipFiles]
   .map(file => idleClipNames.indexOf(file.name))
 
-export const characterCoreChunkCount = 6
+export const characterCoreChunkCount = 7
 
 export async function loadCharacterAssets(onProgress?: LoadProgress) {
-  const [stand, run, jump, wave] = await Promise.all([
+  const [stand, run, jump, wave, breakdance] = await Promise.all([
     loadCharacterAsset('/stand.fbx', 'stand.fbx', onProgress),
     loadCharacterAsset('/run.fbx', 'run.fbx', onProgress),
     loadCharacterAsset('/jump.fbx', 'jump.fbx', onProgress),
     loadCharacterAsset('/wave.fbx', 'wave.fbx', onProgress),
+    loadCharacterAsset('/breakdance.fbx', 'breakdance.fbx', onProgress),
   ])
   const standClip = createCharacterClip(stand!, 'stand.fbx')
   const waveClip = createCharacterClip(wave!, 'wave.fbx')
@@ -60,6 +61,7 @@ export async function loadCharacterAssets(onProgress?: LoadProgress) {
       jump: createCharacterClip(jump!, 'jump.fbx'),
       wave: waveClip,
       waveOut: waveClip,
+      breakdance: createCharacterClip(breakdance!, 'breakdance.fbx'),
       manSitting: standClip,
       womanSitting: standClip,
       dances: [],

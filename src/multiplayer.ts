@@ -58,6 +58,7 @@ import { collideRoom, isOutside, seatAt, walkHeight } from './scene.ts'
 import type { BeachBall, CharacterMode, CircleBounds, GraffitiSplat, Player, Vec3 } from './types.ts'
 
 const waveOutDuration = (95 - 62) / 30
+const breakdanceDuration = 201 / 30
 
 export function createMultiplayer(options: {
   localPosition: Vec3
@@ -397,10 +398,17 @@ export function updateRemotePlayers(players: Iterable<Player>, delta: number, ou
     const moving = lengthSq(player.input) > 0
 
     player.motionBlend += ((moving ? 1 : 0) - player.motionBlend) * (1 - Math.exp(-8 * delta))
-    if (player.mode === 'jump' || player.mode === 'wave' || player.mode === 'waveOut') {
+    if (player.mode === 'jump' || player.mode === 'wave' || player.mode === 'waveOut'
+      || player.mode === 'breakdance')
+    {
       player.modeTime = (player.modeTime ?? 0) + delta
+      const modeTime = player.modeTime
 
-      if (player.mode === 'waveOut' && player.modeTime >= waveOutDuration) {
+      if (player.mode === 'waveOut' && modeTime >= waveOutDuration) {
+        player.mode = player.motionBlend > 0.5 ? 'run' : 'stand'
+        player.modeTime = undefined
+      }
+      if (player.mode === 'breakdance' && modeTime >= breakdanceDuration) {
         player.mode = player.motionBlend > 0.5 ? 'run' : 'stand'
         player.modeTime = undefined
       }
@@ -477,7 +485,7 @@ function seatedMode(mode: CharacterMode | undefined) {
 }
 
 function oneShotMode(mode: CharacterMode | undefined) {
-  return mode === 'jump' || mode === 'wave' || mode === 'waveOut'
+  return mode === 'jump' || mode === 'wave' || mode === 'waveOut' || mode === 'breakdance'
 }
 
 function remoteSeatHeight(player: Player) {

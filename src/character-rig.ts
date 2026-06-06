@@ -47,11 +47,12 @@ const sampleScale: Vec3 = [1, 1, 1]
 const poseSamplePlans = new WeakMap<CharacterRig, WeakMap<Set<string>, PoseSamplePlan>>()
 const packedChannels = new WeakMap<AssimpChannel, PackedChannel>()
 const upperPosePlans = new WeakMap<string[], UpperPosePlan>()
-const jumpStartGrounds = new WeakMap<CharacterRig, WeakMap<Set<string>, number>>()
+const clipStartGrounds = new WeakMap<CharacterClip, WeakMap<Set<string>, number>>()
 const waveDuration = 95 / 30
 const waveLoopStart = 28 / 30
 const waveLoopEnd = 62 / 30
 const waveLoopDuration = waveLoopEnd - waveLoopStart
+const breakdanceTransitionDuration = 0.5
 
 export function idleClip(rig: CharacterRig, index: number) {
   if (index === 0) {
@@ -141,12 +142,35 @@ export function sampleCharacterPose(
   cacheFrame = 0,
 ) {
   if (player.mode === 'jump') {
-    const pose = sampleDirectClipPose(rig, rig.clips[player.mode], player.modeTime ?? time, characterPoseJoints,
+    const pose = sampleDirectClipPose(rig, rig.clips.jump, player.modeTime ?? time, characterPoseJoints,
       characterPoseJointSet, blendCache, cacheFrame, placedPose)
 
     return placeCharacterPose(pose, player.position, player.turn, characterPoseJoints, characterGroundJointIndices,
       characterScale, placedPose,
-      jumpStartGround(rig, characterPoseJoints, characterPoseJointSet, characterGroundJointIndices))
+      clipStartGround(rig, rig.clips.jump, characterPoseJoints, characterPoseJointSet, characterGroundJointIndices))
+  }
+
+  if (player.mode === 'breakdance') {
+    const modeTime = player.modeTime ?? time
+    const pose = sampleDirectClipPose(rig, rig.clips.breakdance, modeTime, characterPoseJoints,
+      characterPoseJointSet, blendCache, cacheFrame)
+    const blend = breakdanceBlend(rig.clips.breakdance, modeTime)
+
+    if (blend < 1) {
+      const base = basePose
+        ?? sampleBasePose(rig, time, characterPoseJoints, characterPoseJointSet, player.idleClipIndex ?? 0)
+
+      const blended = blendGroundedPoseInto(base.stand, pose, blend, characterPoseJoints,
+        characterGroundJointIndices, placedPose)
+
+      return placeCharacterPose(blended, player.position, player.turn, characterPoseJoints,
+        characterGroundJointIndices, characterScale, placedPose, 0)
+    }
+
+    return placeCharacterPose(pose, player.position, player.turn, characterPoseJoints, characterGroundJointIndices,
+      characterScale, placedPose,
+      clipStartGround(rig, rig.clips.breakdance, characterPoseJoints, characterPoseJointSet,
+        characterGroundJointIndices))
   }
 
   if (player.mode === 'manSitting' || player.mode === 'womanSitting') {
@@ -231,23 +255,24 @@ function sampleDirectClipPose(
   return sampleClipPose(rig, clip, time, characterPoseJoints, characterPoseJointSet, placedPose)
 }
 
-function jumpStartGround(
+function clipStartGround(
   rig: CharacterRig,
+  clip: CharacterClip,
   characterPoseJoints: string[],
   characterPoseJointSet: Set<string>,
   characterGroundJointIndices: number[],
 ) {
-  let bySet = jumpStartGrounds.get(rig)
+  let bySet = clipStartGrounds.get(clip)
 
   if (!bySet) {
     bySet = new WeakMap()
-    jumpStartGrounds.set(rig, bySet)
+    clipStartGrounds.set(clip, bySet)
   }
 
   let ground = bySet.get(characterPoseJointSet)
 
   if (ground === undefined) {
-    const startPose = sampleClipPose(rig, rig.clips.jump, 0, characterPoseJoints, characterPoseJointSet)
+    const startPose = sampleClipPose(rig, clip, 0, characterPoseJoints, characterPoseJointSet)
 
     ground = poseGround(startPose, characterGroundJointIndices)
     bySet.set(characterPoseJointSet, ground)
@@ -259,17 +284,54 @@ function jumpStartGround(
 function blendCharacterPose(stand: Vec3[], run: Vec3[], blend: number, characterPoseJoints: string[]) {
   const pose = createPose(characterPoseJoints.length)
 
-  for (let i = 0; i < characterPoseJoints.length; i++) {
-    const point = stand[i]!
-    const next = run[i]!
-    const target = pose[i]!
+  return blendPoseInto(stand, run, blend, characterPoseJoints, pose)
+}
 
-    target[0] = point[0] + (next[0] - point[0]) * blend
-    target[1] = point[1] + (next[1] - point[1]) * blend
-    target[2] = point[2] + (next[2] - point[2]) * blend
+function blendPoseInto(from: Vec3[], to: Vec3[], blend: number, characterPoseJoints: string[],
+  target = createPose(characterPoseJoints.length))
+{
+  for (let i = 0; i < characterPoseJoints.length; i++) {
+    const point = from[i]!
+    const next = to[i]!
+    const value = target[i]!
+
+    value[0] = point[0] + (next[0] - point[0]) * blend
+    value[1] = point[1] + (next[1] - point[1]) * blend
+    value[2] = point[2] + (next[2] - point[2]) * blend
   }
 
-  return pose
+  return target
+}
+
+function blendGroundedPoseInto(from: Vec3[], to: Vec3[], blend: number, characterPoseJoints: string[],
+  characterGroundJointIndices: number[], target = createPose(characterPoseJoints.length))
+{
+  const fromGround = poseGround(from, characterGroundJointIndices)
+  const toGround = poseGround(to, characterGroundJointIndices)
+
+  for (let i = 0; i < characterPoseJoints.length; i++) {
+    const point = from[i]!
+    const next = to[i]!
+    const value = target[i]!
+
+    value[0] = point[0] + (next[0] - point[0]) * blend
+    value[1] = point[1] - fromGround + (next[1] - toGround - point[1] + fromGround) * blend
+    value[2] = point[2] + (next[2] - point[2]) * blend
+  }
+
+  return target
+}
+
+function breakdanceBlend(clip: CharacterClip, time: number) {
+  const duration = clip.duration / clip.ticksPerSecond
+  const fadeIn = Math.min(1, time / breakdanceTransitionDuration)
+  const fadeOut = Math.min(1, (duration - time) / breakdanceTransitionDuration)
+
+  return smoothStep(Math.min(fadeIn, fadeOut))
+}
+
+function smoothStep(value: number) {
+  return value * value * (3 - 2 * value)
 }
 
 function blendUpperPose(pose: Vec3[], wave: Vec3[], characterPoseJoints: string[]) {

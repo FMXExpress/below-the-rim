@@ -25,7 +25,7 @@ export const roomCount = 3
 export const messageMaxLength = 120
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 36
+export const protocolVersion = 37
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -125,7 +125,8 @@ export type ModerationPacket = {
   id: number
 }
 
-const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting', 'jump', 'wave', 'waveOut']
+const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting', 'jump', 'wave', 'waveOut',
+  'breakdance']
 const protocolVideoZones: VideoZone[] = ['inside', 'outside', 'tent', 'loft']
 export const modeCount = protocolModes.length
 

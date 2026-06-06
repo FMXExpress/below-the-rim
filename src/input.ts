@@ -29,6 +29,7 @@ export function bindKeyboardInput(options: {
   stopJumping: () => void
   startWave: () => void
   stopWave: () => void
+  startBreakdance: () => void
   cycleHair: (direction: number) => void
   cycleHairColor: (direction: number) => void
   cycleSkin: (direction: number) => void
@@ -75,6 +76,16 @@ export function bindKeyboardInput(options: {
 
     if (key === 'v') {
       options.startWave()
+      return
+    }
+
+    if (key === 'g') {
+      if (options.keys.has(key)) {
+        return
+      }
+
+      options.keys.add(key)
+      options.startBreakdance()
       return
     }
 

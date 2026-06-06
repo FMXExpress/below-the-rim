@@ -16,6 +16,7 @@ const jumpRiseDuration = 0.4
 const waveDuration = 95 / 30
 const waveLoopStart = 28 / 30
 const waveLoopEnd = 62 / 30
+const breakdanceDuration = 201 / 30
 
 export function createLocalCharacter(keys: Set<string>) {
   const position: Vec3 = [-2.2, -1.95, -6.8]
@@ -43,6 +44,7 @@ export function createLocalCharacter(keys: Set<string>) {
   let waveHeld = false
   let waveElapsed = 0
   let waveOutElapsed = 0
+  let breakdanceElapsed = 0
 
   function startJump() {
     hasDestination = false
@@ -74,7 +76,13 @@ export function createLocalCharacter(keys: Set<string>) {
       return jumpTime > 0
     },
     get modeTime() {
-      return mode === 'wave' ? waveElapsed : mode === 'waveOut' ? waveOutElapsed : jumpElapsed
+      return mode === 'wave'
+        ? waveElapsed
+        : mode === 'waveOut'
+          ? waveOutElapsed
+          : mode === 'breakdance'
+            ? breakdanceElapsed
+            : jumpElapsed
     },
     get velocityY() {
       return velocityY
@@ -83,6 +91,10 @@ export function createLocalCharacter(keys: Set<string>) {
       velocityY = value
     },
     setDestination(value: Vec3, targetSeat?: Seat) {
+      if (mode === 'breakdance') {
+        return
+      }
+
       destination[0] = value[0]
       destination[1] = value[1]
       destination[2] = value[2]
@@ -117,14 +129,14 @@ export function createLocalCharacter(keys: Set<string>) {
       jumpHeld = false
     },
     jump() {
-      if (seated || jumpTime > 0) {
+      if (seated || jumpTime > 0 || mode === 'breakdance') {
         return
       }
 
       startJump()
     },
     jumpToward(target: Vec3) {
-      if (seated || jumpTime > 0) {
+      if (seated || jumpTime > 0 || mode === 'breakdance') {
         return
       }
 
@@ -135,7 +147,7 @@ export function createLocalCharacter(keys: Set<string>) {
       hasJumpTarget = true
     },
     startWave() {
-      if (seated || jumpTime > 0) {
+      if (seated || jumpTime > 0 || mode === 'breakdance') {
         return
       }
 
@@ -158,6 +170,22 @@ export function createLocalCharacter(keys: Set<string>) {
     stopWave() {
       waveHeld = false
     },
+    startBreakdance() {
+      if (seated || jumpTime > 0 || mode === 'breakdance') {
+        return
+      }
+
+      hasDestination = false
+      hasJumpTarget = false
+      destinationSeat = ''
+      path = []
+      waveActive = false
+      waveHeld = false
+      waveOutElapsed = 0
+      breakdanceElapsed = 0
+      mode = 'breakdance'
+      motionBlend = 0
+    },
     update(
       delta: number,
       cameraTurn: number,
@@ -168,6 +196,15 @@ export function createLocalCharacter(keys: Set<string>) {
       takeSeat: (seat: Seat) => void,
     ) {
       this.readInput()
+      if (mode === 'breakdance') {
+        input[0] = 0
+        input[1] = 0
+        input[2] = 0
+        hasDestination = false
+        hasJumpTarget = false
+        destinationSeat = ''
+        path = []
+      }
       if (lengthSq(input) > 0) {
         hasDestination = false
         hasJumpTarget = false
@@ -252,6 +289,13 @@ export function createLocalCharacter(keys: Set<string>) {
           mode = moving ? 'run' : 'stand'
         }
       }
+      else if (mode === 'breakdance') {
+        breakdanceElapsed += delta
+
+        if (breakdanceElapsed >= breakdanceDuration) {
+          mode = 'stand'
+        }
+      }
 
       if (seated) {
         if (hasDestination || hasJumpTarget || input[2] > 0) {
@@ -278,6 +322,9 @@ export function createLocalCharacter(keys: Set<string>) {
         waveActive = false
         waveHeld = false
         waveOutElapsed = 0
+      }
+      else if (mode === 'breakdance') {
+        motionBlend = 0
       }
       else if (waveActive && !moving) {
         mode = 'wave'

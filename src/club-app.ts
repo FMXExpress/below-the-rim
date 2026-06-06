@@ -2403,6 +2403,7 @@ bindKeyboardInput({
   stopJumping: () => localCharacter.stopJumping(),
   startWave: () => localCharacter.startWave(),
   stopWave: () => localCharacter.stopWave(),
+  startBreakdance: () => localCharacter.startBreakdance(),
   openChatInput: () => openChatInput(),
   setAlternativeInput: useAlternativeInput,
   toggleHelp: () => {
