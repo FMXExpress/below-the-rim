@@ -73,6 +73,12 @@ canvas {
   will-change: transform;
 }
 
+#dj-video,
+#dj-video * {
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
 #photo-wall {
   left: 0;
   top: 0;
@@ -337,6 +343,8 @@ canvas {
   display: block;
   width: 100%;
   height: 100%;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
   object-fit: cover;
 }
 
