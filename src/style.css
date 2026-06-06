@@ -758,6 +758,10 @@ html[data-touch-controls="true"] #support-link[data-hidden="true"] {
 }
 
 html[data-touch-controls="true"] body[data-intro-visible="true"] #reaction-buttons,
+html[data-touch-controls="true"] body[data-intro-visible="true"] #mobile-controls,
+html[data-touch-controls="true"] body[data-intro-visible="true"] #mobile-speak,
+html[data-touch-controls="true"] body[data-intro-visible="true"] #chat-form,
+html[data-touch-controls="true"] body[data-intro-visible="true"] #online-indicator,
 html[data-touch-controls="true"] body[data-intro-visible="true"] #breakdance-button,
 html[data-touch-controls="true"] body[data-intro-visible="true"] #wave-button,
 html[data-touch-controls="true"] body[data-intro-visible="true"] #photo-button,
@@ -1273,10 +1277,12 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
 
 #mobile-controls {
   position: fixed;
-  left: 12px;
+  right: 12px;
   top: 12px;
   z-index: 130;
   display: none;
+  width: min(248px, calc(100dvw - 24px));
+  justify-items: end;
   pointer-events: none;
 }
 
@@ -1296,7 +1302,7 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
 
 #mobile-speak {
   position: fixed;
-  right: 12px;
+  left: 12px;
   top: 12px;
   display: grid;
   width: 42px;
@@ -1313,7 +1319,7 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
 
 #mobile-menu {
   display: none;
-  width: min(292px, calc(100dvw - 24px));
+  width: 100%;
   margin-top: 8px;
   border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 7px;
@@ -1347,7 +1353,8 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
   border: 0;
   background: rgb(255 255 255 / 0.05);
   color: rgb(255 245 245);
-  font: 900 28px/1 "Iansui", ui-sans-serif, system-ui, sans-serif;
+  font: 900 24px/1 "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Iansui", ui-sans-serif, system-ui,
+    sans-serif;
 }
 
 .mobile-menu-row span {
@@ -1362,7 +1369,7 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
 }
 
 html[data-touch-controls="true"] #mobile-controls {
-  display: block;
+  display: grid;
 }
 
 html[data-touch-controls="true"] #help-ui .help-cluster,
@@ -1390,12 +1397,12 @@ html[data-video-hint-dismissed="true"] #help-ui .help-box-video {
 
 html[data-touch-controls="true"] #chat-form {
   position: fixed;
-  left: auto;
-  right: 62px;
+  left: 62px;
+  right: auto;
   top: 12px;
   z-index: 140;
   display: flex;
-  width: min(360px, calc(100dvw - 86px));
+  width: min(360px, calc(100dvw - 124px));
   box-sizing: border-box;
   opacity: 0;
   transform: none !important;
@@ -1420,8 +1427,8 @@ html[data-touch-controls="true"] #chat-input {
 }
 
 html[data-touch-controls="true"] #online-indicator {
-  left: auto;
-  right: 12px;
+  left: 12px;
+  right: auto;
   top: 62px;
   bottom: auto;
   display: none;
@@ -1549,6 +1556,8 @@ html[data-touch-controls="true"] #chat-log {
 
 #nickname-input,
 #chat-input {
+  position: relative;
+  top: 3.5px;
   padding: 7px 10px;
   outline: none;
 }

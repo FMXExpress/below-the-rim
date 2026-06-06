@@ -71,7 +71,11 @@ export function createMobileControls(options: {
     toggle.ariaLabel = open ? 'Close menu' : 'Open menu'
     document.documentElement.dataset.videoHintDismissed = 'true'
   })
-  speak.addEventListener('click', options.openChatInput)
+  speak.addEventListener('click', () => {
+    root.dataset.open = 'false'
+    toggle.ariaLabel = 'Open menu'
+    options.openChatInput()
+  })
 
   return root
 }
@@ -232,8 +236,8 @@ function actionRow(action: StyleAction) {
   row.className = 'mobile-menu-row'
   previous.type = 'button'
   next.type = 'button'
-  previous.textContent = '‹'
-  next.textContent = '›'
+  previous.textContent = '👈'
+  next.textContent = '👉'
   label.textContent = action.label
   previous.addEventListener('click', () => action.apply(-1))
   next.addEventListener('click', () => action.apply(1))
