@@ -665,6 +665,7 @@ html[data-touch-controls="true"] #reaction-buttons[data-hidden="true"] {
   right: var(--action-right);
 }
 
+#photo-button[data-hidden="true"],
 #rooms-button[data-hidden="true"],
 #support-link[data-hidden="true"] {
   display: none;

@@ -280,6 +280,7 @@ const reactionSlotEmojis = loadReactionSlotEmojis()
 function syncOnlineIndicator() {
   onlineIndicator.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   reactionButtons.dataset.hidden = String(helpUi.root.dataset.open === 'true')
+  photoButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   roomsButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   supportLink.dataset.hidden = String(helpUi.root.dataset.open === 'true')
 }

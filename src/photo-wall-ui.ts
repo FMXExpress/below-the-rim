@@ -53,6 +53,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   let loadingPage: Promise<void> | undefined
   let loaded = false
   let refreshedAt = 0
+  let resetGridScroll = false
 
   panel.id = 'photo-wall-panel'
   grid.id = 'photo-wall-grid'
@@ -137,8 +138,8 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     },
     refresh,
     async refreshLatest() {
+      resetGridScroll = true
       await refresh()
-      grid.scrollTop = 0
     },
     async previewUrls() {
       if (!loaded) {
@@ -200,10 +201,12 @@ export function createPhotoWallUi(element: HTMLElement, options: {
 
   async function refreshFirstPage() {
     try {
+      const shouldResetScroll = resetGridScroll || !loaded
+
       page = normalizePhotoPage(await fetchPhotoPage(0))
       loaded = true
       refreshedAt = performance.now()
-      render()
+      render(shouldResetScroll)
     }
     catch (e) {
       console.error(e)
@@ -211,10 +214,11 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     finally {
       loading = false
       loadingPage = undefined
+      resetGridScroll = false
     }
   }
 
-  function render() {
+  function render(resetScroll = false) {
     grid.replaceChildren()
     photoElements.clear()
 
@@ -244,7 +248,14 @@ export function createPhotoWallUi(element: HTMLElement, options: {
       grid.append(item)
     }
 
-    requestAnimationFrame(checkPhotoWallScroll)
+    requestAnimationFrame(() => {
+      if (resetScroll) {
+        grid.scrollTop = 0
+        requestAnimationFrame(() => grid.scrollTop = 0)
+      }
+
+      checkPhotoWallScroll()
+    })
   }
 
   function checkPhotoWallScroll() {
