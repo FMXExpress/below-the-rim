@@ -569,7 +569,7 @@ function roomSlugMatches(text: string) {
     const value = match[0]
     const start = match.index
     const room = value.startsWith('/')
-      ? { display: value.slice(1), end: start + value.length, slug: value.slice(1), start }
+      ? bareRoomSlugMatch(value, text, start)
       : roomUrlMatch(value, start)
 
     if (room) {
@@ -578,6 +578,14 @@ function roomSlugMatches(text: string) {
   }
 
   return matches
+}
+
+function bareRoomSlugMatch(value: string, text: string, start: number) {
+  if (text[start - 1] !== ' ') {
+    return
+  }
+
+  return { display: value.slice(1), end: start + value.length, slug: value.slice(1), start }
 }
 
 function roomUrlMatch(value: string, start: number) {
@@ -1267,17 +1275,18 @@ intro.addEventListener('touchmove', event => {
   }
 }, { passive: false })
 intro.addEventListener('pointermove', event => {
-  const bounds = intro.getBoundingClientRect()
-
-  introEffectRenderer.setPointer((event.clientX - bounds.left) / bounds.width,
-    1 - (event.clientY - bounds.top) / bounds.height)
+  setIntroEffectPointer(event)
 })
 intro.addEventListener('pointerdown', event => {
+  setIntroEffectPointer(event)
+})
+
+function setIntroEffectPointer(event: PointerEvent) {
   const bounds = intro.getBoundingClientRect()
 
   introEffectRenderer.setPointer((event.clientX - bounds.left) / bounds.width,
-    1 - (event.clientY - bounds.top) / bounds.height)
-})
+    (event.clientY - bounds.top) / bounds.height)
+}
 
 function startIntro() {
   syncNickname(introNicknameInput.value)

@@ -265,6 +265,7 @@ export function createLocalCharacter(keys: Set<string>) {
       const moving = lengthSq(input) > 0
 
       couchRelease = Math.max(0, couchRelease - delta)
+      const wasJumping = jumpTime > 0
       if (jumpTime > 0) {
         jumpTime = Math.max(0, jumpTime - delta)
         jumpElapsed += delta
@@ -345,11 +346,13 @@ export function createLocalCharacter(keys: Set<string>) {
         mode = motionBlend > 0.5 ? 'run' : 'stand'
       }
 
+      const jumping = wasJumping || jumpTime > 0
+      const collisionOptions = jumping ? { couches: false } : undefined
       const previousPosition: Vec3 = [position[0], position[1], position[2]]
 
-      if (jumpTime > 0) {
+      if (jumping) {
         const floorY = loft
-          ? walkLoftHeight(position[0], position[1], position[2])
+          ? walkLoftHeight(position[0], position[1], position[2], collisionOptions)
           : walkHeight(position[0], position[1], position[2])
 
         position[1] = floorY + jumpOffset(jumpElapsed)
@@ -381,7 +384,7 @@ export function createLocalCharacter(keys: Set<string>) {
 
         position[0] += direction[0] * delta * 5
         position[2] += direction[2] * delta * 5
-        const foundSeat = couchRelease <= 0 ? seatAt(position, occupiedSeats, 0.46, true, loft) : undefined
+        const foundSeat = !jumping && couchRelease <= 0 ? seatAt(position, occupiedSeats, 0.46, true, loft) : undefined
         const nextSeat = foundSeat && (!hasDestination || foundSeat.id === destinationSeat) ? foundSeat : undefined
 
         if (nextSeat) {
@@ -405,19 +408,19 @@ export function createLocalCharacter(keys: Set<string>) {
         }
 
         if (loft) {
-          collideLoftRoom(position)
+          collideLoftRoom(position, collisionOptions)
         }
         else {
-          collideRoom(position, outsideTree, isOutside(position), previousPosition)
+          collideRoom(position, outsideTree, isOutside(position), previousPosition, collisionOptions)
         }
         turn = smoothAngle(turn, Math.atan2(direction[0], direction[2]), 10, delta)
       }
 
       const floorY = loft
-        ? walkLoftHeight(position[0], position[1], position[2])
+        ? walkLoftHeight(position[0], position[1], position[2], collisionOptions)
         : walkHeight(position[0], position[1], position[2])
 
-      if (jumpTime > 0) {
+      if (jumping) {
         position[1] = floorY + jumpOffset(jumpElapsed)
         velocityY = 0
       }
@@ -436,10 +439,10 @@ export function createLocalCharacter(keys: Set<string>) {
       }
 
       if (loft) {
-        collideLoftRoom(position)
+        collideLoftRoom(position, collisionOptions)
       }
       else {
-        collideRoom(position, outsideTree, isOutside(position), previousPosition)
+        collideRoom(position, outsideTree, isOutside(position), previousPosition, collisionOptions)
       }
     },
   }

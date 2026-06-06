@@ -114,6 +114,7 @@ export function createIntroEffect(canvas: HTMLCanvasElement) {
   let pointerY = 0.5
   let running = false
   let textureDirty = true
+  let fontsLoaded = !document.fonts
 
   gl.bindVertexArray(quad)
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -126,7 +127,13 @@ export function createIntroEffect(canvas: HTMLCanvasElement) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
   addEventListener('resize', () => textureDirty = true)
-  document.fonts?.ready.then(() => textureDirty = true).catch((error: unknown) => console.error(error))
+  document.fonts?.load('68px "Black and White Picture"')
+    .then(() => document.fonts!.ready)
+    .then(() => {
+      fontsLoaded = true
+      textureDirty = true
+    })
+    .catch((error: unknown) => console.error(error))
 
   function start() {
     if (running) {
@@ -216,6 +223,15 @@ export function createIntroEffect(canvas: HTMLCanvasElement) {
     textCanvas.width = Math.max(1, canvas.width)
     textCanvas.height = Math.max(1, canvas.height)
     textContext.clearRect(0, 0, textCanvas.width, textCanvas.height)
+
+    if (!fontsLoaded) {
+      gl.bindTexture(gl.TEXTURE_2D, textTexture)
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textCanvas)
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+      return
+    }
+
     textContext.textAlign = 'center'
     textContext.textBaseline = 'middle'
 

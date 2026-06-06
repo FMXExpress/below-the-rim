@@ -28,6 +28,12 @@ type OrientedBounds = {
   x: number
   z: number
 }
+type CollisionOptions = {
+  couches?: boolean
+}
+type HeightOptions = {
+  couches?: boolean
+}
 
 const djBoothCollision = paddedBounds(djBooth)
 const bartenderBarCollision = paddedBounds(bartenderBar)
@@ -95,8 +101,8 @@ export function walkHeight(x: number, y: number, z: number) {
   return characterFloor
 }
 
-export function walkLoftHeight(x: number, y: number, z: number) {
-  const platform = loftPlatformHeight(x, z)
+export function walkLoftHeight(x: number, y: number, z: number, options?: HeightOptions) {
+  const platform = loftPlatformHeight(x, z, options)
 
   if (platform !== undefined && y > platform - platformStep) {
     return platform
@@ -130,7 +136,13 @@ export function usesSkyBackground(_camera: { eye: Vec3; center: Vec3 }) {
   return true
 }
 
-export function collideRoom(position: Vec3, outsideTree: CircleBounds, outside = isOutside(position), previous?: Vec3) {
+export function collideRoom(
+  position: Vec3,
+  outsideTree: CircleBounds,
+  outside = isOutside(position),
+  previous?: Vec3,
+  options?: CollisionOptions,
+) {
   if (outside) {
     position[0] = clamp(position[0], outsideBounds.left, outsideBounds.right)
     position[2] = clamp(position[2], outsideBounds.back, outsideBounds.front)
@@ -163,9 +175,11 @@ export function collideRoom(position: Vec3, outsideTree: CircleBounds, outside =
       }
     }
 
-    for (const couch of outsideCouchCollisions) {
-      if (!onPaddedPlatform(position, couch, couchTop)) {
-        collidePaddedBounds(position, couch)
+    if (options?.couches !== false) {
+      for (const couch of outsideCouchCollisions) {
+        if (!onPaddedPlatform(position, couch, couchTop)) {
+          collidePaddedBounds(position, couch)
+        }
       }
     }
 
@@ -213,7 +227,7 @@ export function collideRoom(position: Vec3, outsideTree: CircleBounds, outside =
   }
 }
 
-export function collideLoftRoom(position: Vec3) {
+export function collideLoftRoom(position: Vec3, options?: CollisionOptions) {
   position[0] = clamp(position[0], loftLeft, loftRight)
   position[2] = clamp(position[2], loftBack, loftFront)
 
@@ -225,9 +239,11 @@ export function collideLoftRoom(position: Vec3) {
       collidePaddedBounds(position, speaker)
     }
   }
-  for (const couch of loftCouchCollisions) {
-    if (!onPaddedPlatform(position, couch, couchTop)) {
-      collidePaddedBounds(position, couch)
+  if (options?.couches !== false) {
+    for (const couch of loftCouchCollisions) {
+      if (!onPaddedPlatform(position, couch, couchTop)) {
+        collidePaddedBounds(position, couch)
+      }
     }
   }
   for (const table of loftTableCollisions) {
@@ -824,7 +840,7 @@ function platformHeight(x: number, z: number) {
   }
 }
 
-function loftPlatformHeight(x: number, z: number) {
+function loftPlatformHeight(x: number, z: number, options?: HeightOptions) {
   if (inPaddedBounds(x, z, loftDjBoothCollision)) {
     return djBoothTop
   }
@@ -833,7 +849,7 @@ function loftPlatformHeight(x: number, z: number) {
     return speakerTop
   }
 
-  if (loftCouchCollisions.some(bounds => inPaddedBounds(x, z, bounds))) {
+  if (options?.couches !== false && loftCouchCollisions.some(bounds => inPaddedBounds(x, z, bounds))) {
     return couchTop
   }
 
