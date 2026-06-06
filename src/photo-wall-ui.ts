@@ -24,9 +24,11 @@ type PhotoPage = {
 type PhotoElement = {
   image: HTMLImageElement
   item: HTMLDivElement
+  url: string
 }
 
 const refreshInterval = 30_000
+const hiddenPhotoWallOpacity = '0.001'
 const viewerMotion = matchMedia('(prefers-reduced-motion: reduce)')
 const viewerMotionDuration = 560
 const viewerSlideDuration = 420
@@ -36,7 +38,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   alternativeInput: () => boolean
   recoverFocus?: () => void
 }) {
-  const projection = createDomWallProjection(element, { opacity: '0.92' })
+  const projection = createDomWallProjection(element, { hiddenOpacity: hiddenPhotoWallOpacity, opacity: '0.92' })
   const panel = document.createElement('div')
   const grid = document.createElement('div')
   const viewer = document.createElement('dialog')
@@ -247,9 +249,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
 
       visiblePhotos.add(photo.timestamp)
       photoElements.set(photo.timestamp, element)
-      element.image.src = photo.url
-      element.image.alt = new Date(photo.createdAt).toLocaleString()
-      element.image.loading = i < 9 ? 'eager' : 'lazy'
+      syncPhotoElement(element, photo, i)
       element.item.onclick = () => {
         openViewer(photo, page.photos.indexOf(photo), element.image.getBoundingClientRect())
       }
@@ -310,9 +310,26 @@ export function createPhotoWallUi(element: HTMLElement, options: {
 
     item.className = 'photo-wall-item'
     item.tabIndex = 0
+    image.decoding = 'async'
     item.append(image)
 
-    return { image, item }
+    return { image, item, url: '' }
+  }
+
+  function syncPhotoElement(element: PhotoElement, photo: Photo, index: number) {
+    const alt = new Date(photo.createdAt).toLocaleString()
+    const loading = index < 9 ? 'eager' : 'lazy'
+
+    if (element.image.alt !== alt) {
+      element.image.alt = alt
+    }
+
+    if (element.url !== photo.url) {
+      element.url = photo.url
+      element.image.loading = loading
+      element.image.src = photo.url
+      void element.image.decode().catch(e => console.error(e))
+    }
   }
 
   function openViewer(

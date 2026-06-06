@@ -24,12 +24,14 @@ const defaultMinDepth = 0.05
 const defaultScale = 120
 
 export function createDomWallProjection(element: HTMLElement, options: {
+  hiddenOpacity?: string
   minDepth?: number
   opacity?: string
   pointerEvents?: string
   scale?: number
 } = {}) {
   const setStyle = createStyleSetter<StyleName>(element.style)
+  const hiddenOpacity = options.hiddenOpacity ?? '0'
   const minDepth = options.minDepth ?? defaultMinDepth
   const opacity = options.opacity ?? '1'
   const pointerEvents = options.pointerEvents
@@ -50,14 +52,14 @@ export function createDomWallProjection(element: HTMLElement, options: {
 
   return {
     hide() {
-      setStyle('opacity', '0')
+      setStyle('opacity', hiddenOpacity)
       if (pointerEvents) {
         setStyle('pointerEvents', 'none')
       }
     },
     update(camera: Camera, projector: WallProjector, wall: DomWall) {
       if (!domWallFacesCamera(camera, wall)) {
-        setStyle('opacity', '0')
+        setStyle('opacity', hiddenOpacity)
         if (pointerEvents) {
           setStyle('pointerEvents', 'none')
         }
