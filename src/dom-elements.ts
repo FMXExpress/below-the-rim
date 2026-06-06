@@ -14,6 +14,7 @@ export function getDomElements() {
   const chatLog = document.createElement('div')
   const reactionButtons = document.createElement('div')
   const photoButton = document.createElement('button')
+  const breakdanceButton = document.createElement('button')
   const roomsButton = document.createElement('button')
   const supportLink = document.createElement('a')
   const intro = document.createElement('div')
@@ -72,6 +73,10 @@ export function getDomElements() {
   photoButton.type = 'button'
   photoButton.textContent = '📸'
   photoButton.setAttribute('aria-label', 'take photo')
+  breakdanceButton.id = 'breakdance-button'
+  breakdanceButton.type = 'button'
+  breakdanceButton.textContent = '🤸'
+  breakdanceButton.setAttribute('aria-label', 'breakdance')
   roomsButton.id = 'rooms-button'
   roomsButton.type = 'button'
   roomsButton.textContent = '🏘️'
@@ -119,8 +124,8 @@ export function getDomElements() {
   introPanel.append(introTrack, introProgress, introNicknameInput, introStart)
   introGithub.append(introGithubIcon)
   intro.append(introEffect, introPanel, introGithub)
-  document.body.prepend(canvas, djVideo, photoWall, chatForm, chatBubble, onlineIndicator, reactionButtons, photoButton,
-    roomsButton, supportLink, intro)
+  document.body.prepend(canvas, djVideo, photoWall, chatForm, chatBubble, onlineIndicator, reactionButtons,
+    breakdanceButton, photoButton, roomsButton, supportLink, intro)
 
   return {
     canvas,
@@ -136,6 +141,7 @@ export function getDomElements() {
     onlineSelf,
     onlineText,
     reactionButtons,
+    breakdanceButton,
     photoButton,
     roomsButton,
     supportLink,

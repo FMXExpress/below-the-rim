@@ -596,7 +596,7 @@ html[data-touch-controls="true"] #online-indicator[data-hidden="true"] {
 #reaction-buttons {
   position: fixed;
   right: var(--action-right);
-  bottom: calc(12px + var(--app-bottom) + (var(--action-size) + var(--action-gap)) * 3);
+  bottom: calc(12px + var(--app-bottom) + (var(--action-size) + var(--action-gap)) * 4);
   z-index: 110;
   display: grid;
   gap: var(--action-gap);
@@ -679,6 +679,7 @@ html[data-touch-controls="true"] #reaction-buttons[data-hidden="true"] {
   background: rgb(255 255 255 / 0.1);
 }
 
+#breakdance-button,
 #photo-button,
 #rooms-button,
 #support-link {
@@ -696,14 +697,22 @@ html[data-touch-controls="true"] #reaction-buttons[data-hidden="true"] {
   outline: none;
 }
 
+#breakdance-button,
 #photo-button {
   right: var(--action-right);
-  bottom: calc(12px + var(--app-bottom) + (var(--action-size) + var(--action-gap)) * 2);
   border: 0;
   appearance: none;
   cursor: pointer;
   font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", ui-sans-serif, system-ui, sans-serif;
   padding: 0;
+}
+
+#breakdance-button {
+  bottom: calc(12px + var(--app-bottom) + (var(--action-size) + var(--action-gap)) * 3);
+}
+
+#photo-button {
+  bottom: calc(12px + var(--app-bottom) + (var(--action-size) + var(--action-gap)) * 2);
 }
 
 #photo-button:disabled {
@@ -726,18 +735,22 @@ html[data-touch-controls="true"] #reaction-buttons[data-hidden="true"] {
   right: var(--action-right);
 }
 
+#breakdance-button[data-hidden="true"],
 #photo-button[data-hidden="true"],
 #rooms-button[data-hidden="true"],
 #support-link[data-hidden="true"] {
   display: none;
 }
 
+html[data-touch-controls="true"] #breakdance-button[data-hidden="true"],
+html[data-touch-controls="true"] #photo-button[data-hidden="true"],
 html[data-touch-controls="true"] #rooms-button[data-hidden="true"],
 html[data-touch-controls="true"] #support-link[data-hidden="true"] {
   display: grid;
 }
 
 html[data-touch-controls="true"] body[data-intro-visible="true"] #reaction-buttons,
+html[data-touch-controls="true"] body[data-intro-visible="true"] #breakdance-button,
 html[data-touch-controls="true"] body[data-intro-visible="true"] #photo-button,
 html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
   display: none;

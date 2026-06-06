@@ -137,6 +137,7 @@ const {
   onlineSelf,
   onlineText,
   reactionButtons,
+  breakdanceButton,
   photoButton,
   roomsButton,
   supportLink,
@@ -365,6 +366,7 @@ const outsideHutDrinkWallProjection = createDomWallProjection(outsideHutDrinkWal
 function syncOnlineIndicator() {
   onlineIndicator.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   reactionButtons.dataset.hidden = String(helpUi.root.dataset.open === 'true')
+  breakdanceButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   photoButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   roomsButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   supportLink.dataset.hidden = String(helpUi.root.dataset.open === 'true')
@@ -2610,6 +2612,12 @@ chatForm.addEventListener('submit', event => {
 
 photoButton.addEventListener('click', () => {
   void takePhoto()
+})
+
+breakdanceButton.addEventListener('click', () => {
+  localCharacter.startBreakdance()
+  multiplayer.sendMotion()
+  canvas.focus()
 })
 
 window.addEventListener('keydown', event => {
