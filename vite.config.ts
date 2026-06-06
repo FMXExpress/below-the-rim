@@ -13,4 +13,7 @@ export default defineConfig({
       ignored: ['**/data/**', '**/*.lmdb/**'],
     },
   },
+  build: {
+    sourcemap: 'inline',
+  },
 })
