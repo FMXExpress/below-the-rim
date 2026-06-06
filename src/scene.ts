@@ -1,8 +1,8 @@
 import { characterFloor } from './character-data.ts'
 import { clamp } from './math.ts'
 import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, outsideBounds, outsideBuddha, outsideCouches,
-  outsideDjBooth, outsideDjSpeakers, outsideHut, outsideHutBar, outsideHutBarStools, outsideHutDeckHeight,
-  outsidePalmTree,
+  outsideDjBooth, outsideDjSpeakers, outsideFoodTruck, outsideFoodTruckSize, outsideFoodTruckTurn, outsideHut,
+  outsideHutBar, outsideHutBarStools, outsideHutDeckHeight, outsidePalmTree,
   outsideStage, outsideToiletDoor, outsideToilets, loftBounds, loftCornerFigures, loftCouches, loftDjBooth,
   loftDjSpeakers, loftPlants, loftTables, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor,
   tentDoorAngle, tentPole, tentVideoAngle } from './scene-data.ts'
@@ -19,6 +19,14 @@ type PaddedBounds = {
   front: number
   left: number
   right: number
+}
+type OrientedBounds = {
+  cos: number
+  depth: number
+  sin: number
+  width: number
+  x: number
+  z: number
 }
 
 const djBoothCollision = paddedBounds(djBooth)
@@ -38,6 +46,13 @@ const loftTableCollisions = loftTables.map(bounds => paddedBounds(bounds, 0.18))
 const outsideCouchCollisions = outsideCouches.map(bounds => couchCollisionBounds(bounds))
 const outsideHutBarCollision = paddedBounds(outsideHutBar)
 const outsideHutBarStoolCollisions = outsideHutBarStools.map(bounds => paddedBounds(bounds))
+const outsideFoodTruckCollision = orientedBounds(
+  outsideFoodTruck.x,
+  outsideFoodTruck.z,
+  outsideFoodTruckSize.width,
+  outsideFoodTruckSize.depth,
+  outsideFoodTruckTurn,
+)
 const outsideToiletWallCollisions = toiletWallBounds().map(bounds => paddedBounds(bounds, 0.18))
 const outsideHutBarDeckBounds: Bounds = {
   x: (outsideHut.x - outsideHut.width / 2 + outsideHutBar.x) / 2,
@@ -135,6 +150,7 @@ export function collideRoom(position: Vec3, outsideTree: CircleBounds, outside =
     if (!onPaddedPlatform(position, outsideHutBarCollision, barTop)) {
       collidePaddedBounds(position, outsideHutBarCollision)
     }
+    collideOrientedBounds(position, outsideFoodTruckCollision, 0.34)
 
     for (const speaker of outsideDjSpeakerCollisions) {
       if (!onPaddedPlatform(position, speaker, speakerTop)) {
@@ -250,6 +266,7 @@ export function collideSphereRoom(position: Vec3, radius: number, outsideTree: C
   collideSpherePaddedBounds(position, radius, outsideStageCollision, outsideStageTop)
   collideSpherePaddedBounds(position, radius, tentDjBoothCollision, djBoothTop)
   collideSpherePaddedBounds(position, radius, outsideHutBarCollision, barTop)
+  collideSphereOrientedBounds(position, radius, outsideFoodTruckCollision, characterFloor + outsideFoodTruckSize.height)
 
   for (const speaker of outsideDjSpeakerCollisions) {
     collideSpherePaddedBounds(position, radius, speaker, speakerTop)
@@ -286,6 +303,7 @@ export function isWalkable(x: number, z: number, outsideTree: CircleBounds) {
       && !inPaddedBounds(x, z, outsideStageCollision)
       && !inPaddedBounds(x, z, tentDjBoothCollision)
       && !inPaddedBounds(x, z, outsideHutBarCollision)
+      && !inOrientedBounds(x, z, outsideFoodTruckCollision, 0.28)
       && outsideDjSpeakerCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
       && tentDjSpeakerCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
       && outsideCouchCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
@@ -630,6 +648,17 @@ function paddedBounds(bounds: Bounds, padding = 0.28): PaddedBounds {
   }
 }
 
+function orientedBounds(x: number, z: number, width: number, depth: number, turn: number): OrientedBounds {
+  return {
+    cos: Math.cos(turn),
+    depth,
+    sin: Math.sin(turn),
+    width,
+    x,
+    z,
+  }
+}
+
 function couchCollisionBounds(bounds: (typeof outsideCouches)[number]): PaddedBounds {
   const collision = paddedBounds(bounds, 0.22)
   const endGap = 0.15
@@ -816,6 +845,12 @@ function inPaddedBounds(x: number, z: number, bounds: PaddedBounds) {
   return x > bounds.left && x < bounds.right && z > bounds.back && z < bounds.front
 }
 
+function inOrientedBounds(x: number, z: number, bounds: OrientedBounds, padding = 0) {
+  const local = orientedLocalPoint(x, z, bounds)
+
+  return Math.abs(local[0]) < bounds.width / 2 + padding && Math.abs(local[1]) < bounds.depth / 2 + padding
+}
+
 function inBuildingWall(x: number, z: number, padding: number) {
   const left = roomBounds.left - padding
   const right = roomBounds.right + padding
@@ -854,6 +889,36 @@ function collidePaddedBounds(position: Vec3, bounds: PaddedBounds) {
   }
 }
 
+function collideOrientedBounds(position: Vec3, bounds: OrientedBounds, padding = 0) {
+  const local = orientedLocalPoint(position[0], position[2], bounds)
+  const halfWidth = bounds.width / 2 + padding
+  const halfDepth = bounds.depth / 2 + padding
+
+  if (Math.abs(local[0]) < halfWidth && Math.abs(local[1]) < halfDepth) {
+    const pushLeft = halfWidth + local[0]
+    const pushRight = halfWidth - local[0]
+    const pushBack = halfDepth + local[1]
+    const pushFront = halfDepth - local[1]
+    const push = Math.min(pushLeft, pushRight, pushBack, pushFront)
+
+    if (push === pushLeft) {
+      local[0] = -halfWidth
+    }
+    else if (push === pushRight) {
+      local[0] = halfWidth
+    }
+    else if (push === pushBack) {
+      local[1] = -halfDepth
+    }
+    else {
+      local[1] = halfDepth
+    }
+
+    position[0] = bounds.x + local[0] * bounds.cos - local[1] * bounds.sin
+    position[2] = bounds.z + local[0] * bounds.sin + local[1] * bounds.cos
+  }
+}
+
 function collideSpherePaddedBounds(position: Vec3, radius: number, bounds: PaddedBounds, top: number) {
   if (sphereOverlapsHeight(position, radius, top)) {
     collidePaddedBounds(position, {
@@ -863,6 +928,22 @@ function collideSpherePaddedBounds(position: Vec3, radius: number, bounds: Padde
       right: bounds.right + radius,
     })
   }
+}
+
+function collideSphereOrientedBounds(position: Vec3, radius: number, bounds: OrientedBounds, top: number) {
+  if (sphereOverlapsHeight(position, radius, top)) {
+    collideOrientedBounds(position, bounds, radius)
+  }
+}
+
+function orientedLocalPoint(x: number, z: number, bounds: OrientedBounds): [number, number] {
+  const dx = x - bounds.x
+  const dz = z - bounds.z
+
+  return [
+    dx * bounds.cos + dz * bounds.sin,
+    -dx * bounds.sin + dz * bounds.cos,
+  ]
 }
 
 function sphereOverlapsHeight(position: Vec3, radius: number, top: number, bottom = characterFloor) {

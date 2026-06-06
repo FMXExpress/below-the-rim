@@ -179,7 +179,7 @@ export type ResolvedPlayerStyle = {
 }
 
 export type PlayerDestination = {
-  kind: 'dj' | 'kiosk' | 'lounge' | 'random' | 'stool' | 'tree'
+  kind: 'dj' | 'foodTruck' | 'kiosk' | 'lounge' | 'random' | 'stool' | 'tree'
   outside: boolean
   position: Vec3
   lookAt?: Vec3

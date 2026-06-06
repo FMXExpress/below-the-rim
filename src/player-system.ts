@@ -5,6 +5,7 @@ import {
   backDoor,
   djBooth,
   outsideDjBooth,
+  outsideFoodTruckFoodWall,
   outsideHutBar,
   roomBounds,
 } from './scene-data.ts'
@@ -26,7 +27,8 @@ const npcConfig = {
       lounge: 0.58,
       stool: 0.72,
       tree: 0.84,
-      kiosk: 0.94,
+      kiosk: 0.92,
+      foodTruck: 0.98,
     },
     linger: [10, 30] as const,
     jitter: [0.35, 0.9] as const,
@@ -41,6 +43,8 @@ const npcConfig = {
       distance: 0.9,
     },
     kioskRadius: [1.9, 6.4] as const,
+    foodTruckDistance: [1.25, 2.25] as const,
+    foodTruckSpread: 2.1,
     treeRadius: [2.6, 9.5] as const,
     treeSpots: 12,
   },
@@ -594,6 +598,10 @@ function playerDestination(
     return kioskDestination(seed, step)
   }
 
+  if (pick < weights.foodTruck) {
+    return foodTruckDestination(seed, step)
+  }
+
   return randomDestination(seed, step)
 }
 
@@ -705,6 +713,24 @@ function kioskDestination(seed: number, step: number): PlayerDestination {
     position: [outsideHutBar.x + Math.sin(angle) * distance, characterFloor,
       outsideHutBar.z + Math.cos(angle) * distance],
     lookAt: [outsideHutBar.x, characterFloor, outsideHutBar.z],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
+  }
+}
+
+function foodTruckDestination(seed: number, step: number): PlayerDestination {
+  const along = seededRange(seed, step + 115, -npcConfig.destination.foodTruckSpread, npcConfig.destination.foodTruckSpread)
+  const distance = seededRange(seed, step + 116, npcConfig.destination.foodTruckDistance[0],
+    npcConfig.destination.foodTruckDistance[1])
+
+  return {
+    kind: 'foodTruck',
+    outside: true,
+    position: [
+      outsideFoodTruckFoodWall.x + outsideFoodTruckFoodWall.tangent[0] * along + outsideFoodTruckFoodWall.normal[0] * distance,
+      characterFloor,
+      outsideFoodTruckFoodWall.z + outsideFoodTruckFoodWall.tangent[2] * along + outsideFoodTruckFoodWall.normal[2] * distance,
+    ],
+    lookAt: [outsideFoodTruckFoodWall.x, characterFloor, outsideFoodTruckFoodWall.z],
     linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }
