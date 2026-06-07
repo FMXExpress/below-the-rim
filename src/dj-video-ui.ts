@@ -16,6 +16,7 @@ type VideoTrackState = {
 }
 
 const endedState = 0
+const playingState = 1
 const endedTimeTolerance = 5
 const playlistDiscoveryDelay = 1000
 const playlistDiscoveryAttempts = 5
@@ -121,10 +122,10 @@ export function createDjVideoUi(
       pauseOtherVideos(zone, players, ready)
     },
     progress(): VideoProgressEntry | undefined {
-      syncZoneTime(zone, players, ready, states)
+      const synced = syncZoneTime(zone)
       const state = states[zone]
 
-      return state
+      return synced && state
         ? { zone, id: state.currentId, time: state.time }
         : undefined
     },
@@ -181,7 +182,7 @@ export function createDjVideoUi(
                   return
                 }
 
-                syncZoneTime(area, players, ready, states)
+                syncZoneTime(area)
               },
             },
           })
@@ -202,7 +203,7 @@ export function createDjVideoUi(
       const nextZone: VideoZone = currentZone()
 
       if (nextZone !== zone) {
-        syncZoneTime(zone, players, ready, states)
+        syncZoneTime(zone)
         if (ready[zone]) {
           players[zone]!.pauseVideo()
         }
@@ -264,7 +265,7 @@ export function createDjVideoUi(
       const currentTime = player.getCurrentTime()
       const shouldSeek = !shouldPlay || time > currentTime + syncSeekTolerance
 
-      state.time = shouldSeek ? time : currentTime
+      state.time = shouldSeek ? time : Math.max(time, currentTime)
       if (shouldSeek) {
         player.seekTo(time, true)
       }
@@ -285,6 +286,26 @@ export function createDjVideoUi(
       player.cueVideoById({ videoId: state.currentId, startSeconds: time })
       player.pauseVideo()
     }
+  }
+
+  function syncZoneTime(area: VideoZone) {
+    const state = states[area]
+
+    if (!ready[area] || !state || players[area]!.getVideoData()?.video_id !== state.currentId) {
+      return false
+    }
+
+    const player = players[area]!
+    const currentTime = player.getCurrentTime()
+
+    if (playUnlocked && area === zone && currentTime + syncSeekTolerance < state.time) {
+      player.seekTo(state.time, true)
+      return false
+    }
+
+    state.time = Math.max(state.time, currentTime)
+
+    return player.getPlayerState() === playingState
   }
 
   function playQueuedTrack(area: VideoZone) {
@@ -384,19 +405,6 @@ function videoWall(zone: VideoZone): DomWall {
   }
 
   return tentVideoWall
-}
-
-function syncZoneTime(
-  area: VideoZone,
-  players: Partial<Record<VideoZone, YouTubePlayer>>,
-  ready: Partial<Record<VideoZone, boolean>>,
-  states: Partial<Record<VideoZone, VideoTrackState>>,
-) {
-  const state = states[area]
-
-  if (ready[area] && state && players[area]!.getVideoData()?.video_id === state.currentId) {
-    state.time = players[area]!.getCurrentTime()
-  }
 }
 
 function pauseOtherVideos(

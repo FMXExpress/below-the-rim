@@ -1629,32 +1629,33 @@ function currentVideoSync(space: SpaceState, now = Date.now(), zones?: Set<Video
       zone: entry.zone,
       currentId: entry.currentId,
       nextId: entry.nextId,
-      time: entry.time + (now - entry.updatedAt) / 1000,
+      time: videoQueueTime(entry, now),
     }))
 }
 
 function currentVideoSyncForJoin(space: SpaceState, now = Date.now()): VideoSyncEntry[] {
   return space.videoQueues.map(entry => {
-    const live = videoProgressFromRandomClient(space, entry.zone, entry.currentId, now)
+    const time = videoQueueTime(entry, now)
+    const live = videoProgressFromClients(space, entry.zone, entry.currentId, now, time)
 
     return {
       zone: entry.zone,
       currentId: entry.currentId,
       nextId: entry.nextId,
-      time: live?.time ?? entry.time + (now - entry.updatedAt) / 1000,
+      time: live,
     }
   })
 }
 
-function videoProgressFromRandomClient(space: SpaceState, zone: VideoZone, id: string, now: number) {
-  const entries = [...spaceClients(space)]
+function videoQueueTime(entry: StoredVideoQueueEntry, now: number) {
+  return entry.time + (now - entry.updatedAt) / 1000
+}
+
+function videoProgressFromClients(space: SpaceState, zone: VideoZone, id: string, now: number, time: number) {
+  return [...spaceClients(space)]
     .filter(client => client.video?.zone === zone && client.video.id === id)
     .map(client => client.video!)
-  const entry = entries[Math.floor(Math.random() * entries.length)]
-
-  return entry
-    ? { zone, id: entry.id, time: entry.time + (now - entry.updatedAt) / 1000 }
-    : undefined
+    .reduce((latest, entry) => Math.max(latest, entry.time + (now - entry.updatedAt) / 1000), time)
 }
 
 function setupDb() {

@@ -1267,6 +1267,15 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
   right: 124px;
   top: 24px;
   width: 214px;
+  height: 42px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+@media (min-width: 1181px) {
+  .help-box-video {
+    height: 46px;
+  }
 }
 
 .help-box-video .help-label {
@@ -1318,25 +1327,28 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
 }
 
 #mobile-menu {
-  display: none;
+  opacity: 0;
   width: 100%;
   margin-top: 8px;
   border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 7px;
-  background: rgb(8 8 10 / 0.84);
+  background: rgb(8 8 10 / 0.44);
   box-shadow: 0 0 24px rgb(255 0 0 / 0.18);
   overflow: hidden;
-  pointer-events: auto;
+  pointer-events: none;
+  transition: opacity 120ms linear;
 }
 
 #mobile-controls[data-open="true"] #mobile-menu {
   display: grid;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .mobile-menu-row {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) 46px;
-  min-height: 46px;
+  grid-template-columns: 32px minmax(0, 1fr) 46px;
+  min-height: 32px;
   align-items: center;
   border-top: 1px solid rgb(255 255 255 / 0.1);
 }
@@ -1348,11 +1360,12 @@ html[data-touch-controls="true"] body[data-intro-visible="true"] #rooms-button {
 .mobile-menu-row button {
   display: grid;
   width: 46px;
-  height: 46px;
+  height: 32px;
   place-items: center;
   border: 0;
   background: rgb(255 255 255 / 0.05);
   color: rgb(255 245 245);
+  cursor: pointer;
   font: 900 24px/1 "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Iansui", ui-sans-serif, system-ui,
     sans-serif;
 }
@@ -1557,7 +1570,7 @@ html[data-touch-controls="true"] #chat-log {
 #nickname-input,
 #chat-input {
   position: relative;
-  top: 3.5px;
+  top: 4px;
   padding: 7px 10px;
   outline: none;
 }

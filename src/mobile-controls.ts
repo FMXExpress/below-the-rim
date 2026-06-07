@@ -29,6 +29,7 @@ export function createMobileControls(options: {
   cyclePants: (direction: number) => void
   cycleAccessory: (direction: number) => void
   openChatInput: () => void
+  dismissVideoHint: () => void
 }) {
   updateTouchControlsMode()
   addEventListener('resize', updateTouchControlsMode)
@@ -69,11 +70,12 @@ export function createMobileControls(options: {
 
     root.dataset.open = String(open)
     toggle.ariaLabel = open ? 'Close menu' : 'Open menu'
-    document.documentElement.dataset.videoHintDismissed = 'true'
+    options.dismissVideoHint()
   })
   speak.addEventListener('click', () => {
     root.dataset.open = 'false'
     toggle.ariaLabel = 'Open menu'
+    options.dismissVideoHint()
     options.openChatInput()
   })
 

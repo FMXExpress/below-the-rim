@@ -84,6 +84,7 @@ export function createHelpUi() {
   alternative.className = 'help-box help-box-alternative'
   toggle.className = 'help-box help-box-toggle'
   video.className = 'help-box help-box-video'
+  video.addEventListener('click', dismissVideoHint)
 
   renderCluster(left, leftRows)
   renderCluster(move, moveRows)
@@ -106,11 +107,16 @@ export function createHelpUi() {
 
       return open
     },
+    dismissVideoHint,
     setAlternativeInput(value: boolean) {
       renderCluster(left, value ? alternativeLeftRows : leftRows)
       renderCluster(move, value ? alternativeMoveRows : moveRows)
     },
   }
+}
+
+function dismissVideoHint() {
+  document.documentElement.dataset.videoHintDismissed = 'true'
 }
 
 function renderCluster(cluster: HTMLElement, rows: HelpKey[][]) {

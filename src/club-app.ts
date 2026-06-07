@@ -2463,6 +2463,7 @@ window.addEventListener('keydown', event => {
 createMobileControls({
   ...styleActions,
   openChatInput: () => toggleChatInput(false),
+  dismissVideoHint: helpUi.dismissVideoHint,
 })
 bindTapDestination({
   canvas,
