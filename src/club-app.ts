@@ -3,11 +3,13 @@ import { createBeachBalls, hitBeachBalls, updateBeachBalls, writeBeachBallGeomet
 import { createBubbleSystem, writeBubbleGeometry } from './bubbles.ts'
 import { characterCoreChunkCount, idleClipNames } from './character-assets.ts'
 import { resetVertexWriter, vertexWriterData } from './character-geometry.ts'
-import { createCharacterStyleController, glowstickColors } from './character-style.ts'
+import { createCharacterStyleController, glowstickColors, resolveAccessoryKind } from './character-style.ts'
+import { cigaretteExhale, cigaretteLift } from './cigarette.ts'
 import { restoreClubState, saveClubState } from './club-persistence.ts'
 import { createSaveTimer, readClubState } from './club-state.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import { createFoamSystem, writeFoamGeometry } from './foam.ts'
+import { createSmokeSystem, writeSmokeGeometry } from './smoke-puff.ts'
 import {
   addGraffitiWallGeometry,
   createGraffitiCanvas,
@@ -1494,6 +1496,8 @@ const bubbleArray = gl.createVertexArray()
 const bubbleBuffer = gl.createBuffer()
 const foamArray = gl.createVertexArray()
 const foamBuffer = gl.createBuffer()
+const smokePuffArray = gl.createVertexArray()
+const smokePuffBuffer = gl.createBuffer()
 const graffitiArray = gl.createVertexArray()
 const graffitiBuffer = gl.createBuffer()
 const target = createTarget(gl, 1, 1)
@@ -1526,7 +1530,7 @@ if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisi
   || !smokeArray || !smokeBuffer || !characterArray || !characterBuffer
   || !characterBoxArray || !characterBoxGeometryBuffer || !characterBoxInstanceBuffer || !postArray || !postBuffer
   || !beachBallArray || !beachBallBuffer || !bubbleArray || !bubbleBuffer || !foamArray || !foamBuffer
-  || !graffitiArray || !graffitiBuffer)
+  || !smokePuffArray || !smokePuffBuffer || !graffitiArray || !graffitiBuffer)
 {
   throw new Error('Failed to initialize WebGL resources')
 }
@@ -1597,6 +1601,7 @@ setupPostArray({ array: postArray, buffer: postBuffer, gl })
 setupVertexArray({ array: beachBallArray, buffer: beachBallBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 setupVertexArray({ array: bubbleArray, buffer: bubbleBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 setupVertexArray({ array: foamArray, buffer: foamBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
+setupVertexArray({ array: smokePuffArray, buffer: smokePuffBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 setupVertexArray({ array: graffitiArray, buffer: graffitiBuffer, data: graffitiPoints, gl, stride,
   usage: gl.STATIC_DRAW })
 
@@ -1736,6 +1741,16 @@ const foamInterval = 250
 const foamBurstCount = 22
 let foaming = false
 let nextFoamAt = 0
+const smokeSystem = createSmokeSystem()
+let smokePuffPoints: Float32Array<ArrayBufferLike> = new Float32Array()
+const smokeWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
+const smokeTip: Vec3 = [0, 0, 0]
+const smokeMouth: Vec3 = [0, 0, 0]
+const smokeForward: Vec3 = [0, 0, 0]
+const smokeInterval = 120
+const smokeExhaleInterval = 45
+let nextSmokeAt = 0
+let nextSmokeExhaleAt = 0
 const graffitiSplats: GraffitiSplat[] = []
 const graffitiIds = new Set<number>()
 let nextRemoteSeatSyncAt = 0
@@ -2513,7 +2528,7 @@ createMobileControls({
 })
 bindTapDestination({
   canvas,
-  ignorePointer: event => styleController.accessoryIndex > glowstickColors.length,
+  ignorePointer: event => resolveAccessoryKind(styleController.accessoryIndex) === 'spray',
   jump: target => {
     localCharacter.jumpToward(target)
     multiplayer.sendMotion()
@@ -2533,7 +2548,7 @@ canvas.addEventListener('pointerdown', event => {
     return
   }
 
-  if (styleController.accessoryIndex <= glowstickColors.length) {
+  if (resolveAccessoryKind(styleController.accessoryIndex) !== 'spray') {
     return
   }
 
@@ -3080,6 +3095,7 @@ function renderCurrentSceneFrame(options: {
       beachBalls: beachBallArray,
       bubbles: bubbleArray,
       foam: foamArray,
+      smokePuff: smokePuffArray,
       graffiti: graffitiArray,
       room: array,
       smoke: smokeArray,
@@ -3117,6 +3133,7 @@ function renderCurrentSceneFrame(options: {
     beachBallPoints,
     bubblePoints,
     foamPoints,
+    smokePuffPoints,
     graffitiPoints: options.inLoft ? emptyPoints : graffitiPoints,
     graffitiTexture,
     post: {
@@ -3246,6 +3263,10 @@ const draw = (stamp: number) => {
     emitFoam()
   }
   foamSystem.update(delta, inLoft ? loftFloorAt : mainFloorAt)
+  if (introHidden && resolveAccessoryKind(styleController.accessoryIndex) === 'cigarette') {
+    emitCigaretteSmoke(stamp)
+  }
+  smokeSystem.update(delta)
   const hits = inLoft ? [] : hitBeachBalls(beachBalls, characterPosition)
 
   for (const id of hits) {
@@ -3351,6 +3372,7 @@ const draw = (stamp: number) => {
   updateBeachBallBuffer()
   updateBubbleBuffer()
   updateFoamBuffer()
+  updateSmokeBuffer()
   if (!introHidden) {
     updateIntro()
   }
@@ -3419,6 +3441,43 @@ function updateFoamBuffer() {
   foamPoints = vertexWriterData(foamWriter)
   gl.bindBuffer(gl.ARRAY_BUFFER, foamBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, foamPoints, gl.DYNAMIC_DRAW)
+}
+
+function emitCigaretteSmoke(stamp: number) {
+  const time = stamp * 0.001
+  const turn = localCharacter.turn
+  const forwardX = Math.sin(turn)
+  const forwardZ = Math.cos(turn)
+  const lift = cigaretteLift(time)
+  const exhale = cigaretteExhale(time)
+
+  smokeForward[0] = forwardX
+  smokeForward[1] = 0
+  smokeForward[2] = forwardZ
+
+  if (stamp >= nextSmokeAt) {
+    nextSmokeAt = stamp + smokeInterval
+    smokeTip[0] = characterPosition[0] + forwardX * 0.22
+    smokeTip[1] = characterPosition[1] + 1 + lift * 0.5
+    smokeTip[2] = characterPosition[2] + forwardZ * 0.22
+    smokeSystem.emit(smokeTip, smokeForward, 1, false)
+  }
+
+  if (exhale > 0 && stamp >= nextSmokeExhaleAt) {
+    nextSmokeExhaleAt = stamp + smokeExhaleInterval
+    smokeMouth[0] = characterPosition[0] + forwardX * 0.18
+    smokeMouth[1] = characterPosition[1] + 1.5
+    smokeMouth[2] = characterPosition[2] + forwardZ * 0.18
+    smokeSystem.emit(smokeMouth, smokeForward, 1 + Math.floor(exhale * 3), true)
+  }
+}
+
+function updateSmokeBuffer() {
+  resetVertexWriter(smokeWriter)
+  writeSmokeGeometry(smokeWriter, smokeSystem.puffs)
+  smokePuffPoints = vertexWriterData(smokeWriter)
+  gl.bindBuffer(gl.ARRAY_BUFFER, smokePuffBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, smokePuffPoints, gl.DYNAMIC_DRAW)
 }
 
 function updateBeachBallBuffer() {

@@ -65,6 +65,7 @@ export function renderClubFrame(options: {
     beachBalls: WebGLVertexArrayObject
     bubbles: WebGLVertexArrayObject
     foam: WebGLVertexArrayObject
+    smokePuff: WebGLVertexArrayObject
     graffiti: WebGLVertexArrayObject
     room: WebGLVertexArrayObject
     smoke: WebGLVertexArrayObject
@@ -102,6 +103,7 @@ export function renderClubFrame(options: {
   beachBallPoints: Float32Array
   bubblePoints: Float32Array
   foamPoints: Float32Array
+  smokePuffPoints: Float32Array
   graffitiPoints: Float32Array
   graffitiTexture: WebGLTexture
   post: {
@@ -171,6 +173,7 @@ export function renderClubFrame(options: {
   drawBeachBalls(options)
   drawBubbles(options)
   drawFoam(options)
+  drawSmokePuff(options)
   gl.disable(gl.POLYGON_OFFSET_FILL)
   gl.depthFunc(gl.LEQUAL)
   gl.depthMask(false)
@@ -246,6 +249,7 @@ export function renderClubFrame(options: {
   drawBeachBalls(options)
   drawBubbles(options)
   drawFoam(options)
+  drawSmokePuff(options)
   gl.disable(gl.POLYGON_OFFSET_FILL)
   gl.depthFunc(gl.LEQUAL)
   drawGraffiti(options)
@@ -357,6 +361,15 @@ function drawFoam(options: Parameters<typeof renderClubFrame>[0]) {
 
   options.gl.bindVertexArray(options.arrays.foam)
   options.gl.drawArrays(options.gl.TRIANGLES, 0, options.foamPoints.length / options.vertexSize)
+}
+
+function drawSmokePuff(options: Parameters<typeof renderClubFrame>[0]) {
+  if (options.smokePuffPoints.length === 0) {
+    return
+  }
+
+  options.gl.bindVertexArray(options.arrays.smokePuff)
+  options.gl.drawArrays(options.gl.TRIANGLES, 0, options.smokePuffPoints.length / options.vertexSize)
 }
 
 function drawGraffiti(options: Parameters<typeof renderClubFrame>[0]) {

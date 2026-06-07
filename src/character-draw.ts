@@ -11,6 +11,7 @@ import { characterParts, characterPoseJoints, characterPoseJointSet } from './ch
 import { sampleBasePose, sampleCharacterPose } from './character-rig.ts'
 import { resolvePlayerStyle } from './character-style.ts'
 import { characterView, characterVisibilityInto } from './character-visibility.ts'
+import { cigaretteLift } from './cigarette.ts'
 import { clamp, normalizeIndex } from './math.ts'
 import { roomAt } from './scene.ts'
 import type {
@@ -113,6 +114,12 @@ const hairForward: Vec3 = [0, 0, 0]
 const glowstickA: Vec3 = [0, 0, 0]
 const glowstickB: Vec3 = [0, 0, 0]
 const glowstickSide: Vec3 = [0, 0, 0]
+const cigaretteA: Vec3 = [0, 0, 0]
+const cigaretteB: Vec3 = [0, 0, 0]
+const cigaretteEmberA: Vec3 = [0, 0, 0]
+const cigaretteEmberB: Vec3 = [0, 0, 0]
+const cigaretteSide: Vec3 = [0, 0, 0]
+const cigaretteEmber: Vec3 = [1, 0.36, 0.05]
 const sprayCanNozzleSide: Vec3 = [0, 1, 0]
 const sprayCanCapA: Vec3 = [0, 0, 0]
 const sprayCanCapB: Vec3 = [0, 0, 0]
@@ -272,6 +279,10 @@ function addRenderedCharacter(
     sin: Math.sin(player.turn),
   }
 
+  if (style.accessoryKind === 'cigarette') {
+    raiseCigaretteArm(pose, turn, options.time)
+  }
+
   for (const part of characterPartPlans) {
     if (style.bottomMode === 'pants' || !part.part.bottom) {
       addCharacterPart(target, boxInstances, pose, part, player, turn, style, options.light, localReflection)
@@ -289,6 +300,9 @@ function addRenderedCharacter(
   if (style.accessory) {
     if (style.accessoryKind === 'glowstick') {
       addGlowsticks(target, boxInstances, pose, player, turn, style, options.light, localReflection)
+    }
+    else if (style.accessoryKind === 'cigarette') {
+      addCigarette(target, boxInstances, pose, player, turn, style, options.light, localReflection)
     }
     else {
       addSprayCan(target, boxInstances, pose, player, turn, style, options.light, localReflection)
@@ -436,6 +450,95 @@ function addSprayCanAtHand(
   sprayCanNozzleB[2] = centerZ + sideZ * handSide * 0.13
   addCharacterBox(target, boxInstances, sprayCanNozzleA, sprayCanNozzleB, 0.035, 0.035, color, 0.12, player.turn,
     localReflection, light, 0, turn.sin, turn.cos, { side: sprayCanNozzleSide })
+}
+
+function raiseCigaretteArm(pose: Vec3[], turn: TurnBasis, time: number) {
+  const lift = cigaretteLift(time)
+
+  if (lift <= 0) {
+    return
+  }
+
+  const hand = pose[rightHandIndex]!
+  const foreArm = pose[rightForeArmIndex]!
+  const head = pose[headIndex]!
+  // Bring the cigarette hand up to the mouth, just in front of the lips.
+  const mouthX = head[0] + turn.sin * 0.05
+  const mouthY = head[1] - 0.08
+  const mouthZ = head[2] + turn.cos * 0.05
+  const deltaX = (mouthX - hand[0]) * lift
+  const deltaY = (mouthY - hand[1]) * lift
+  const deltaZ = (mouthZ - hand[2]) * lift
+
+  hand[0] += deltaX
+  hand[1] += deltaY
+  hand[2] += deltaZ
+  foreArm[0] += deltaX * 0.55
+  foreArm[1] += deltaY * 0.55
+  foreArm[2] += deltaZ * 0.55
+}
+
+function addCigarette(
+  target: VertexWriter,
+  boxInstances: VertexWriter,
+  pose: Vec3[],
+  player: { turn: number },
+  turn: TurnBasis,
+  style: ResolvedPlayerStyle,
+  light: CharacterLight,
+  localReflection: boolean,
+) {
+  const torso = pose[spine2Index]!
+
+  addCigaretteAtHand(target, boxInstances, torso, pose[rightForeArmIndex]!, pose[rightHandIndex]!, player, turn, style,
+    light, localReflection)
+}
+
+function addCigaretteAtHand(
+  target: VertexWriter,
+  boxInstances: VertexWriter,
+  torso: Vec3,
+  foreArm: Vec3,
+  hand: Vec3,
+  player: { turn: number },
+  turn: TurnBasis,
+  style: ResolvedPlayerStyle,
+  light: CharacterLight,
+  localReflection: boolean,
+) {
+  const dx = hand[0] - foreArm[0]
+  const dy = hand[1] - foreArm[1]
+  const dz = hand[2] - foreArm[2]
+  const sideX = turn.cos
+  const sideZ = -turn.sin
+  const handSide = handSideSign(hand, torso, sideX, sideZ)
+  const forwardX = turn.sin
+  const forwardZ = turn.cos
+  const centerX = hand[0] + dx * 0.1 + forwardX * 0.04
+  const centerY = hand[1] + dy * 0.1 + 0.02
+  const centerZ = hand[2] + dz * 0.1 + forwardZ * 0.04
+  const length = 0.12
+
+  cigaretteSide[0] = sideX * handSide
+  cigaretteSide[1] = 0
+  cigaretteSide[2] = sideZ * handSide
+  cigaretteA[0] = centerX
+  cigaretteA[1] = centerY
+  cigaretteA[2] = centerZ
+  cigaretteB[0] = centerX + forwardX * length
+  cigaretteB[1] = centerY
+  cigaretteB[2] = centerZ + forwardZ * length
+  addCharacterBox(target, boxInstances, cigaretteA, cigaretteB, 0.022, 0.022, style.accessory!, 0.05, player.turn,
+    localReflection, light, 0, turn.sin, turn.cos, { side: cigaretteSide })
+
+  cigaretteEmberA[0] = cigaretteB[0]
+  cigaretteEmberA[1] = cigaretteB[1]
+  cigaretteEmberA[2] = cigaretteB[2]
+  cigaretteEmberB[0] = cigaretteB[0] + forwardX * 0.02
+  cigaretteEmberB[1] = cigaretteB[1]
+  cigaretteEmberB[2] = cigaretteB[2] + forwardZ * 0.02
+  addCharacterBox(target, boxInstances, cigaretteEmberA, cigaretteEmberB, 0.026, 0.026, cigaretteEmber, 1.6, player.turn,
+    localReflection, light, 0, turn.sin, turn.cos, { side: cigaretteSide })
 }
 
 function handSideSign(hand: Vec3, torso: Vec3, sideX: number, sideZ: number) {
