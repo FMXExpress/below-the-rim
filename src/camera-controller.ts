@@ -1,10 +1,12 @@
 import { characterFloor } from './character-data.ts'
 import { clamp, lengthSq, lerpVec3, mix, smoothAngle } from './math.ts'
-import { backDoor, loftBounds, outsideBounds, outsideToilets, roomBounds, tent } from './scene-data.ts'
+import { backDoor, loftBounds, outsideBounds, outsideDjBooth, outsideStage, outsideToilets, roomBounds,
+  tent } from './scene-data.ts'
 import { collideBuildingWalls, isOutside, roomAt, walkHeight } from './scene.ts'
 import type { Vec3 } from './types.ts'
 
 const insideCameraFront = roomBounds.front - 0.2
+const outsideCameraFront = outsideStage.z - outsideStage.depth / 2 - 0.35
 const manualCameraHoldTime = 5000
 const cameraBouncePauseTime = 2500
 const dragMoveThreshold = 3
@@ -300,6 +302,11 @@ function clampCameraToZone(position: Vec3, zone: ReturnType<typeof roomAt> | 'lo
     return
   }
 
+  if (zone === 'outside' && inOutsideDjCameraZone(characterPosition)) {
+    position[2] = Math.min(position[2], outsideCameraFront)
+    return
+  }
+
   if (zone === 'tent') {
     clampTentCamera(position)
   }
@@ -310,6 +317,17 @@ function inOutsideToilets(position: Vec3) {
     && position[0] < outsideToilets.x + outsideToilets.width / 2
     && position[2] > outsideToilets.z - outsideToilets.depth / 2
     && position[2] < outsideToilets.z + outsideToilets.depth / 2
+}
+
+function inOutsideDjCameraZone(position: Vec3) {
+  const side = outsideStage.width / 2 + 0.8
+  const back = outsideDjBooth.z - 2.2
+  const front = outsideStage.z
+
+  return position[0] > outsideStage.x - side
+    && position[0] < outsideStage.x + side
+    && position[2] > back
+    && position[2] < front
 }
 
 function clampOutsideToiletCamera(position: Vec3, characterPosition: Vec3) {

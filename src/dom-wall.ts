@@ -75,6 +75,15 @@ export function createDomWallProjection(element: HTMLElement, options: {
       }
 
       domWallCorners(wall, cornerA, cornerB, cornerC, cornerD)
+
+      if (!domWallIntersectsView(projector, minDepth, cornerA, cornerB, cornerC, cornerD)) {
+        applyHiddenStyle()
+        if (pointerEvents) {
+          setStyle('pointerEvents', 'none')
+        }
+        return false
+      }
+
       projectWallPointWithMinDepthInto(cornerA, projector, pointA, minDepth)
       projectWallPointWithMinDepthInto(cornerB, projector, pointB, minDepth)
       projectWallPointWithMinDepthInto(cornerC, projector, pointC, minDepth)
@@ -196,4 +205,37 @@ function domWallFacesCamera(camera: Camera, wall: DomWall) {
 
   return wall.normal[0] * toCameraX + wall.normal[1] * toCameraY + wall.normal[2] * toCameraZ > 0
     && forwardX * toVideoX + forwardY * toVideoY + forwardZ * toVideoZ > 0
+}
+
+function domWallIntersectsView(projector: WallProjector, minDepth: number, ...corners: Vec3[]) {
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  let visible = false
+
+  for (const corner of corners) {
+    const relativeX = corner[0] - projector.eyeX
+    const relativeY = corner[1] - projector.eyeY
+    const relativeZ = corner[2] - projector.eyeZ
+    const viewX = projector.cameraXX * relativeX + projector.cameraXY * relativeY + projector.cameraXZ * relativeZ
+    const viewY = projector.cameraYX * relativeX + projector.cameraYY * relativeY + projector.cameraYZ * relativeZ
+    const viewZ = projector.cameraZX * relativeX + projector.cameraZY * relativeY + projector.cameraZZ * relativeZ
+    const depth = -viewZ
+
+    if (depth <= minDepth) {
+      continue
+    }
+
+    const x = ((viewX * projector.f / projector.aspect) / depth * 0.5 + 0.5) * projector.clientWidth
+    const y = (0.5 - (viewY * projector.f) / depth * 0.5) * projector.clientHeight
+
+    visible = true
+    minX = Math.min(minX, x)
+    maxX = Math.max(maxX, x)
+    minY = Math.min(minY, y)
+    maxY = Math.max(maxY, y)
+  }
+
+  return visible && maxX >= 0 && minX <= projector.clientWidth && maxY >= 0 && minY <= projector.clientHeight
 }
