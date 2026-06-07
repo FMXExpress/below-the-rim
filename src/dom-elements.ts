@@ -16,6 +16,7 @@ export function getDomElements() {
   const photoButton = document.createElement('button')
   const breakdanceButton = document.createElement('button')
   const waveButton = document.createElement('button')
+  const bubbleButton = document.createElement('button')
   const roomsButton = document.createElement('button')
   const supportLink = document.createElement('a')
   const intro = document.createElement('div')
@@ -82,6 +83,10 @@ export function getDomElements() {
   waveButton.type = 'button'
   waveButton.textContent = '🙌'
   waveButton.setAttribute('aria-label', 'wave')
+  bubbleButton.id = 'bubble-button'
+  bubbleButton.type = 'button'
+  bubbleButton.textContent = '🫧'
+  bubbleButton.setAttribute('aria-label', 'bubbles')
   roomsButton.id = 'rooms-button'
   roomsButton.type = 'button'
   roomsButton.textContent = '🏘️'
@@ -130,7 +135,7 @@ export function getDomElements() {
   introGithub.append(introGithubIcon)
   intro.append(introEffect, introPanel, introGithub)
   document.body.prepend(canvas, djVideo, photoWall, chatForm, chatBubble, onlineIndicator, reactionButtons,
-    waveButton, breakdanceButton, photoButton, roomsButton, supportLink, intro)
+    waveButton, bubbleButton, breakdanceButton, photoButton, roomsButton, supportLink, intro)
 
   return {
     canvas,
@@ -148,6 +153,7 @@ export function getDomElements() {
     reactionButtons,
     breakdanceButton,
     waveButton,
+    bubbleButton,
     photoButton,
     roomsButton,
     supportLink,

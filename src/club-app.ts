@@ -1,5 +1,6 @@
 import { createAdaptiveBloomScale, createAdaptivePixelRatio } from './adaptive-pixel-ratio.ts'
 import { createBeachBalls, hitBeachBalls, updateBeachBalls, writeBeachBallGeometry } from './beach-balls.ts'
+import { createBubbleSystem, writeBubbleGeometry } from './bubbles.ts'
 import { characterCoreChunkCount, idleClipNames } from './character-assets.ts'
 import { resetVertexWriter, vertexWriterData } from './character-geometry.ts'
 import { createCharacterStyleController, glowstickColors } from './character-style.ts'
@@ -139,6 +140,7 @@ const {
   reactionButtons,
   breakdanceButton,
   waveButton,
+  bubbleButton,
   photoButton,
   roomsButton,
   supportLink,
@@ -370,6 +372,7 @@ function syncOnlineIndicator() {
   reactionButtons.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   breakdanceButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   waveButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
+  bubbleButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   photoButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   roomsButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   supportLink.dataset.hidden = String(helpUi.root.dataset.open === 'true')
@@ -1482,6 +1485,8 @@ const postArray = gl.createVertexArray()
 const postBuffer = gl.createBuffer()
 const beachBallArray = gl.createVertexArray()
 const beachBallBuffer = gl.createBuffer()
+const bubbleArray = gl.createVertexArray()
+const bubbleBuffer = gl.createBuffer()
 const graffitiArray = gl.createVertexArray()
 const graffitiBuffer = gl.createBuffer()
 const target = createTarget(gl, 1, 1)
@@ -1513,7 +1518,7 @@ if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisi
   || !buffer || !lightArray || !lightBuffer || !strobeArray || !strobeGeometryBuffer || !strobeInstanceBuffer
   || !smokeArray || !smokeBuffer || !characterArray || !characterBuffer
   || !characterBoxArray || !characterBoxGeometryBuffer || !characterBoxInstanceBuffer || !postArray || !postBuffer
-  || !beachBallArray || !beachBallBuffer || !graffitiArray || !graffitiBuffer)
+  || !beachBallArray || !beachBallBuffer || !bubbleArray || !bubbleBuffer || !graffitiArray || !graffitiBuffer)
 {
   throw new Error('Failed to initialize WebGL resources')
 }
@@ -1582,6 +1587,7 @@ setupCharacterBoxArray({
 })
 setupPostArray({ array: postArray, buffer: postBuffer, gl })
 setupVertexArray({ array: beachBallArray, buffer: beachBallBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
+setupVertexArray({ array: bubbleArray, buffer: bubbleBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 setupVertexArray({ array: graffitiArray, buffer: graffitiBuffer, data: graffitiPoints, gl, stride,
   usage: gl.STATIC_DRAW })
 
@@ -1704,6 +1710,14 @@ let beachBallPoints: Float32Array<ArrayBufferLike> = new Float32Array()
 const beachBallWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
 const beachBallAuthorityUntil = new Map<number, number>()
 const beachBallAuthorityDuration = 2000
+const bubbleSystem = createBubbleSystem()
+let bubblePoints: Float32Array<ArrayBufferLike> = new Float32Array()
+const bubbleWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
+const bubbleMuzzle: Vec3 = [0, 0, 0]
+const bubbleForward: Vec3 = [0, 0, 0]
+const bubbleInterval = 55
+let bubbling = false
+let nextBubbleAt = 0
 const graffitiSplats: GraffitiSplat[] = []
 const graffitiIds = new Set<number>()
 let nextRemoteSeatSyncAt = 0
@@ -2440,6 +2454,12 @@ bindKeyboardInput({
   stopJumping: () => localCharacter.stopJumping(),
   startWave: () => localCharacter.startWave(),
   stopWave: () => localCharacter.stopWave(),
+  startBubbles: () => {
+    bubbling = true
+  },
+  stopBubbles: () => {
+    bubbling = false
+  },
   startBreakdance: () => localCharacter.startBreakdance(),
   openChatInput: () => openChatInput(),
   setAlternativeInput: useAlternativeInput,
@@ -2672,6 +2692,19 @@ for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
   waveButton.addEventListener(eventName, () => {
     localCharacter.stopWave()
     multiplayer.sendMotion()
+  })
+}
+
+bubbleButton.addEventListener('pointerdown', event => {
+  event.preventDefault()
+  bubbleButton.setPointerCapture(event.pointerId)
+  bubbling = true
+  canvas.focus()
+})
+
+for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+  bubbleButton.addEventListener(eventName, () => {
+    bubbling = false
   })
 }
 
@@ -3008,6 +3041,7 @@ function renderCurrentSceneFrame(options: {
       light: lightArray,
       post: postArray,
       beachBalls: beachBallArray,
+      bubbles: bubbleArray,
       graffiti: graffitiArray,
       room: array,
       smoke: smokeArray,
@@ -3043,6 +3077,7 @@ function renderCurrentSceneFrame(options: {
     renderZone: renderZoneIndex(options.zone),
     points,
     beachBallPoints,
+    bubblePoints,
     graffitiPoints: options.inLoft ? emptyPoints : graffitiPoints,
     graffitiTexture,
     post: {
@@ -3162,6 +3197,11 @@ const draw = (stamp: number) => {
   if (!inLoft) {
     updateBeachBalls(beachBalls, delta, outsideTree)
   }
+  if (bubbling && stamp >= nextBubbleAt) {
+    nextBubbleAt = stamp + bubbleInterval
+    emitBubbles()
+  }
+  bubbleSystem.update(delta)
   const hits = inLoft ? [] : hitBeachBalls(beachBalls, characterPosition)
 
   for (const id of hits) {
@@ -3265,6 +3305,7 @@ const draw = (stamp: number) => {
 
   const characterCount = characterRenderSystem.update(stamp * 0.001)
   updateBeachBallBuffer()
+  updateBubbleBuffer()
   if (!introHidden) {
     updateIntro()
   }
@@ -3281,6 +3322,28 @@ const draw = (stamp: number) => {
   })
 
   scheduleFrame()
+}
+
+function emitBubbles() {
+  const turn = localCharacter.turn
+  const forwardX = Math.sin(turn)
+  const forwardZ = Math.cos(turn)
+
+  bubbleMuzzle[0] = characterPosition[0] + forwardX * 0.35
+  bubbleMuzzle[1] = characterPosition[1] + 1.15
+  bubbleMuzzle[2] = characterPosition[2] + forwardZ * 0.35
+  bubbleForward[0] = forwardX
+  bubbleForward[1] = 0.35
+  bubbleForward[2] = forwardZ
+  bubbleSystem.spawn(bubbleMuzzle, bubbleForward, 3)
+}
+
+function updateBubbleBuffer() {
+  resetVertexWriter(bubbleWriter)
+  writeBubbleGeometry(bubbleWriter, bubbleSystem.bubbles)
+  bubblePoints = vertexWriterData(bubbleWriter)
+  gl.bindBuffer(gl.ARRAY_BUFFER, bubbleBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, bubblePoints, gl.DYNAMIC_DRAW)
 }
 
 function updateBeachBallBuffer() {
