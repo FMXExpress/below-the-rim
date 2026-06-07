@@ -534,22 +534,46 @@ syncOnlineIndicator()
 adminIdRoot.id = 'admin-id-root'
 document.body.append(adminIdRoot)
 
+type ChatLogEntry = {
+  color: string
+  emoji?: string
+  id: number
+  text: string
+}
+
+const chatLogRows = new WeakMap<HTMLElement, ChatLogEntry[]>()
+
 function addChatLogMessage(id: number, text: string) {
+  const color = chatMessageColor(id, text)
+  const emoji = emojiReactionFromMessage(text)
+  const last = chatLog.lastElementChild
+
+  if (emoji && last instanceof HTMLElement) {
+    const entries = chatLogRows.get(last)
+
+    if (entries?.every(entry => entry.emoji)) {
+      entries.push({ color, emoji, id, text })
+      renderChatLogRow(last)
+      chatLog.scrollTop = chatLog.scrollHeight
+
+      return color
+    }
+  }
+
   const row = document.createElement('div')
   const message = document.createElement('span')
   const ban = document.createElement('button')
-  const color = chatMessageColor(id, text)
 
   row.className = 'chat-log-message'
   row.style.color = color
-  row.dataset.userId = String(id)
-  renderChatLogText(message, text)
   ban.type = 'button'
   ban.className = 'chat-ban-button'
   ban.textContent = 'ban'
   let pointerBanAt = 0
   const sendBan = (event: Event) => {
-    console.log(`Ban ${event.type}: id=${id}`)
+    const entry = chatLogRows.get(row)![0]!
+
+    console.log(`Ban ${event.type}: id=${entry.id}`)
     event.preventDefault()
     event.stopPropagation()
     if (event.type === 'click' && performance.now() - pointerBanAt < 500) {
@@ -558,15 +582,36 @@ function addChatLogMessage(id: number, text: string) {
     if (event.type === 'pointerdown') {
       pointerBanAt = performance.now()
     }
-    openBanDialog(id, `user with message: ${text}`)
+    openBanDialog(entry.id, `user with message: ${entry.text}`)
   }
   ban.addEventListener('pointerdown', sendBan, { capture: true })
   ban.addEventListener('click', sendBan)
   row.append(ban, message)
+  chatLogRows.set(row, [{ color, emoji, id, text }])
+  renderChatLogRow(row)
   chatLog.append(row)
   chatLog.scrollTop = chatLog.scrollHeight
 
   return color
+}
+
+function renderChatLogRow(row: HTMLElement) {
+  const entries = chatLogRows.get(row)!
+  const message = row.querySelector('span')!
+  const first = entries[0]!
+
+  row.style.color = first.color
+  row.dataset.userIds = entries.map(entry => entry.id).join(' ')
+  if (entries.every(entry => entry.emoji)) {
+    message.textContent = `${chatLogEntryLabel(first)} ${entries.map(entry => entry.emoji).join(' ')}`
+  }
+  else {
+    renderChatLogText(message, first.text)
+  }
+}
+
+function chatLogEntryLabel(entry: ChatLogEntry) {
+  return /^<[^>\n]+>(?: |$)/.exec(entry.text)?.[0].trim() ?? nicknameLabel(String(entry.id))
 }
 
 function renderChatLogText(target: HTMLElement, text: string) {
@@ -638,8 +683,20 @@ function roomUrlMatch(value: string, start: number) {
 
 function deleteChatLogMessages(id: number) {
   for (const row of [...chatLog.children]) {
-    if (row instanceof HTMLElement && row.dataset.userId === String(id)) {
-      row.remove()
+    if (row instanceof HTMLElement) {
+      const entries = chatLogRows.get(row)
+
+      if (entries?.some(entry => entry.id === id)) {
+        const next = entries.filter(entry => entry.id !== id)
+
+        if (next.length) {
+          chatLogRows.set(row, next)
+          renderChatLogRow(row)
+        }
+        else {
+          row.remove()
+        }
+      }
     }
   }
 }
