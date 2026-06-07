@@ -2076,9 +2076,14 @@ function setVideoPlaylistOrder(space: SpaceState, zone: VideoZone, ids: string[]
   ]
 }
 
-function setRandomVideoQueue(space: SpaceState, zone: VideoZone, now: number) {
+function setRandomVideoQueue(
+  space: SpaceState,
+  zone: VideoZone,
+  now: number,
+  currentExclude = new Set<string>(),
+) {
   const order = videoPlaylist(space, zone).ids
-  const currentId = randomVideoId(order)
+  const currentId = randomVideoId(order, currentExclude)
   const nextId = randomVideoId(order, new Set([currentId]))
 
   setVideoQueue(space, { zone, currentId, nextId, time: 0, updatedAt: now })
@@ -2351,12 +2356,9 @@ async function randomizeVideoTrack(space: SpaceState, zone: VideoZone) {
     return
   }
 
-  if (videoQueue(space, zone)) {
-    setRandomNextVideo(space, zone)
-  }
-  else {
-    setRandomVideoQueue(space, zone, now)
-  }
+  const previousQueue = videoQueue(space, zone)
+
+  setRandomVideoQueue(space, zone, now, previousQueue ? new Set([previousQueue.currentId]) : new Set())
 
   const queue = videoQueue(space, zone)!
 
