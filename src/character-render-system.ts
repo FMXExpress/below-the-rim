@@ -6,7 +6,8 @@ import {
   loadCharacterDetails,
   loadCharacterHair,
 } from './character-assets.ts'
-import { buildCharacterDrawData, headPoseIndex } from './character-draw.ts'
+import { characterGroundJoints, characterScale } from './character-data.ts'
+import { buildCharacterDrawData, headPoseIndex, setPoseCigaretteGeometry } from './character-draw.ts'
 import type { CharacterDrawCache } from './character-draw.ts'
 import type { VertexWriter } from './character-geometry.ts'
 import { uploadFloatBuffer } from './character-gpu.ts'
@@ -14,9 +15,22 @@ import type { NumberBufferCache } from './character-gpu.ts'
 import { createCharacterHairController } from './character-hair-control.ts'
 import { updateHairInstances } from './character-hair.ts'
 import type { HairInstanceUploadCache } from './character-hair.ts'
+import { characterPoseJoints, characterPoseJointSet } from './character-parts.ts'
+import { sampleBasePose, sampleCharacterPose } from './character-rig.ts'
 import { createCharacterStyleController } from './character-style.ts'
+import { createCigaretteGeometry, setCigaretteMouth as setCigaretteMouthPoint } from './cigarette.ts'
 import { createLocalCharacter } from './local-character.ts'
-import type { CharacterLight, CharacterRig, HairRenderMesh, Player, Vec3 } from './types.ts'
+import type { CharacterLight, CharacterMode, CharacterRig, HairRenderMesh, Player, SampledPose, Vec3 } from './types.ts'
+
+type CigarettePoseInput = {
+  position: Vec3
+  turn: number
+  motionBlend: number
+  idleClipIndex?: number
+  mode?: CharacterMode
+  modeTime?: number
+}
+const cigaretteGroundJointIndices = characterGroundJoints.map(name => characterPoseJoints.indexOf(name))
 
 export function createCharacterRenderSystem(options: {
   boxInstanceBuffer: WebGLBuffer
@@ -66,6 +80,10 @@ export function createCharacterRenderSystem(options: {
   }
   const hairInstanceCache: HairInstanceUploadCache = { buffers: [], counts: [], uploads: [] }
   const vertexWriter: VertexWriter = drawCache.vertices
+  const cigarettePose = Array.from({ length: characterPoseJoints.length }, () => [0, 0, 0] as Vec3)
+  const cigaretteGeometry = createCigaretteGeometry()
+  const cigaretteTurn = { cos: 1, sin: 0 }
+  let cigaretteBasePose: SampledPose | undefined
 
   function markCoreChunkLoaded() {
     coreLoadedChunks++
@@ -200,6 +218,49 @@ export function createCharacterRenderSystem(options: {
     return data.vertices.length / options.vertexSize
   }
 
+  function setCigaretteTip(player: CigarettePoseInput, time: number, target: Vec3, forward: Vec3) {
+    if (!rig) {
+      return false
+    }
+
+    cigaretteTurn.cos = Math.cos(player.turn)
+    cigaretteTurn.sin = Math.sin(player.turn)
+    setPoseCigaretteGeometry(cigaretteGeometry, sampleCigarettePose(rig, player, time), cigaretteTurn, time)
+    target[0] = cigaretteGeometry.emberTip[0]
+    target[1] = cigaretteGeometry.emberTip[1]
+    target[2] = cigaretteGeometry.emberTip[2]
+    forward[0] = cigaretteGeometry.forward[0]
+    forward[1] = cigaretteGeometry.forward[1]
+    forward[2] = cigaretteGeometry.forward[2]
+
+    return true
+  }
+
+  function setCigaretteMouth(player: CigarettePoseInput, time: number, target: Vec3, forward: Vec3) {
+    if (!rig) {
+      return false
+    }
+
+    cigaretteTurn.cos = Math.cos(player.turn)
+    cigaretteTurn.sin = Math.sin(player.turn)
+    setCigaretteMouthPoint(target, sampleCigarettePose(rig, player, time)[headPoseIndex]!, cigaretteTurn)
+    forward[0] = cigaretteTurn.sin
+    forward[1] = 0
+    forward[2] = cigaretteTurn.cos
+
+    return true
+  }
+
+  function sampleCigarettePose(activeRig: CharacterRig, player: CigarettePoseInput, time: number) {
+    const includeRun = player.motionBlend > 0 || player.mode === 'wave' || player.mode === 'waveOut'
+
+    cigaretteBasePose = sampleBasePose(activeRig, time, characterPoseJoints, characterPoseJointSet,
+      player.idleClipIndex ?? 0, cigaretteBasePose, includeRun)
+
+    return sampleCharacterPose(activeRig, time, player, characterPoseJoints, characterPoseJointSet,
+      cigaretteGroundJointIndices, characterScale, cigaretteBasePose, undefined, cigarettePose)
+  }
+
   return {
     get assetsLoaded() {
       return assetsLoaded
@@ -224,6 +285,8 @@ export function createCharacterRenderSystem(options: {
     loadDetailsOnce,
     loadOnce: loadCoreOnce,
     loadRemainingDancesIdle,
+    setCigaretteMouth,
+    setCigaretteTip,
     update,
   }
 }

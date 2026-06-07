@@ -40,7 +40,7 @@ export function createSmokeSystem() {
   const puffs: SmokePuff[] = []
   const pool: SmokePuff[] = []
 
-  function emit(origin: Vec3, forward: Vec3, count: number, exhale: boolean) {
+  function emit(origin: Vec3, forward: Vec3, count: number, exhale: boolean, radiusScale = 1) {
     for (let i = 0; i < count; i++) {
       const puff = pool.pop() ?? createPuff()
       const push = exhale ? 0.9 : 0.2
@@ -51,7 +51,7 @@ export function createSmokeSystem() {
       puff.velocity[0] = forward[0] * push + (Math.random() - 0.5) * drift
       puff.velocity[1] = rise * (0.7 + Math.random() * 0.6)
       puff.velocity[2] = forward[2] * push + (Math.random() - 0.5) * drift
-      puff.baseRadius = exhale ? puffRadius : wispRadius
+      puff.baseRadius = (exhale ? puffRadius : wispRadius) * radiusScale
       puff.radius = puff.baseRadius
       puff.maxLife = minLife + Math.random() * (maxLife - minLife)
       puff.life = puff.maxLife

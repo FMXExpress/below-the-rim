@@ -7,11 +7,14 @@ import {
   resetVertexWriter,
 } from './character-geometry.ts'
 import type { VertexWriter } from './character-geometry.ts'
+import { handSideSign } from './character-accessory.ts'
+import type { TurnBasis } from './character-accessory.ts'
 import { characterParts, characterPoseJoints, characterPoseJointSet } from './character-parts.ts'
 import { sampleBasePose, sampleCharacterPose } from './character-rig.ts'
 import { resolvePlayerStyle } from './character-style.ts'
 import { characterView, characterVisibilityInto } from './character-visibility.ts'
-import { cigaretteLift } from './cigarette.ts'
+import { raiseCigaretteArm, setCigaretteGeometry } from './cigarette.ts'
+import type { CigaretteGeometry } from './cigarette.ts'
 import { clamp, normalizeIndex } from './math.ts'
 import { roomAt } from './scene.ts'
 import type {
@@ -52,11 +55,6 @@ type BuildOptions = {
   vertexWriter?: VertexWriter
   width: number
   height: number
-}
-
-type TurnBasis = {
-  cos: number
-  sin: number
 }
 
 export type CharacterDrawCache = {
@@ -118,9 +116,16 @@ const glowstickB: Vec3 = [0, 0, 0]
 const glowstickSide: Vec3 = [0, 0, 0]
 const cigaretteA: Vec3 = [0, 0, 0]
 const cigaretteB: Vec3 = [0, 0, 0]
-const cigaretteEmberA: Vec3 = [0, 0, 0]
 const cigaretteEmberB: Vec3 = [0, 0, 0]
 const cigaretteSide: Vec3 = [0, 0, 0]
+const cigaretteForward: Vec3 = [0, 0, 0]
+const cigaretteGeometry: CigaretteGeometry = {
+  base: cigaretteA,
+  tip: cigaretteB,
+  emberTip: cigaretteEmberB,
+  side: cigaretteSide,
+  forward: cigaretteForward,
+}
 const cigaretteEmber: Vec3 = [1, 0.36, 0.05]
 const sprayCanNozzleSide: Vec3 = [0, 1, 0]
 const sprayCanCapA: Vec3 = [0, 0, 0]
@@ -282,7 +287,7 @@ function addRenderedCharacter(
   }
 
   if (style.accessoryKind === 'cigarette') {
-    raiseCigaretteArm(pose, turn, options.time)
+    raisePoseCigaretteArm(pose, turn, options.time)
   }
 
   for (const part of characterPartPlans) {
@@ -454,30 +459,18 @@ function addSprayCanAtHand(
     localReflection, light, 0, turn.sin, turn.cos, { side: sprayCanNozzleSide })
 }
 
-function raiseCigaretteArm(pose: Vec3[], turn: TurnBasis, time: number) {
-  const lift = cigaretteLift(time)
+export function raisePoseCigaretteArm(pose: Vec3[], turn: TurnBasis, time: number) {
+  raiseCigaretteArm(pose[rightHandIndex]!, pose[rightForeArmIndex]!, pose[headIndex]!, turn, time)
+}
 
-  if (lift <= 0) {
-    return
-  }
-
-  const hand = pose[rightHandIndex]!
-  const foreArm = pose[rightForeArmIndex]!
-  const head = pose[headIndex]!
-  // Bring the cigarette hand up to the mouth, just in front of the lips.
-  const mouthX = head[0] + turn.sin * 0.05
-  const mouthY = head[1] - 0.08
-  const mouthZ = head[2] + turn.cos * 0.05
-  const deltaX = (mouthX - hand[0]) * lift
-  const deltaY = (mouthY - hand[1]) * lift
-  const deltaZ = (mouthZ - hand[2]) * lift
-
-  hand[0] += deltaX
-  hand[1] += deltaY
-  hand[2] += deltaZ
-  foreArm[0] += deltaX * 0.55
-  foreArm[1] += deltaY * 0.55
-  foreArm[2] += deltaZ * 0.55
+export function setPoseCigaretteGeometry(
+  target: CigaretteGeometry,
+  pose: Vec3[],
+  turn: TurnBasis,
+  time: number,
+) {
+  raisePoseCigaretteArm(pose, turn, time)
+  setCigaretteGeometry(target, pose[spine2Index]!, pose[rightForeArmIndex]!, pose[rightHandIndex]!, turn)
 }
 
 function addCigarette(
@@ -508,53 +501,12 @@ function addCigaretteAtHand(
   light: CharacterLight,
   localReflection: boolean,
 ) {
-  const dx = hand[0] - foreArm[0]
-  const dy = hand[1] - foreArm[1]
-  const dz = hand[2] - foreArm[2]
-  const sideX = turn.cos
-  const sideZ = -turn.sin
-  const handSide = handSideSign(hand, torso, sideX, sideZ)
-  const forwardX = turn.sin
-  const forwardZ = turn.cos
-  // Pinch it at the fingertips: reach past the wrist, tuck it into the grip and a little forward.
-  const baseX = hand[0] + dx * 0.18 + sideX * handSide * 0.05 + forwardX * 0.05
-  const baseY = hand[1] + dy * 0.18 + 0.03
-  const baseZ = hand[2] + dz * 0.18 + sideZ * handSide * 0.05 + forwardZ * 0.05
-  // Angle the cigarette forward and up so it reads as held, not lying flat.
-  let dirX = forwardX
-  let dirY = 0.5
-  let dirZ = forwardZ
-  const dirLength = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ)
-
-  dirX /= dirLength
-  dirY /= dirLength
-  dirZ /= dirLength
-  const length = 0.1
-
-  cigaretteSide[0] = sideX * handSide
-  cigaretteSide[1] = 0
-  cigaretteSide[2] = sideZ * handSide
-  cigaretteA[0] = baseX
-  cigaretteA[1] = baseY
-  cigaretteA[2] = baseZ
-  cigaretteB[0] = baseX + dirX * length
-  cigaretteB[1] = baseY + dirY * length
-  cigaretteB[2] = baseZ + dirZ * length
+  setCigaretteGeometry(cigaretteGeometry, torso, foreArm, hand, turn)
   addCharacterBox(target, boxInstances, cigaretteA, cigaretteB, 0.02, 0.02, style.accessory!, 0.05, player.turn,
     localReflection, light, 0, turn.sin, turn.cos, { side: cigaretteSide })
 
-  cigaretteEmberA[0] = cigaretteB[0]
-  cigaretteEmberA[1] = cigaretteB[1]
-  cigaretteEmberA[2] = cigaretteB[2]
-  cigaretteEmberB[0] = cigaretteB[0] + dirX * 0.016
-  cigaretteEmberB[1] = cigaretteB[1] + dirY * 0.016
-  cigaretteEmberB[2] = cigaretteB[2] + dirZ * 0.016
-  addCharacterBox(target, boxInstances, cigaretteEmberA, cigaretteEmberB, 0.022, 0.022, cigaretteEmber, 1.6,
+  addCharacterBox(target, boxInstances, cigaretteB, cigaretteEmberB, 0.022, 0.022, cigaretteEmber, 1.6,
     player.turn, localReflection, light, 0, turn.sin, turn.cos, { side: cigaretteSide })
-}
-
-function handSideSign(hand: Vec3, torso: Vec3, sideX: number, sideZ: number) {
-  return (hand[0] - torso[0]) * sideX + (hand[2] - torso[2]) * sideZ >= 0 ? 1 : -1
 }
 
 function bodySampleTime(time: number, distanceSq: number) {
