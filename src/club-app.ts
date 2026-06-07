@@ -3445,8 +3445,8 @@ function emitPlayerParticles(
     // Heights measured from the actual rig: mouth just below the head joint,
     // hand hanging around mid-body. The wisp tracks the cigarette from the hand
     // up to the mouth as it is raised for a drag.
-    const mouthHeight = characterRenderSystem.headHeight - 0.1
-    const handHeight = characterRenderSystem.headHeight * 0.5
+    const mouthHeight = characterRenderSystem.headHeight
+    const handHeight = characterRenderSystem.headHeight * 0.55
 
     smokeForward[0] = forwardX
     smokeForward[1] = 0
