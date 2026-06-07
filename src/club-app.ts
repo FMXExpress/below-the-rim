@@ -1715,8 +1715,6 @@ const graffitiPaintChunk = 1400
 const graffitiAppendQueue: GraffitiSplat[] = []
 let graffitiAppendIndex = 0
 let graffitiPaintFrame = 0
-let graffitiPaintRebuild = false
-let graffitiPaintRebuildIndex = 0
 
 function connectMultiplayer(spaceSlug?: string) {
   if (hasMultiplayer) {
@@ -1852,10 +1850,9 @@ function connectMultiplayer(spaceSlug?: string) {
         }
       }
 
-      if (enforceGraffitiCap()) {
-        repaintGraffitiTexture()
-      }
-      else if (appended.length > 0) {
+      trimGraffitiSplats()
+
+      if (appended.length > 0) {
         scheduleGraffitiTexturePaint(appended)
       }
     },
@@ -2562,12 +2559,8 @@ function sprayAt(clientX: number, clientY: number) {
 
   graffitiSplats.push(splat)
   addGraffitiId(splat)
-  if (enforceGraffitiCap()) {
-    repaintGraffitiTexture()
-  }
-  else {
-    scheduleGraffitiTexturePaint([splat])
-  }
+  trimGraffitiSplats()
+  scheduleGraffitiTexturePaint([splat])
   multiplayer.sendGraffiti([splat])
 
   return true
@@ -2585,9 +2578,9 @@ function deleteGraffitiId(splat: GraffitiSplat) {
   }
 }
 
-function enforceGraffitiCap() {
+function trimGraffitiSplats() {
   if (graffitiSplats.length <= maxGraffitiSplats) {
-    return false
+    return
   }
 
   const removed = graffitiSplats.splice(0, graffitiSplats.length - maxGraffitiSplats)
@@ -2595,8 +2588,6 @@ function enforceGraffitiCap() {
   for (const splat of removed) {
     deleteGraffitiId(splat)
   }
-
-  return true
 }
 
 function graffitiKey(splat: GraffitiSplat) {
@@ -3298,19 +3289,8 @@ function updateBeachBallBuffer() {
   gl.bufferData(gl.ARRAY_BUFFER, beachBallPoints, gl.DYNAMIC_DRAW)
 }
 
-function repaintGraffitiTexture() {
-  graffitiPaintRebuild = true
-  graffitiPaintRebuildIndex = 0
-  graffitiAppendQueue.length = 0
-  graffitiAppendIndex = 0
-  scheduleGraffitiTextureFrame()
-}
-
 function scheduleGraffitiTexturePaint(splats: GraffitiSplat[]) {
-  if (!graffitiPaintRebuild) {
-    graffitiAppendQueue.push(...splats)
-  }
-
+  graffitiAppendQueue.push(...splats)
   scheduleGraffitiTextureFrame()
 }
 
@@ -3323,33 +3303,6 @@ function scheduleGraffitiTextureFrame() {
 function paintGraffitiTextureFrame() {
   graffitiPaintFrame = 0
 
-  if (graffitiPaintRebuild) {
-    paintGraffitiTextureRebuildFrame()
-    return
-  }
-
-  paintGraffitiTextureAppendFrame()
-}
-
-function paintGraffitiTextureRebuildFrame() {
-  if (graffitiPaintRebuildIndex === 0) {
-    graffitiContext.clearRect(0, 0, graffitiCanvas.width, graffitiCanvas.height)
-    paintLoftPaintingTextures(graffitiContext)
-  }
-
-  const end = Math.min(graffitiPaintRebuildIndex + graffitiPaintChunk, graffitiSplats.length)
-
-  paintGraffitiSplats(graffitiContext, graffitiSplats.slice(graffitiPaintRebuildIndex, end))
-  graffitiPaintRebuildIndex = end
-  uploadGraffitiTexture()
-
-  if (graffitiPaintRebuildIndex < graffitiSplats.length) {
-    scheduleGraffitiTextureFrame()
-    return
-  }
-
-  graffitiPaintRebuild = false
-  graffitiPaintRebuildIndex = 0
   paintGraffitiTextureAppendFrame()
 }
 
