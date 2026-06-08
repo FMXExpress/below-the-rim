@@ -403,11 +403,11 @@ export function createMultiplayer(options: {
       room = nextRoom
       send(encodeRoomChange(nextRoom))
     },
-    sendMessage(text: string) {
+    sendMessage(text: string, photoTimestamp = 0) {
       const next = truncateMessage(text)
 
-      if (next) {
-        const packet: ClientMessagePacket = { text: next }
+      if (next || photoTimestamp) {
+        const packet: ClientMessagePacket = { photoTimestamp, text: next }
 
         queue(encodeClientMessage(packet))
 

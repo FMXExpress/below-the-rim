@@ -9,7 +9,7 @@ type Camera = {
   eye: Vec3
 }
 
-type Photo = {
+export type Photo = {
   createdAt: number
   thumbnailUrl: string
   timestamp: number
@@ -174,6 +174,9 @@ export function createPhotoWallUi(element: HTMLElement, options: {
       }
 
       return page.photos.slice(0, 9).map(photo => photo.thumbnailUrl)
+    },
+    open(photo: Photo, sourceImage?: HTMLImageElement) {
+      return openViewer(photo, page.photos.findIndex(item => item.timestamp === photo.timestamp), sourceImage)
     },
     syncAdmin() {
       render()

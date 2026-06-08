@@ -21,6 +21,7 @@ type Camera = {
 type RoomUniforms = {
   bloomPass: WebGLUniformLocation
   cameraEye: WebGLUniformLocation
+  characterPass: WebGLUniformLocation
   doorCoverVisible: WebGLUniformLocation
   graffitiMap: WebGLUniformLocation
   objectTextureMap: WebGLUniformLocation
@@ -168,6 +169,7 @@ export function renderClubFrame(options: {
   gl.uniform3f(options.roomUniforms.cameraEye, options.camera.eye[0], options.camera.eye[1], options.camera.eye[2])
   gl.uniform1i(options.roomUniforms.renderZone, options.renderZone)
   gl.uniform1i(options.roomUniforms.bloomPass, 0)
+  gl.uniform1i(options.roomUniforms.characterPass, 0)
   gl.uniform1i(options.roomUniforms.doorCoverVisible, options.doorCoverVisible ? 1 : 0)
   gl.uniform1f(options.roomUniforms.outsideNight, outsideNight)
   bindRoomTextures(options)
@@ -244,6 +246,7 @@ export function renderClubFrame(options: {
   gl.uniform3f(options.roomUniforms.cameraEye, options.camera.eye[0], options.camera.eye[1], options.camera.eye[2])
   gl.uniform1i(options.roomUniforms.renderZone, options.renderZone)
   gl.uniform1i(options.roomUniforms.bloomPass, 0)
+  gl.uniform1i(options.roomUniforms.characterPass, 0)
   gl.uniform1i(options.roomUniforms.doorCoverVisible, options.doorCoverVisible ? 1 : 0)
   gl.uniform1f(options.roomUniforms.outsideNight, outsideNight)
   bindRoomTextures(options)
@@ -265,6 +268,7 @@ export function renderClubFrame(options: {
   gl.depthMask(false)
   gl.useProgram(options.program)
   gl.uniform1i(options.roomUniforms.bloomPass, 1)
+  gl.uniform1i(options.roomUniforms.characterPass, 0)
   gl.bindVertexArray(options.arrays.room)
   gl.drawArrays(gl.TRIANGLES, 0, options.points.length / options.vertexSize)
   gl.depthFunc(gl.LEQUAL)
@@ -286,6 +290,7 @@ export function renderClubFrame(options: {
   gl.depthFunc(gl.LESS)
   gl.useProgram(options.program)
   gl.uniform1i(options.roomUniforms.bloomPass, 0)
+  gl.uniform1i(options.roomUniforms.characterPass, 0)
   gl.enable(gl.BLEND)
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
   drawLights(options, options.bloomTarget.width, options.bloomTarget.height, frame)
@@ -359,8 +364,10 @@ function drawCharacterVertexGeometry(options: Parameters<typeof renderClubFrame>
     return
   }
 
+  options.gl.uniform1i(options.roomUniforms.characterPass, 1)
   options.gl.bindVertexArray(options.arrays.character)
   options.gl.drawArrays(options.gl.TRIANGLES, 0, options.character.count)
+  options.gl.uniform1i(options.roomUniforms.characterPass, 0)
 }
 
 function drawBeachBalls(options: Parameters<typeof renderClubFrame>[0]) {
@@ -409,10 +416,7 @@ function drawGraffiti(options: Parameters<typeof renderClubFrame>[0]) {
 }
 
 function drawCharacters(options: Parameters<typeof renderClubFrame>[0], width: number, height: number, hair: boolean) {
-  if (options.character.count > 0) {
-    options.gl.bindVertexArray(options.arrays.character)
-    options.gl.drawArrays(options.gl.TRIANGLES, 0, options.character.count)
-  }
+  drawCharacterVertexGeometry(options)
 
   drawCharacterBoxes({
     array: options.arrays.characterBox,

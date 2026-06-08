@@ -31,7 +31,7 @@ export const messageMaxLength = 120
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 42
+export const protocolVersion = 43
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -62,6 +62,7 @@ export type RoomStatePacket = {
 }
 
 export type ClientMessagePacket = {
+  photoTimestamp: number
   text: string
 }
 
@@ -75,6 +76,7 @@ export type ProfilePacket = ClientProfilePacket & {
 }
 
 export type MessagePacket = ProfilePacket & {
+  photoTimestamp: number
   text: string
 }
 
@@ -651,24 +653,26 @@ export function decodeRoomState(view: DataView): RoomStatePacket {
 
 export function encodeClientMessage(packet: ClientMessagePacket) {
   const textBytes = textEncoder.encode(packet.text)
-  const data = new ArrayBuffer(3 + textBytes.length)
+  const data = new ArrayBuffer(11 + textBytes.length)
   const view = new DataView(data)
 
   view.setUint8(0, MESSAGE)
   view.setUint16(1, textBytes.length)
-  new Uint8Array(data, 3).set(textBytes)
+  view.setFloat64(3, packet.photoTimestamp)
+  new Uint8Array(data, 11).set(textBytes)
 
   return data
 }
 
 export function decodeClientMessage(view: DataView): ClientMessagePacket {
-  expectAtLeastSize(view, 3)
+  expectAtLeastSize(view, 11)
 
   const textLength = view.getUint16(1)
-  expectTextSize(view, 3, textLength)
+  expectTextSize(view, 11, textLength)
 
   return {
-    text: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 3, textLength)),
+    photoTimestamp: view.getFloat64(3),
+    text: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 11, textLength)),
   }
 }
 
@@ -676,7 +680,7 @@ export function encodeServerMessage(packet: MessagePacket) {
   const nickBytes = textEncoder.encode(packet.nick)
   const instaBytes = textEncoder.encode(packet.insta)
   const textBytes = textEncoder.encode(packet.text)
-  const data = new ArrayBuffer(9 + nickBytes.length + instaBytes.length + textBytes.length)
+  const data = new ArrayBuffer(17 + nickBytes.length + instaBytes.length + textBytes.length)
   const view = new DataView(data)
 
   view.setUint8(0, MESSAGE)
@@ -684,26 +688,29 @@ export function encodeServerMessage(packet: MessagePacket) {
   view.setUint16(3, nickBytes.length)
   view.setUint16(5, instaBytes.length)
   view.setUint16(7, textBytes.length)
-  new Uint8Array(data, 9).set(nickBytes)
-  new Uint8Array(data, 9 + nickBytes.length).set(instaBytes)
-  new Uint8Array(data, 9 + nickBytes.length + instaBytes.length).set(textBytes)
+  view.setFloat64(9, packet.photoTimestamp)
+  new Uint8Array(data, 17).set(nickBytes)
+  new Uint8Array(data, 17 + nickBytes.length).set(instaBytes)
+  new Uint8Array(data, 17 + nickBytes.length + instaBytes.length).set(textBytes)
 
   return data
 }
 
 export function decodeServerMessage(view: DataView): MessagePacket {
-  expectAtLeastSize(view, 9)
+  expectAtLeastSize(view, 17)
 
   const nickLength = view.getUint16(3)
   const instaLength = view.getUint16(5)
   const textLength = view.getUint16(7)
-  expectSize(view, 9 + nickLength + instaLength + textLength)
+  expectSize(view, 17 + nickLength + instaLength + textLength)
 
   return {
     id: view.getUint16(1),
-    insta: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 9 + nickLength, instaLength)),
-    nick: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 9, nickLength)),
-    text: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 9 + nickLength + instaLength, textLength)),
+    insta: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 17 + nickLength, instaLength)),
+    nick: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 17, nickLength)),
+    photoTimestamp: view.getFloat64(9),
+    text: textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + 17 + nickLength + instaLength,
+      textLength)),
   }
 }
 

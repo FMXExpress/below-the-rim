@@ -189,6 +189,7 @@ uniform float outsideNight;
 uniform vec3 cameraEye;
 uniform int renderZone;
 uniform int bloomPass;
+uniform int characterPass;
 uniform int doorCoverVisible;
 uniform sampler2D treeShadowMap;
 uniform sampler2D graffitiMap;
@@ -272,6 +273,12 @@ float outsideSurfaceMask() {
 }
 
 vec3 outsideModeColor(vec3 color) {
+  if (characterPass == 1) {
+    vec3 nightColor = color * vec3(0.86, 0.88, 0.98) + vec3(0.045, 0.05, 0.08);
+
+    return mix(color, nightColor, outsideSurfaceMask() * outsideNight);
+  }
+
   vec3 nightColor = color * vec3(0.32, 0.44, 0.68) + vec3(0.0, 0.014, 0.13);
 
   return mix(color, nightColor, outsideSurfaceMask() * outsideNight);

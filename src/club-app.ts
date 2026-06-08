@@ -130,6 +130,7 @@ import { createIntroEffect } from './intro-effect.ts'
 import { createLocalCharacter } from './local-character.ts'
 import { createPhotoWallRenderer } from './photo-wall-renderer.ts'
 import { createPhotoWallUi } from './photo-wall-ui.ts'
+import type { Photo } from './photo-wall-ui.ts'
 import type { MessagePacket, VideoEndedEntry } from './protocol.ts'
 import { createSceneLighting } from './scene-lighting.ts'
 import { createStrobeDrawController } from './strobe-draw.ts'
@@ -562,7 +563,7 @@ function addChatLogMessage(packet: MessagePacket) {
   const emoji = emojiReactionFromMessage(packet.text)
   const last = chatLog.lastElementChild
 
-  if (emoji && last instanceof HTMLElement) {
+  if (emoji && !packet.photoTimestamp && last instanceof HTMLElement) {
     const entries = chatLogRows.get(last)
     const entry = { ...packet, color, emoji }
 
@@ -667,6 +668,41 @@ function renderChatLogText(target: HTMLElement, entry: ChatLogEntry) {
   }
 
   target.append(document.createTextNode(text.slice(index)))
+  if (entry.photoTimestamp) {
+    target.append(document.createTextNode(' '))
+    renderChatPhoto(target, chatPhoto(entry))
+  }
+}
+
+function renderChatPhoto(target: HTMLElement, photo: Photo) {
+  const button = document.createElement('button')
+  const image = document.createElement('img')
+
+  button.type = 'button'
+  button.className = 'chat-photo-button'
+  button.setAttribute('aria-label', 'open photo')
+  image.src = photo.thumbnailUrl
+  image.alt = 'photo'
+  image.loading = 'lazy'
+  image.decoding = 'async'
+  image.onerror = () => console.error(new Error(`Chat photo thumbnail failed ${photo.thumbnailUrl}`))
+  button.append(image)
+  button.addEventListener('click', event => {
+    event.preventDefault()
+    void photoWallUi.open(photo, image)
+  })
+  target.append(button)
+}
+
+function chatPhoto(message: Pick<MessagePacket, 'photoTimestamp'>): Photo {
+  const timestamp = message.photoTimestamp
+
+  return {
+    createdAt: timestamp,
+    thumbnailUrl: `/api/photos/${timestamp}.thumb.webp`,
+    timestamp,
+    url: `/api/photos/${timestamp}.webp`,
+  }
 }
 
 function renderChatNickname(target: HTMLElement, label: string, instagram: string) {
@@ -1059,8 +1095,8 @@ function chatMessageColor(message: MessagePacket) {
   return identityColor(name)
 }
 
-function chatMessageKey(message: Pick<MessagePacket, 'id' | 'text'>) {
-  return `${message.id}\n${message.text}`
+function chatMessageKey(message: Pick<MessagePacket, 'id' | 'photoTimestamp' | 'text'>) {
+  return `${message.id}\n${message.photoTimestamp}\n${message.text}`
 }
 
 function mentionsNickname(text: string) {
@@ -1631,6 +1667,7 @@ const viewProjection = gl.getUniformLocation(program, 'viewProjection')
 const cameraEye = gl.getUniformLocation(program, 'cameraEye')
 const renderZone = gl.getUniformLocation(program, 'renderZone')
 const bloomPass = gl.getUniformLocation(program, 'bloomPass')
+const characterPass = gl.getUniformLocation(program, 'characterPass')
 const doorCoverVisible = gl.getUniformLocation(program, 'doorCoverVisible')
 const treeShadowSampler = gl.getUniformLocation(program, 'treeShadowMap')
 const graffitiMap = gl.getUniformLocation(program, 'graffitiMap')
@@ -1712,7 +1749,7 @@ const characterBoxGeometry = createCharacterBoxGeometry()
 const characterBoxInstanceSize = 17
 const characterBoxInstanceStride = characterBoxInstanceSize * Float32Array.BYTES_PER_ELEMENT
 
-if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisible || !treeShadowSampler
+if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !characterPass || !doorCoverVisible || !treeShadowSampler
   || !graffitiMap || !objectTextureMap || !outsideNight || !graffitiTexture
   || !characterBoxViewProjection
   || !characterBoxRenderZone || !characterBoxBloomPass || !lightTime || !lightSmokeMap || !lightRenderZone
@@ -2057,7 +2094,7 @@ function connectMultiplayer(spaceSlug?: string) {
       }
 
       const color = addChatLogMessage(message)
-      if (position) {
+      if (position && message.text) {
         chatUi.show(message.id, message.text, position, performance.now(), color,
           nicknameLabel(identityName(message.id, message.nick)))
       }
@@ -2923,8 +2960,8 @@ function graffitiKey(splat: GraffitiSplat) {
   return `${splat.wall}:${splat.x}:${splat.y}:${splat.seed}:${splat.colorIndex}:${splat.radius}`
 }
 
-function sendChatMessage(message: string) {
-  const packet = multiplayer.sendMessage(message)
+function sendChatMessage(message: string, photoTimestamp = 0) {
+  const packet = multiplayer.sendMessage(message, photoTimestamp)
 
   if (packet) {
     const entry = { id: multiplayer.selfId, insta: instagram, nick: nickname, ...packet }
@@ -2933,8 +2970,10 @@ function sendChatMessage(message: string) {
     predictedMessages.set(key, (predictedMessages.get(key) ?? 0) + 1)
     const color = addChatLogMessage(entry)
 
-    chatUi.show(multiplayer.selfId, entry.text, characterPosition, performance.now(), color,
-      nicknameLabel(identityName(entry.id, entry.nick)))
+    if (entry.text) {
+      chatUi.show(multiplayer.selfId, entry.text, characterPosition, performance.now(), color,
+        nicknameLabel(identityName(entry.id, entry.nick)))
+    }
   }
 }
 
@@ -3129,9 +3168,10 @@ async function savePhotoPreview() {
 
   photoPreviewSave.disabled = true
   try {
-    await uploadPhoto(pendingPhoto.blob)
+    const photo = await uploadPhoto(pendingPhoto.blob)
     await photoWallUi.refreshLatest()
     dismissPhotoPreview()
+    sendChatMessage('', photo.timestamp)
   }
   catch (e) {
     console.error(e)
@@ -3428,6 +3468,7 @@ function renderCurrentSceneFrame(options: {
     roomUniforms: {
       bloomPass: bloomPass!,
       cameraEye: cameraEye!,
+      characterPass: characterPass!,
       doorCoverVisible: doorCoverVisible!,
       graffitiMap: graffitiMap!,
       objectTextureMap: objectTextureMap!,

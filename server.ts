@@ -384,6 +384,7 @@ const server = Bun.serve<SocketData>({
         if (type === MESSAGE) {
           const packet = decodeClientMessage(view)
           const text = truncateMessage(packet.text)
+          const photoTimestamp = validateChatPhotoTimestamp(packet.photoTimestamp)
           const normalizedText = normalizeChatText(text)
           const emoji = emojiText(text)
           const slur = slurMatch(text)
@@ -392,9 +393,9 @@ const server = Bun.serve<SocketData>({
           if (!client.nickname) {
             throw new Error(`Invalid message without nickname ${client.id}`)
           }
-          if ((normalizedText || emoji) && !binaryText(text) && !slur) {
+          if ((normalizedText || emoji || photoTimestamp) && !binaryText(text) && !slur) {
             console.log(`[chat] ${client.id} ${client.ip}: ${text}`)
-            const message = { id: client.id, insta: client.instagram, nick: client.nickname, text }
+            const message = { id: client.id, insta: client.instagram, nick: client.nickname, photoTimestamp, text }
 
             addChatHistory(client, message)
             broadcastSpace(clientSpace(client), encodeServerMessage(message))
@@ -1710,6 +1711,18 @@ function validateInstagram(text: string) {
   }
 
   return instagram
+}
+
+function validateChatPhotoTimestamp(timestamp: number) {
+  if (timestamp === 0) {
+    return 0
+  }
+
+  if (!Number.isSafeInteger(timestamp) || !photoExists(timestamp)) {
+    throw new Error(`Invalid chat photo ${timestamp}`)
+  }
+
+  return timestamp
 }
 
 function sendBeachBalls(client: Client) {
