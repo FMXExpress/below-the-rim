@@ -53,6 +53,9 @@ const npcConfig = {
     treeRadius: [2.6, 9.5] as const,
     treeSpots: 12,
   },
+  seat: {
+    linger: [90, 240] as const,
+  },
   decision: {
     interval: [1.2, 3.4] as const,
     repickChance: 0.05,
@@ -136,7 +139,7 @@ function sitInitialPlayer(player: Player, seat: ReturnType<typeof seats>[number]
   player.turn = seat.turn
   player.motionBlend = 0
   player.mode = player.resolvedStyle.bottomMode === 'pants' ? 'manSitting' : 'womanSitting'
-  player.sittingUntil = seededRange(player.seed, 31, 18, 55)
+  player.sittingUntil = seededRange(player.seed, 31, npcConfig.seat.linger[0], npcConfig.seat.linger[1])
   player.nextDecision = player.sittingUntil
 }
 
@@ -657,7 +660,7 @@ function sitPlayer(
   player.motionBlend = 0
   player.mode = player.resolvedStyle.bottomMode === 'pants' ? 'manSitting' : 'womanSitting'
   player.sittingUntil = time
-    + seededRange(player.seed, Math.floor(time * 2.3), npcConfig.destination.linger[0], npcConfig.destination.linger[1])
+    + seededRange(player.seed, Math.floor(time * 2.3), npcConfig.seat.linger[0], npcConfig.seat.linger[1])
   player.nextDecision = player.sittingUntil
   player.lingeringUntil = undefined
   player.pauseUntil = undefined
