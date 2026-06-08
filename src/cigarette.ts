@@ -1,5 +1,5 @@
-import { handSideSign } from './character-accessory.ts'
 import type { TurnBasis } from './character-accessory.ts'
+import { handSideSign } from './character-accessory.ts'
 import type { Vec3 } from './types.ts'
 
 export type CigaretteGeometry = {
@@ -18,12 +18,12 @@ const liftEnd = 1.7
 const holdEnd = 2.9
 const lowerEnd = 3.6
 const exhaleEnd = 4.8
-const gripReach = 0.08
-const gripSideOffset = 0
-const gripForwardOffset = 0.025
-const gripHeightOffset = 0.015
-const mouthForwardOffset = 0.05
-const mouthHeightOffset = -0.035
+const gripReach = 0.025
+const gripSideOffset = 0.075
+const gripForwardOffset = 0.01
+const gripHeightOffset = 0.006
+const mouthForwardOffset = 0.1
+const mouthHeightOffset = 0.025
 const cigaretteSide = 0.32
 const cigaretteRestRise = -0.18
 const cigaretteInhaleRise = 0.24
@@ -106,16 +106,16 @@ export function raiseCigaretteArm(hand: Vec3, foreArm: Vec3, head: Vec3, turn: T
   }
 
   setCigaretteMouth(mouthPoint, head, turn)
-  const deltaX = (mouthPoint[0] - hand[0]) * lift
+  const deltaX = (mouthPoint[0] - hand[0]) * lift + .05
   const deltaY = (mouthPoint[1] - hand[1]) * lift
-  const deltaZ = (mouthPoint[2] - hand[2]) * lift
+  const deltaZ = (mouthPoint[2] - hand[2]) * lift - .05
 
   hand[0] += deltaX
-  hand[1] += deltaY
+  hand[1] += deltaY * 0.8
   hand[2] += deltaZ
   foreArm[0] += deltaX * 0.55
-  foreArm[1] += deltaY * 0.55
-  foreArm[2] += deltaZ * 0.55
+  foreArm[1] += deltaY * 0.25
+  foreArm[2] += deltaZ * 0.25
 }
 
 export function setCigaretteGeometry(
@@ -135,7 +135,7 @@ export function setCigaretteGeometry(
   const forwardX = turn.sin
   const forwardZ = turn.cos
   const baseX = hand[0] + dx * gripReach + sideX * handSide * gripSideOffset + forwardX * gripForwardOffset
-  const baseY = hand[1] + dy * gripReach + gripHeightOffset
+  const baseY = hand[1] + dy * gripReach + gripHeightOffset + (0.05 * cigaretteLift(time))
   const baseZ = hand[2] + dz * gripReach + sideZ * handSide * gripSideOffset + forwardZ * gripForwardOffset
   let dirX = forwardX + sideX * handSide * cigaretteSide
   let dirY = cigaretteRestRise + (cigaretteInhaleRise - cigaretteRestRise) * cigaretteLift(time)
