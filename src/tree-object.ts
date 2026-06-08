@@ -7,6 +7,7 @@ type MeshInstance = { index: number; transform: Mat4 }
 type SourceUp = 'y' | 'z'
 type TreeShadowCaster = { meshes: TreeMesh[]; position: Vec3 }
 type TreeMeshColor = (index: number) => Vec3
+const defaultTreeShadowLight = normalize([-0.55, -1, -0.7])
 
 export function createTreeMeshes(
   scene: AssimpScene,
@@ -271,14 +272,19 @@ export function uploadTreeShadowMap(
   characterFloor: number,
   landscapeBounds: EdgeBounds,
   roomFront: number,
+  light = defaultTreeShadowLight,
 ) {
   const size = 512
   const canvas = document.createElement('canvas')
   const blurCanvas = document.createElement('canvas')
   const context = canvas.getContext('2d')!
   const blurContext = blurCanvas.getContext('2d')!
-  const light = normalize([-0.55, -1, -0.7])
+  const shadowLight = normalize(light)
   const ground = characterFloor + 0.02
+
+  if (shadowLight[1] >= -0.01) {
+    throw new Error('Tree shadow light must point toward the ground')
+  }
 
   canvas.width = size
   canvas.height = size
@@ -290,9 +296,9 @@ export function uploadTreeShadowMap(
     for (const mesh of caster.meshes) {
       for (const face of mesh.faces) {
         const polygon = clipGroundPolygonFront([
-          projectTreeShadow(add(caster.position, mesh.points[face[0]!]!), light, ground),
-          projectTreeShadow(add(caster.position, mesh.points[face[1]!]!), light, ground),
-          projectTreeShadow(add(caster.position, mesh.points[face[2]!]!), light, ground),
+          projectTreeShadow(add(caster.position, mesh.points[face[0]!]!), shadowLight, ground),
+          projectTreeShadow(add(caster.position, mesh.points[face[1]!]!), shadowLight, ground),
+          projectTreeShadow(add(caster.position, mesh.points[face[2]!]!), shadowLight, ground),
         ], roomFront + 0.06)
 
         if (polygon.length >= 3) {

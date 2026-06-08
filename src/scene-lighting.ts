@@ -1,5 +1,4 @@
 import { characterFloor } from './character-data.ts'
-import { electricNavy, outsideMotif } from './constants.ts'
 import { clamp, smoothstep } from './math.ts'
 import { outsideBounds } from './scene-data.ts'
 import type { CharacterLight, CircleBounds, Vec3, Vertex } from './types.ts'
@@ -7,6 +6,9 @@ import type { CharacterLight, CircleBounds, Vec3, Vertex } from './types.ts'
 export type SceneLightBounds = CircleBounds & {
   nightUplight?: number
 }
+
+const nightUplightStrobe = -2
+const nightUplightStrength = 0.36
 
 export function createSceneLighting(options: {
   getTree: () => CircleBounds
@@ -48,42 +50,21 @@ export function createSceneLighting(options: {
     }
     const diffuse = Math.abs((nx * sunX + ny * sunY + nz * sunZ) / sunLength)
     const lift = clamp((ny + 1) * 0.5, 0, 1)
-    const night = outsideMotif === 'night'
-    let uplight = 0
-
-    for (let i = 0; i < 3; i++) {
-      const lightX = i === 0 ? tree.x - tree.radius * 2.5 : i === 1 ? tree.x + tree.radius * 2.5 : tree.x
-      const lightY = characterFloor - 0.35
-      const lightZ = i < 2 ? tree.z + tree.radius * 0.85 : tree.z - tree.radius * 2.5
-      const toLightX = lightX - centerX
-      const toLightY = lightY - centerY
-      const toLightZ = lightZ - centerZ
-      const distance = Math.sqrt(toLightX * toLightX + toLightY * toLightY + toLightZ * toLightZ)
-      if (distance === 0) {
-        throw new Error('Cannot normalize zero vector')
-      }
-      const vertical = clamp(-toLightY / distance, 0, 1)
-      const facing = clamp((nx * toLightX + ny * toLightY + nz * toLightZ) / distance, 0, 1)
-      const cone = smoothstep(0.58, 0.96, vertical)
-
-      uplight += facing * cone * clamp(1 - distance / 10.5, 0, 1)
-    }
-
     const light = 0.34 + diffuse * 0.86 + lift * 0.18
+    const uplight = nightUplight(centerX, centerY, centerZ, nx, ny, nz, tree)
+    const glow = uplight > 0.02 ? uplight : 0
+    const strobe = glow > 0 ? nightUplightStrobe : 0
     const warmth: Vec3 = [1.1, 1.03, 0.86]
-    const baseLight = night ? light * 0.22 + lift * 0.04 : light
-    const blueLight = night ? uplight * (tree.nightUplight ?? 3.4) : 0
     const shade: Vec3 = [
-      clamp(color[0] * baseLight * warmth[0] + blueLight * electricNavy[0], 0, 1),
-      clamp(color[1] * baseLight * warmth[1] + blueLight * electricNavy[1], 0, 1),
-      clamp(color[2] * baseLight * warmth[2] + blueLight * electricNavy[2], 0, 1),
+      clamp(color[0] * light * warmth[0], 0, 1),
+      clamp(color[1] * light * warmth[1], 0, 1),
+      clamp(color[2] * light * warmth[2], 0, 1),
     ]
-    const glow = night && color[1] > 0.6 && color[0] < 0.1 ? 0.15 : 0
 
     target.push(
-      [a[0], a[1], a[2], shade[0], shade[1], shade[2], glow, 0, 0, 0, 0],
-      [b[0], b[1], b[2], shade[0], shade[1], shade[2], glow, 0, 0, 0, 0],
-      [c[0], c[1], c[2], shade[0], shade[1], shade[2], glow, 0, 0, 0, 0],
+      [a[0], a[1], a[2], shade[0], shade[1], shade[2], glow, strobe, 0, 0, 0],
+      [b[0], b[1], b[2], shade[0], shade[1], shade[2], glow, strobe, 0, 0, 0],
+      [c[0], c[1], c[2], shade[0], shade[1], shade[2], glow, strobe, 0, 0, 0],
     )
   }
 
@@ -99,6 +80,32 @@ export function createSceneLighting(options: {
   }
 
   return { addLocalReflection, addSunLitTriangle }
+}
+
+function nightUplight(centerX: number, centerY: number, centerZ: number, nx: number, ny: number, nz: number,
+  tree: SceneLightBounds)
+{
+  let amount = 0
+
+  for (let i = 0; i < 3; i++) {
+    const lightX = i === 0 ? tree.x - tree.radius * 2.5 : i === 1 ? tree.x + tree.radius * 2.5 : tree.x
+    const lightY = characterFloor - 0.35
+    const lightZ = i < 2 ? tree.z + tree.radius * 0.85 : tree.z - tree.radius * 2.5
+    const toLightX = lightX - centerX
+    const toLightY = lightY - centerY
+    const toLightZ = lightZ - centerZ
+    const distance = Math.sqrt(toLightX * toLightX + toLightY * toLightY + toLightZ * toLightZ)
+    if (distance === 0) {
+      throw new Error('Cannot normalize zero vector')
+    }
+    const vertical = clamp(-toLightY / distance, 0, 1)
+    const facing = clamp((nx * toLightX + ny * toLightY + nz * toLightZ) / distance, 0, 1)
+    const cone = smoothstep(0.58, 0.96, vertical)
+
+    amount += facing * cone * clamp(1 - distance / 10.5, 0, 1)
+  }
+
+  return amount * (tree.nightUplight ?? 3.4) * nightUplightStrength
 }
 
 function orangeReflection(point: Vec3, normal: Vec3) {

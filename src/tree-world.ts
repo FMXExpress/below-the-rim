@@ -1,8 +1,7 @@
 import { loadAssimpScene } from './assimp-loader.ts'
 import { characterFloor } from './character-data.ts'
 import { triangleAreaSquared } from './character-geometry.ts'
-import { outsideMotif } from './constants.ts'
-import { add } from './math.ts'
+import { add, clamp, normalize } from './math.ts'
 import { landscapeBounds, roomBounds } from './scene-data.ts'
 import { addTreeShadowReceiver, createTreeMeshes, treeCollision, treeMeshColor,
   uploadTreeShadowMap } from './tree-object.ts'
@@ -22,7 +21,10 @@ const treeShadowCasters: Array<{
   meshes: TreeMesh[]
   position: Vec3
 }> = []
+const treeShadowAzimuthSteps = 12
+const treeShadowHeightSteps = 5
 let treeShadowReceiverAdded = false
+let treeShadowLightKey = ''
 
 export async function loadOutsideTree(
   gl: WebGL2RenderingContext,
@@ -47,8 +49,9 @@ export async function loadOutsideTree(
   const position: Vec3 = [outsideTree.x, positionY, outsideTree.z]
   const collision = treeCollision(meshes, position)
 
-  if (options.shadow && outsideMotif !== 'night') {
+  if (options.shadow) {
     treeShadowCasters.push({ meshes, position })
+    treeShadowLightKey = ''
     uploadTreeShadowMap(gl, treeShadowMap, treeShadowCasters, characterFloor, landscapeBounds, roomBounds.front)
 
     if (!treeShadowReceiverAdded) {
@@ -70,4 +73,44 @@ export async function loadOutsideTree(
   }
 
   return collision
+}
+
+export function updateOutsideTreeShadowMap(
+  gl: WebGL2RenderingContext,
+  treeShadowMap: WebGLTexture,
+  sunDirection: Vec3,
+) {
+  const shadow = snappedTreeShadowLight(sunDirection)
+
+  if (shadow.key === treeShadowLightKey) {
+    return
+  }
+
+  treeShadowLightKey = shadow.key
+  uploadTreeShadowMap(gl, treeShadowMap, treeShadowCasters, characterFloor, landscapeBounds, roomBounds.front,
+    shadow.light)
+}
+
+function snappedTreeShadowLight(sunDirection: Vec3): { key: string; light: Vec3 } {
+  const rayX = -sunDirection[0]
+  const rayZ = -sunDirection[2]
+  const angle = Math.atan2(rayX, rayZ)
+  const angleStep = Math.PI * 2 / treeShadowAzimuthSteps
+  const angleIndex = (Math.round(angle / angleStep) + treeShadowAzimuthSteps) % treeShadowAzimuthSteps
+  const snappedAngle = angleIndex * angleStep
+  const minHeight = 0.14
+  const maxHeight = 0.92
+  const height = clamp(sunDirection[1], minHeight, maxHeight)
+  const heightIndex = Math.round(((height - minHeight) / (maxHeight - minHeight)) * (treeShadowHeightSteps - 1))
+  const snappedHeight = minHeight + (heightIndex / (treeShadowHeightSteps - 1)) * (maxHeight - minHeight)
+  const horizontal = Math.sqrt(1 - snappedHeight * snappedHeight)
+
+  return {
+    key: `${angleIndex}:${heightIndex}`,
+    light: normalize([
+      Math.sin(snappedAngle) * horizontal,
+      -snappedHeight,
+      Math.cos(snappedAngle) * horizontal,
+    ]),
+  }
 }

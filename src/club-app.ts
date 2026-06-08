@@ -120,7 +120,7 @@ import { createCharacterHairController } from './character-hair-control.ts'
 import { createCharacterRenderSystem } from './character-render-system.ts'
 import { createChatUi } from './chat-ui.ts'
 import { renderClubFrame } from './club-renderer.ts'
-import { outsideMotif } from './constants.ts'
+import { dayCycleAt } from './constants.ts'
 import { createDjVideoUi } from './dj-video-ui.ts'
 import { getDomElements } from './dom-elements.ts'
 import { createDomWallProjection, domWallCorners } from './dom-wall.ts'
@@ -133,7 +133,7 @@ import type { VideoEndedEntry } from './protocol.ts'
 import { createSceneLighting } from './scene-lighting.ts'
 import { createStrobeDrawController } from './strobe-draw.ts'
 import { createStrobeLights } from './strobe-object.ts'
-import { loadOutsideTree } from './tree-world.ts'
+import { loadOutsideTree, updateOutsideTreeShadowMap } from './tree-world.ts'
 import { createVideoPreviewRenderer } from './video-preview-renderer.ts'
 
 const clubGlobal = globalThis as ClubGlobal
@@ -1580,6 +1580,7 @@ const doorCoverVisible = gl.getUniformLocation(program, 'doorCoverVisible')
 const treeShadowSampler = gl.getUniformLocation(program, 'treeShadowMap')
 const graffitiMap = gl.getUniformLocation(program, 'graffitiMap')
 const objectTextureMap = gl.getUniformLocation(program, 'objectTextureMap')
+const outsideNight = gl.getUniformLocation(program, 'outsideNight')
 const characterBoxViewProjection = gl.getUniformLocation(characterBoxProgram, 'viewProjection')
 const characterBoxRenderZone = gl.getUniformLocation(characterBoxProgram, 'renderZone')
 const characterBoxBloomPass = gl.getUniformLocation(characterBoxProgram, 'bloomPass')
@@ -1607,6 +1608,11 @@ const postRenderSky = gl.getUniformLocation(postProgram, 'renderSky')
 const postSkyForward = gl.getUniformLocation(postProgram, 'skyForward')
 const postSkyRight = gl.getUniformLocation(postProgram, 'skyRight')
 const postSkyUp = gl.getUniformLocation(postProgram, 'skyUp')
+const postMoonDirection = gl.getUniformLocation(postProgram, 'moonDirection')
+const postMoonProgress = gl.getUniformLocation(postProgram, 'moonProgress')
+const postSunDirection = gl.getUniformLocation(postProgram, 'sunDirection')
+const postSunProgress = gl.getUniformLocation(postProgram, 'sunProgress')
+const postDaylight = gl.getUniformLocation(postProgram, 'daylight')
 const postTime = gl.getUniformLocation(postProgram, 'time')!
 const postTripKind = gl.getUniformLocation(postProgram, 'tripKind')!
 const array = gl.createVertexArray()
@@ -1652,7 +1658,7 @@ const characterBoxInstanceSize = 17
 const characterBoxInstanceStride = characterBoxInstanceSize * Float32Array.BYTES_PER_ELEMENT
 
 if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisible || !treeShadowSampler
-  || !graffitiMap || !objectTextureMap || !graffitiTexture
+  || !graffitiMap || !objectTextureMap || !outsideNight || !graffitiTexture
   || !characterBoxViewProjection
   || !characterBoxRenderZone || !characterBoxBloomPass || !lightTime || !lightSmokeMap || !lightRenderZone
   || !lightViewProjection
@@ -1660,7 +1666,8 @@ if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !doorCoverVisi
   || !hairRenderZone || !roomSmokeTime || !roomSmokeMap || !roomSmokeViewProjection || !roomSmokeCameraRight
   || !roomSmokeCameraUp || !postScene || !postBloom || !postFeedback || !postBloomResolution || !postFeedbackAmount
   || !postRenderSky
-  || !postSkyForward || !postSkyRight || !postSkyUp || !array
+  || !postSkyForward || !postSkyRight || !postSkyUp || !postMoonDirection || !postMoonProgress || !postSunDirection
+  || !postSunProgress || !postDaylight || !array
   || !buffer || !lightArray || !lightBuffer || !strobeArray || !strobeGeometryBuffer || !strobeInstanceBuffer
   || !smokeArray || !smokeBuffer || !characterArray || !characterBuffer
   || !characterBoxArray || !characterBoxGeometryBuffer || !characterBoxInstanceBuffer || !postArray || !postBuffer
@@ -3268,6 +3275,12 @@ function renderCurrentSceneFrame(options: {
   videoPreview?: VideoPreview
   zone: VideoZone
 }) {
+  const dayCycle = dayCycleAt()
+
+  if (treeLoaded || palmTreeLoaded) {
+    updateOutsideTreeShadowMap(gl, treeShadowMap, dayCycle.sunDirection)
+  }
+
   renderClubFrame({
     arrays: {
       character: characterArray,
@@ -3298,6 +3311,7 @@ function renderCurrentSceneFrame(options: {
     feedback,
     gl,
     height: canvas.height,
+    dayCycle,
     objectTexture: buddhaTexture,
     light: {
       count: lightPoints.length / vertexSize,
@@ -3322,14 +3336,19 @@ function renderCurrentSceneFrame(options: {
     post: {
       bloom: postBloom!,
       bloomResolution: postBloomResolution!,
+      daylight: postDaylight!,
       feedback: postFeedback!,
       feedbackAmount: postFeedbackAmount!,
+      moonDirection: postMoonDirection!,
+      moonProgress: postMoonProgress!,
       program: postProgram,
       renderSky: postRenderSky!,
       scene: postScene!,
       skyForward: postSkyForward!,
       skyRight: postSkyRight!,
       skyUp: postSkyUp!,
+      sunDirection: postSunDirection!,
+      sunProgress: postSunProgress!,
       time: postTime,
       tripKind: postTripKind,
     },
@@ -3340,6 +3359,7 @@ function renderCurrentSceneFrame(options: {
       doorCoverVisible: doorCoverVisible!,
       graffitiMap: graffitiMap!,
       objectTextureMap: objectTextureMap!,
+      outsideNight: outsideNight!,
       renderZone: renderZone!,
       treeShadowSampler: treeShadowSampler!,
       viewProjection: viewProjection!,
@@ -4115,7 +4135,7 @@ function loadMainWorldOnce() {
             console.error(error)
           }),
         loadStaticFbxObject(vertices, {
-          color: outsideMotif === 'afternoon' ? [1, 1, 1] : [2, 2, 2],
+          color: [1, 1, 1],
           height: 2.9,
           lightBounds: { x: outsideBuddha.x, z: 29.3, radius: 0.95, nightUplight: 7.2 },
           path: '/buddha.fbx',

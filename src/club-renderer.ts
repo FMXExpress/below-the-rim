@@ -11,6 +11,7 @@ import {
 } from './room-draw.ts'
 import { createStrobeDrawController } from './strobe-draw.ts'
 import type { CharacterBoxGeometry, HairRenderMesh, Target, Vec3 } from './types.ts'
+import type { DayCycle } from './constants.ts'
 
 type Camera = {
   eye: Vec3
@@ -23,6 +24,7 @@ type RoomUniforms = {
   doorCoverVisible: WebGLUniformLocation
   graffitiMap: WebGLUniformLocation
   objectTextureMap: WebGLUniformLocation
+  outsideNight: WebGLUniformLocation
   renderZone: WebGLUniformLocation
   treeShadowSampler: WebGLUniformLocation
   viewProjection: WebGLUniformLocation
@@ -111,17 +113,23 @@ export function renderClubFrame(options: {
   post: {
     bloom: WebGLUniformLocation
     bloomResolution: WebGLUniformLocation
+    daylight: WebGLUniformLocation
     feedback: WebGLUniformLocation
     feedbackAmount: WebGLUniformLocation
+    moonDirection: WebGLUniformLocation
     program: WebGLProgram
     renderSky: WebGLUniformLocation
     scene: WebGLUniformLocation
     skyForward: WebGLUniformLocation
     skyRight: WebGLUniformLocation
     skyUp: WebGLUniformLocation
+    sunDirection: WebGLUniformLocation
+    moonProgress: WebGLUniformLocation
+    sunProgress: WebGLUniformLocation
     time: WebGLUniformLocation
     tripKind: WebGLUniformLocation
   }
+  dayCycle: DayCycle
   program: WebGLProgram
   roomUniforms: RoomUniforms
   skyline: boolean
@@ -144,6 +152,7 @@ export function renderClubFrame(options: {
 }) {
   const gl = options.gl
   const frame = Math.floor(options.time * 60)
+  const outsideNight = 1 - options.dayCycle.daylight
   updateCameraMatrix(mainCameraMatrix, options.camera.eye, options.camera.center, options.width, options.height)
   updateCameraMatrix(bloomCameraMatrix, options.camera.eye, options.camera.center, options.bloomTarget.width,
     options.bloomTarget.height)
@@ -160,6 +169,7 @@ export function renderClubFrame(options: {
   gl.uniform1i(options.roomUniforms.renderZone, options.renderZone)
   gl.uniform1i(options.roomUniforms.bloomPass, 0)
   gl.uniform1i(options.roomUniforms.doorCoverVisible, options.doorCoverVisible ? 1 : 0)
+  gl.uniform1f(options.roomUniforms.outsideNight, outsideNight)
   bindRoomTextures(options)
   gl.bindVertexArray(options.arrays.room)
   gl.enable(gl.BLEND)
@@ -195,6 +205,7 @@ export function renderClubFrame(options: {
     gl,
     height: options.height,
     objectTexture: options.objectTexture,
+    outsideNight,
     renderZone: options.renderZone,
     program: options.program,
     treeShadowMap: options.treeShadowMap,
@@ -234,6 +245,7 @@ export function renderClubFrame(options: {
   gl.uniform1i(options.roomUniforms.renderZone, options.renderZone)
   gl.uniform1i(options.roomUniforms.bloomPass, 0)
   gl.uniform1i(options.roomUniforms.doorCoverVisible, options.doorCoverVisible ? 1 : 0)
+  gl.uniform1f(options.roomUniforms.outsideNight, outsideNight)
   bindRoomTextures(options)
   gl.colorMask(false, false, false, false)
   gl.bindVertexArray(options.arrays.room)
@@ -299,6 +311,13 @@ export function renderClubFrame(options: {
   gl.uniform1f(options.post.feedbackAmount, options.feedback.amount)
   gl.uniform1f(options.post.time, options.time)
   gl.uniform1i(options.post.tripKind, options.feedback.tripKind)
+  gl.uniform1f(options.post.daylight, options.dayCycle.daylight)
+  gl.uniform1f(options.post.moonProgress, options.dayCycle.moonProgress)
+  gl.uniform1f(options.post.sunProgress, options.dayCycle.progress)
+  gl.uniform3f(options.post.moonDirection, options.dayCycle.moonDirection[0], options.dayCycle.moonDirection[1],
+    options.dayCycle.moonDirection[2])
+  gl.uniform3f(options.post.sunDirection, options.dayCycle.sunDirection[0], options.dayCycle.sunDirection[1],
+    options.dayCycle.sunDirection[2])
   gl.uniform2f(options.post.bloomResolution, options.bloomTarget.width, options.bloomTarget.height)
   gl.uniform1i(options.post.renderSky, options.sky ? 1 : options.skyline ? 2 : 0)
   if (options.sky || options.skyline) {

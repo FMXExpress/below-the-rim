@@ -16,6 +16,10 @@ import type { CircleBounds, Player, PlayerDestination, PlayerStyle, Vec3 } from 
 const npcConfig = {
   initialSeatedCount: 12,
   leaveSeatTime: 1.4,
+  movement: {
+    minimumTravelers: 4,
+    travelerRatio: 0.06,
+  },
   arrive: {
     waypoint: 0.75,
     destination: 1.35,
@@ -31,7 +35,7 @@ const npcConfig = {
       kiosk: 0.92,
       foodTruck: 0.98,
     },
-    linger: [10, 30] as const,
+    linger: [45, 120] as const,
     jitter: [0.35, 0.9] as const,
     danceFloor: {
       sideRange: 3.1,
@@ -62,7 +66,7 @@ const npcConfig = {
     random: [2, 5] as const,
     blocked: [10, 30] as const,
     randomInputChance: 0.22,
-    destinationJitterChance: 0.45,
+    destinationJitterChance: 0.85,
   },
 }
 const doorLaneRange = backDoor.width * 0.5 - 0.18
@@ -83,9 +87,9 @@ export function createPlayers(count: number, outsideTree: CircleBounds, occupied
     const seed = i + 1
     const destination = playerDestination(seed, 0, outsideTree, occupiedSeats)
     const position: Vec3 = [
-      destination.position[0] + seededRange(seed, 10, -1.2, 1.2),
+      destination.position[0] + seededRange(seed, 10, -0.45, 0.45),
       characterFloor,
-      destination.position[2] + seededRange(seed, 11, -1.2, 1.2),
+      destination.position[2] + seededRange(seed, 11, -0.45, 0.45),
     ]
     const style: PlayerStyle = {
       topStyleIndex: Math.floor(seededRange(seed, 14, 0, jewelPalette.length * 2 + 2)),
@@ -104,6 +108,10 @@ export function createPlayers(count: number, outsideTree: CircleBounds, occupied
       input: [0, 0, 0],
       nextDecision: seededRange(seed, 13, 0.3, 2.8),
       destination,
+      destinationUntil: seededRange(seed, 20, 120, 240),
+      lingeringUntil: destination.kind === 'random'
+        ? seededRange(seed, 21, npcConfig.destination.linger[0], npcConfig.destination.linger[1])
+        : undefined,
       style,
       resolvedStyle: resolvePlayerStyle(style),
       seed,
@@ -139,6 +147,11 @@ export function updatePlayers(
   outsideTree: CircleBounds,
   occupiedSeats: Set<string>,
 ) {
+  const movement = {
+    count: players.reduce((count, player) => count + (travelingPlayer(player, time) ? 1 : 0), 0),
+    max: Math.max(npcConfig.movement.minimumTravelers, Math.floor(players.length * npcConfig.movement.travelerRatio)),
+  }
+
   for (const player of players) {
     const flowingDoor = doorFlow(player)
 
@@ -187,10 +200,10 @@ export function updatePlayers(
       player.nextDecision = player.leavingSeatUntil
     }
     else if (player.destination.kind === 'random') {
-      updateRandomPlayer(player, delta, time, outsideTree, occupiedSeats)
+      updateRandomPlayer(player, delta, time, outsideTree, occupiedSeats, movement)
     }
     else {
-      updateDestinationPlayer(player, delta, time, outsideTree, occupiedSeats)
+      updateDestinationPlayer(player, delta, time, outsideTree, occupiedSeats, movement)
     }
 
     const inputLengthSq = lengthSq(player.input)
@@ -305,8 +318,14 @@ function updateRandomPlayer(
   time: number,
   outsideTree: CircleBounds,
   occupiedSeats: Set<string>,
+  movement: { count: number; max: number },
 ) {
   if (time >= player.lingeringUntil!) {
+    if (!useMovementSlot(movement)) {
+      waitForMovementSlot(player, time)
+      return
+    }
+
     choosePlayerDestination(player, time, outsideTree, occupiedSeats)
     return
   }
@@ -323,8 +342,14 @@ function updateDestinationPlayer(
   time: number,
   outsideTree: CircleBounds,
   occupiedSeats: Set<string>,
+  movement: { count: number; max: number },
 ) {
   if (time >= player.destinationUntil!) {
+    if (!travelingPlayer(player, time) && !useMovementSlot(movement)) {
+      waitForMovementSlot(player, time)
+      return
+    }
+
     choosePlayerDestination(player, time, outsideTree, occupiedSeats)
     return
   }
@@ -334,6 +359,11 @@ function updateDestinationPlayer(
       + seededRange(player.seed, Math.floor(time * 3.1), npcConfig.decision.interval[0], npcConfig.decision.interval[1])
 
     if (seededRandom(player.seed, Math.floor(time * 9.7)) < npcConfig.decision.repickChance) {
+      if (!travelingPlayer(player, time) && !useMovementSlot(movement)) {
+        stopPlayerInput(player)
+        return
+      }
+
       choosePlayerDestination(player, time, outsideTree, occupiedSeats)
       return
     }
@@ -379,6 +409,11 @@ function updateDestinationPlayer(
     turnTowardDestination(player, delta)
 
     if (time >= player.lingeringUntil) {
+      if (!useMovementSlot(movement)) {
+        waitForMovementSlot(player, time)
+        return
+      }
+
       choosePlayerDestination(player, time, outsideTree, occupiedSeats)
     }
 
@@ -390,6 +425,46 @@ function updateDestinationPlayer(
   const distance = Math.sqrt(distanceSq)
 
   chooseTravelInput(player, dx / distance, dz / distance, delta, time)
+}
+
+function travelingPlayer(player: Player, time: number) {
+  return !player.seat
+    && (!player.pauseUntil || time >= player.pauseUntil)
+    && player.destination.kind !== 'random'
+    && !destinationReached(player)
+}
+
+function destinationReached(player: Player) {
+  const dx = player.destination.position[0] - player.position[0]
+  const dz = player.destination.position[2] - player.position[2]
+  const arriveRadius = player.destination.kind === 'lounge' || player.destination.kind === 'stool'
+    ? npcConfig.arrive.seat
+    : npcConfig.arrive.destination
+
+  return isOutside(player.position) === player.destination.outside && dx * dx + dz * dz < arriveRadius * arriveRadius
+}
+
+function useMovementSlot(movement: { count: number; max: number }) {
+  if (movement.count >= movement.max) {
+    return false
+  }
+
+  movement.count++
+
+  return true
+}
+
+function waitForMovementSlot(player: Player, time: number) {
+  stopPlayerInput(player)
+  player.nextDecision = time + seededRange(player.seed, Math.floor(time * 4.3), 2, 5)
+  player.destinationUntil = player.nextDecision
+  player.lingeringUntil = player.nextDecision
+}
+
+function stopPlayerInput(player: Player) {
+  player.input[0] = 0
+  player.input[1] = 0
+  player.input[2] = 0
 }
 
 function chooseTravelInput(player: Player, targetX: number, targetZ: number, delta: number, time: number) {
@@ -699,7 +774,7 @@ function choosePlayerDestination(
   player.travelPathTarget = undefined
   player.nextTravelTargetAt = time
   player.doorTarget = undefined
-  player.destinationUntil = time + 30
+  player.destinationUntil = time + 120
 }
 
 function djDestination(seed: number, step: number, inside: boolean) {

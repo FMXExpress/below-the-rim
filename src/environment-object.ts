@@ -1,5 +1,5 @@
 import { characterFloor } from './character-data.ts'
-import { electricNavy, outsideMotif } from './constants.ts'
+import { electricNavy } from './constants.ts'
 import { addBox, addDisc, addGrassQuad, addQuad, addTriangle, pack, packSmoke } from './geometry.ts'
 import { tShirtLogoTextureBounds } from './graffiti.ts'
 import { add, mix, scale, subtract } from './math.ts'
@@ -158,7 +158,6 @@ function addOutside(target: Vertex[]) {
   addOutsideStage(target, floor)
   addDjBoothAt(target, outsideDjBooth, outsideDjSpeakers, -1, electricNavy, 3.2)
   addTent(target, floor)
-  addOutsideSkyLight(target)
 }
 
 function addOutsideToilets(target: Vertex[], floor: number) {
@@ -697,16 +696,6 @@ function addStageBeam(target: Vertex[], a: Vec3, b: Vec3, color: Vec3) {
 
   addQuad(target, add(a, side), subtract(a, side), subtract(b, side), add(b, side), color, 2.4)
   addBox(target, center[0], center[1], center[2], length, 0.035, 0.035, color, 1.2)
-}
-
-function addOutsideSkyLight(target: Vertex[]) {
-  const z = outsideBounds.front - 0.12
-
-  if (outsideMotif === 'night') {
-    return
-  }
-
-  addDisc(target, [10.5, 6.8, z], 1.0, 1.0, 'z', [1, 0.78, 0.22], 1.9)
 }
 
 function addDjBooth(target: Vertex[]) {

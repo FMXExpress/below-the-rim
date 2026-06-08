@@ -1,5 +1,4 @@
 import { characterFloor } from './character-data.ts'
-import { outsideMotif } from './constants.ts'
 import { imageTextureHaze } from './geometry.ts'
 import { tent } from './scene-data.ts'
 
@@ -186,6 +185,7 @@ export const fragment = `#version 300 es
 precision highp float;
 
 uniform float time;
+uniform float outsideNight;
 uniform vec3 cameraEye;
 uniform int renderZone;
 uniform int bloomPass;
@@ -259,6 +259,40 @@ float noise(vec2 point) {
   return mix(mix(a, b, curve.x), mix(c, d, curve.x), curve.y);
 }
 
+float outsideSurfaceMask() {
+  bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
+  vec2 tentOffset = worldPosition.xz - vec2(${tentX}, ${tentZ});
+  float tentDistance = length(tentOffset);
+  float tentRoofT = clamp((worldPosition.y - ${tentWallTopGlsl}) / ${tentRoofHeightGlsl}, 0.0, 1.0);
+  float tentRoofRadius = mix(${tentRadius}, 0.0, tentRoofT);
+  bool tentInterior = dot(tentOffset, tentOffset) < ${tentInteriorRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
+  bool tentRoofShell = worldPosition.y > ${tentRoofShellBottom} && worldPosition.y < ${tentRoofShellTop} && abs(tentDistance - tentRoofRadius) < 0.24;
+
+  return outsidePoint && (!tentInterior || tentRoofShell) ? 1.0 : 0.0;
+}
+
+vec3 outsideModeColor(vec3 color) {
+  vec3 nightColor = color * vec3(0.32, 0.44, 0.68) + vec3(0.0, 0.014, 0.13);
+
+  return mix(color, nightColor, outsideSurfaceMask() * outsideNight);
+}
+
+bool nightUplightSurface() {
+  return strobeId < -1.5;
+}
+
+vec3 nightUplightColor() {
+  return vec3(0.0, 0.024, 0.32) * clamp(light, 0.0, 1.8) * outsideNight;
+}
+
+vec3 surfaceEmission(float strobe) {
+  if (nightUplightSurface()) {
+    return nightUplightColor();
+  }
+
+  return shade * light * 2.2 * strobe;
+}
+
 vec2 grassBladeLayer(vec2 point, float scale, float angle, float width) {
   point += vec2(noise(point * 0.37 + 12.0), noise(point * 0.41 - 9.0)) * 0.9;
   float s = sin(angle);
@@ -309,20 +343,21 @@ vec3 grassColor() {
   blades = clamp(blades, 0.0, 1.0) * bladeFade;
   bladeShadow = clamp(bladeShadow, 0.0, 1.0) * bladeFade;
   vec3 closeGrass = shade * (0.82 + detail);
-  vec3 distantGrass = mix(vec3(${outsideMotif === 'night' ? '0.008, 0.055, 0.025' : '0.035, 0.20, 0.055'}), vec3(${
-  outsideMotif === 'night' ? '0.025, 0.13, 0.055' : '0.08, 0.34, 0.095'
-}), hill);
-  vec3 hillGrass = mix(vec3(${outsideMotif === 'night' ? '0.004, 0.035, 0.018' : '0.018, 0.12, 0.035'}), vec3(${
-  outsideMotif === 'night' ? '0.018, 0.095, 0.04' : '0.065, 0.25, 0.06'
-}), hill);
+  vec3 distantAfternoon = mix(vec3(0.035, 0.20, 0.055), vec3(0.08, 0.34, 0.095), hill);
+  vec3 distantNight = mix(vec3(0.008, 0.055, 0.025), vec3(0.025, 0.13, 0.055), hill);
+  vec3 hillAfternoon = mix(vec3(0.018, 0.12, 0.035), vec3(0.065, 0.25, 0.06), hill);
+  vec3 hillNight = mix(vec3(0.004, 0.035, 0.018), vec3(0.018, 0.095, 0.04), hill);
+  vec3 distantGrass = mix(distantAfternoon, distantNight, outsideNight);
+  vec3 hillGrass = mix(hillAfternoon, hillNight, outsideNight);
   vec3 grass = mix(mix(closeGrass, distantGrass, far), hillGrass, horizon * 0.55);
   grass *= 1.0 - bladeShadow * 0.46;
   grass = mix(grass, grass * vec3(0.5, 0.76, 0.42), blades * 0.34);
   grass += vec3(0.03, 0.16, 0.035) * blades;
 
-  return grass * ${outsideMotif === 'night' ? '0.45' : '1.0'} * mix(1.0, ${
-  outsideMotif === 'night' ? '1.0' : '0.25'
-}, shadow);
+  float modeLight = mix(1.0, 0.45, outsideNight);
+  float shadowLight = mix(0.25, 1.0, outsideNight);
+
+  return grass * modeLight * mix(1.0, shadowLight, shadow);
 }
 
 void main() {
@@ -337,6 +372,13 @@ void main() {
   float receiverShadow = texture(treeShadowMap, patternUv).a;
 
   if (bloomPass == 1) {
+    if (nightUplightSurface()) {
+      vec3 uplight = nightUplightColor() * 0.5;
+
+      pixel = vec4(uplight, trailAlpha);
+      return;
+    }
+
     if (light < 0.15) {
       discard;
     }
@@ -347,8 +389,9 @@ void main() {
 
   if (hazeAmount > ${imageTextureThreshold}) {
     vec3 image = texture(objectTextureMap, patternUv).rgb;
+    vec3 base = outsideModeColor(image * shade);
 
-    pixel = vec4(image * shade + shade * light * 2.2 * strobe, trailAlpha);
+    pixel = vec4(base + surfaceEmission(strobe), trailAlpha);
     return;
   }
 
@@ -371,16 +414,18 @@ void main() {
   }
 
   if (hazeAmount > 4.5) {
-    if (receiverShadow < 0.01) {
+    float shadowAlpha = receiverShadow * 0.42 * (1.0 - outsideNight);
+
+    if (shadowAlpha < 0.01) {
       discard;
     }
 
-    pixel = vec4(vec3(0.002, 0.018, 0.004), receiverShadow * 0.42);
+    pixel = vec4(vec3(0.002, 0.018, 0.004), shadowAlpha);
     return;
   }
 
-  vec3 base = hazeAmount > 1.5 ? grassColor() : shade;
-  vec3 emissive = shade * light * 2.2 * strobe;
+  vec3 base = hazeAmount > 1.5 ? grassColor() : outsideModeColor(shade);
+  vec3 emissive = surfaceEmission(strobe);
   float alpha = (hazeAmount > 3.5 ? 0.34 : 1.0) * trailAlpha;
 
   pixel = vec4(base + emissive, alpha);
@@ -660,6 +705,11 @@ uniform int tripKind;
 uniform vec3 skyForward;
 uniform vec3 skyRight;
 uniform vec3 skyUp;
+uniform vec3 moonDirection;
+uniform float moonProgress;
+uniform vec3 sunDirection;
+uniform float sunProgress;
+uniform float daylight;
 
 in vec2 uv;
 
@@ -690,13 +740,56 @@ float tripNoise(vec2 n) {
   return mix(h1, h2, tripSfract(n.y));
 }
 
+vec2 directionSkyPoint(vec3 direction) {
+  return vec2(atan(direction.x, direction.z) / 6.2831853 + 0.5, asin(direction.y) / 3.14159265 + 0.5);
+}
+
+float sunDistance(vec2 point) {
+  vec2 center = directionSkyPoint(normalize(sunDirection));
+  vec2 delta = vec2(abs(fract(point.x - center.x + 0.5) - 0.5), point.y - center.y);
+
+  return length(delta * vec2(2.1, 1.0));
+}
+
+float sunDiscAmount(vec2 point) {
+  return smoothstep(0.044, 0.029, sunDistance(point)) * daylight;
+}
+
+float sunWarmth() {
+  float dawn = 1.0 - smoothstep(0.0, 0.28, sunProgress);
+  float dusk = smoothstep(0.72, 1.0, sunProgress);
+
+  return max(dawn, dusk);
+}
+
+vec3 sunTint(float warmth) {
+  return mix(vec3(0.7, 0.86, 1.0), vec3(1.0, 0.36, 0.62), warmth);
+}
+
+vec3 skySunColor(vec2 point, float warmth) {
+  float distance = sunDistance(point);
+  float halo = smoothstep(0.11, 0.0, distance) * 0.34;
+  float disc = sunDiscAmount(point);
+  float core = smoothstep(0.023, 0.01, distance);
+  float sun = max(halo, max(disc * 0.92, core));
+  vec3 color = vec3(sun, pow(sun, 1.5), pow(sun, 4.0));
+
+  return color * sunTint(warmth) * daylight;
+}
+
+vec3 skySunBloom(vec2 point, float warmth) {
+  float distance = sunDistance(point);
+  float bloom = smoothstep(0.16, 0.0, distance) * 0.16 + smoothstep(0.07, 0.0, distance) * 0.26;
+  vec3 color = vec3(bloom, pow(bloom, 1.5), pow(bloom, 4.0));
+
+  return color * sunTint(warmth) * daylight;
+}
+
 vec3 tripBackground(vec3 dir) {
   float sky = dot(dir, vec3(0.0, -1.0, 0.0)) * 0.5 + 0.5;
-  float sun = pow(dot(dir, normalize(vec3(1.0, 0.7, 0.9))) * 0.5 + 0.5, 32.0);
   vec2 p = vec2(dir.x + dir.z, dir.y - dir.z);
   float clouds = tripNoise(p * 8.0) * tripNoise(p * 9.0) * tripNoise(p * 10.0) * tripNoise(p * 11.0) * sky;
-  vec3 total = vec3(sky * 0.6 + 0.05 + sun + clouds, sky * 0.8 + 0.075 + pow(sun, 1.5) + clouds,
-    sky + 0.2 + pow(sun, 4.0) + clouds);
+  vec3 total = vec3(sky * 0.6 + 0.05 + clouds, sky * 0.8 + 0.075 + clouds, sky + 0.2 + clouds);
   vec2 groundUv = dir.xz / max(abs(dir.y), 0.05);
   vec3 ground = texture(scene, fract(groundUv * 0.08 + vec2(time * 0.018, 0.0))).rrr * vec3(1.1, 1.0, 0.9);
 
@@ -795,12 +888,20 @@ float cloudFbm(vec2 point) {
 }
 
 vec3 afternoonSky(vec2 point) {
-  vec3 horizon = vec3(1.0, 0.22, 0.08);
-  vec3 peach = vec3(1.0, 0.58, 0.24);
-  vec3 blue = vec3(0.24, 0.48, 0.9);
+  float sunHeight = clamp(sunDirection.y, 0.0, 1.0);
+  float pink = sunWarmth();
   float lift = smoothstep(0.34, 0.95, point.y);
   float warmth = 1.0 - smoothstep(0.12, 0.62, point.y);
-  vec3 sky = mix(mix(peach, blue, lift), horizon, warmth * 0.84);
+  float noon = smoothstep(0.22, 0.88, sunHeight);
+  vec3 noonHorizon = vec3(0.72, 0.9, 1.0);
+  vec3 noonHigh = vec3(0.18, 0.52, 0.96);
+  vec3 morningHorizon = vec3(1.0, 0.48, 0.66);
+  vec3 morningHigh = vec3(0.46, 0.58, 0.94);
+  vec3 noonSky = mix(noonHorizon, noonHigh, lift);
+  vec3 pinkSky = mix(morningHorizon, morningHigh, lift);
+  vec3 sky = mix(pinkSky, noonSky, noon);
+
+  sky = mix(sky, mix(noonHorizon, morningHorizon, pink), warmth * mix(0.34, 0.74, pink));
 
   // reconstruct the world view direction from the equirectangular sky uv and
   // project it onto a flat cloud plane high above, so clouds read as a fixed
@@ -820,15 +921,17 @@ vec3 afternoonSky(vec2 point) {
   // the view tips below the plane
   float band = smoothstep(0.5, 0.62, point.y) * (1.0 - smoothstep(0.86, 0.97, point.y));
   float density = clamp(body * body * band, 0.0, 1.0);
-  // sunset pink-greyish: sunlit pinkish-white tops over a soft mauve underside
-  vec3 cloudLit = vec3(1.0, 0.91, 0.89);
-  vec3 cloudDark = vec3(0.64, 0.54, 0.62);
-  vec3 sunsetPink = vec3(1.0, 0.62, 0.55);
+  vec3 cloudLit = mix(vec3(0.96, 0.98, 1.0), vec3(1.0, 0.86, 0.91), pink);
+  vec3 cloudDark = mix(vec3(0.58, 0.66, 0.76), vec3(0.7, 0.54, 0.67), pink);
+  vec3 sunsetPink = vec3(1.0, 0.56, 0.72);
   vec3 cloud = mix(cloudDark, cloudLit, lit);
 
-  cloud = mix(cloud, sunsetPink, warmth * 0.45);
+  cloud = mix(cloud, sunsetPink, warmth * pink * 0.58);
+  float disc = sunDiscAmount(point);
+  vec3 sun = skySunColor(point, pink);
+  float cloudCover = density * (1.0 - disc * 0.38);
 
-  return mix(sky, cloud, density);
+  return mix(sky + sun, cloud + sun * disc * 0.22, cloudCover);
 }
 
 vec3 hashStar(vec2 cell) {
@@ -839,9 +942,12 @@ vec3 hashStar(vec2 cell) {
 }
 
 vec3 nightSky(vec2 point) {
+  vec2 moonAnchor = vec2(0.55, 0.62);
+  vec2 moonCenter = directionSkyPoint(normalize(moonDirection));
+  vec2 nightPoint = vec2(fract(point.x - moonCenter.x + moonAnchor.x), point.y - moonCenter.y + moonAnchor.y);
   float starCell = 445.0;
-  vec2 cell = floor(point * vec2(starCell, starCell * 0.5));
-  vec2 local = fract(point * vec2(starCell, starCell * 0.5)) - 0.5;
+  vec2 cell = floor(nightPoint * vec2(starCell, starCell * 0.5));
+  vec2 local = fract(nightPoint * vec2(starCell, starCell * 0.5)) - 0.5;
   vec3 seed = hashStar(cell);
   float size = seed.y * seed.y * seed.y;
   float radius = mix(0.500, 0.01, pow(size, 0.15));
@@ -856,14 +962,15 @@ vec3 nightSky(vec2 point) {
   float twinkle = mix(0.72, 1.35, hashStar(cell + 19.0).x);
   vec3 low = vec3(0.015, 0.01, 0.035);
   vec3 high = vec3(0.0, 0.0, 0.012);
-  vec2 moonDelta = vec2(abs(fract(point.x - 0.55 + 0.5) - 0.5), point.y - 0.62);
+  vec2 moonDelta = vec2(abs(fract(nightPoint.x - moonAnchor.x + 0.5) - 0.5), nightPoint.y - moonAnchor.y);
   float moonDistance = length(moonDelta * vec2(1.0, .5));
   float moon = smoothstep(0.008, 0.006, moonDistance);
   float moonGlow = smoothstep(0.03, 0.008, moonDistance) * 0.18;
+  float moonVisible = smoothstep(0.0, 0.08, moonProgress) * (1.0 - smoothstep(0.92, 1.0, moonProgress));
   vec3 sky = mix(low, high, smoothstep(0.0, 1.0, point.y));
   vec3 moonColor = vec3(0.94, 0.92, 0.82);
 
-  return sky + starColor * star * twinkle + moonColor * moonGlow + moonColor * moon;
+  return sky + starColor * star * twinkle + moonColor * moonGlow * moonVisible + moonColor * moon * moonVisible;
 }
 
 float skyscraperMask(vec2 point, float count, float layer) {
@@ -917,6 +1024,10 @@ vec3 loftSkyline(vec2 point) {
   return color;
 }
 
+vec3 dayCycleSky(vec2 point) {
+  return mix(nightSky(point), afternoonSky(point), daylight);
+}
+
 vec2 skyPoint(vec2 point) {
   vec2 screen = point * 2.0 - 1.0;
   float aspect = bloomResolution.x / bloomResolution.y;
@@ -933,7 +1044,7 @@ vec3 sceneWithSky(vec2 point) {
     float sky = 1.0 - smoothstep(0.02, 0.12, distance(color, vec3(0.28, 0.55, 0.92)));
     vec2 skyUv = skyPoint(point);
 
-    color = mix(color, ${outsideMotif === 'night' ? 'nightSky(skyUv)' : 'afternoonSky(skyUv)'}, sky);
+    color = mix(color, dayCycleSky(skyUv), sky);
   }
   else if (renderSky == 2) {
     vec2 skyUv = skyPoint(point);
@@ -952,12 +1063,15 @@ void main() {
   vec2 near = texel * 3.2;
   vec2 far = texel * 7.0;
   vec3 glow = bright(texture(bloom, uv)) * 0.72;
+  float skyMask = 0.0;
 
   if (renderSky == 1) {
     float sky = 1.0 - smoothstep(0.02, 0.12, distance(base, vec3(0.28, 0.55, 0.92)));
     vec2 skyUv = skyPoint(uv);
 
-    base = mix(base, ${outsideMotif === 'night' ? 'nightSky(skyUv)' : 'afternoonSky(skyUv)'}, sky);
+    skyMask = sky;
+    base = mix(base, dayCycleSky(skyUv), sky);
+    glow += skySunBloom(skyUv, sunWarmth()) * mix(0.42, 1.0, sky);
   }
   else if (renderSky == 2) {
     vec2 skyUv = skyPoint(uv);
@@ -982,7 +1096,7 @@ void main() {
 
   vec3 current = pow(color, vec3(0.9));
   vec2 feedbackUv = (uv - 0.5) * 0.992 + 0.5;
-  vec3 history = texture(feedback, feedbackUv).rgb * feedbackAmount;
+  vec3 history = texture(feedback, feedbackUv).rgb * feedbackAmount * (1.0 - skyMask);
 
   vec3 tripped = max(current, history);
 
