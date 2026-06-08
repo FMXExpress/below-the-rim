@@ -39,6 +39,7 @@ import {
   encodeServerNickname,
   encodeSpawn,
   encodeVideoPlaylistRequest,
+  encodeVideoProgressRequest,
   encodeVideoSync,
   GRAFFITI,
   MESSAGE,
@@ -190,6 +191,8 @@ setupDb()
 await migratePhotosToWebp()
 await migratePhotoThumbnails()
 const videoPlaylistRequestInterval = 3000
+const videoProgressRequestInterval = 10_000
+const videoProgressBroadcastDelay = 600
 const beachBallAuthorityDuration = 2000
 const adminPass = process.env.ADMIN_PASS ?? ''
 const bannedIps = await loadBannedIps()
@@ -501,6 +504,7 @@ console.log(`[server]: ws://localhost:${server.port}`)
 console.log(`[server]: http://localhost:${server.port}`)
 
 setInterval(syncRooms, heartbeatInterval)
+setInterval(syncVideoProgress, videoProgressRequestInterval)
 setInterval(logStats, minuteMs)
 setInterval(recordOnlineAnalytics, onlineAnalyticsSampleInterval)
 
@@ -1399,11 +1403,13 @@ function changeRoom(client: Client, room: number) {
 
   if (client.poseSynced && room !== clientPoseRoom(client)) {
     sendRoomState(client)
+    sendVideoSync(client)
     return
   }
 
   if (client.room === room) {
     sendRoomState(client)
+    sendVideoSync(client)
     return
   }
 
@@ -1411,9 +1417,13 @@ function changeRoom(client: Client, room: number) {
 
   removeFromRoom(client)
   addToRoom(client, room)
+  if (client.video?.zone !== clientVideoZone(client)) {
+    client.video = undefined
+  }
   requestMissingVideoPlaylist(space, previousZone)
   requestMissingVideoPlaylist(space, clientVideoZone(client))
   sendRoomState(client)
+  sendVideoSync(client)
   broadcast(client, encodeSpawn(client.pose))
 }
 
@@ -1690,7 +1700,7 @@ function sendGraffiti(client: Client) {
 }
 
 function sendVideoSync(client: Client) {
-  const entries = currentVideoSyncForJoin(clientSpace(client))
+  const entries = currentVideoSync(clientSpace(client))
 
   if (entries.length > 0) {
     client.socket.send(encodeVideoSync({ entries }))
@@ -1698,7 +1708,7 @@ function sendVideoSync(client: Client) {
 }
 
 function broadcastVideoSync(space: SpaceState, zones?: Set<VideoZone>) {
-  const entries = currentVideoSync(space, Date.now(), zones)
+  const entries = currentVideoSync(space, zones)
 
   if (entries.length === 0) {
     return
@@ -1711,39 +1721,66 @@ function broadcastVideoSync(space: SpaceState, zones?: Set<VideoZone>) {
   }
 }
 
-function currentVideoSync(space: SpaceState, now = Date.now(), zones?: Set<VideoZone>): VideoSyncEntry[] {
+function syncVideoProgress() {
+  for (const space of spaces.values()) {
+    requestVideoProgress(space)
+  }
+}
+
+function requestVideoProgress(space: SpaceState) {
+  const zones = new Set<VideoZone>()
+
+  for (const queue of space.videoQueues) {
+    const client = randomVideoProgressClient(space, queue.zone)
+
+    if (client) {
+      zones.add(queue.zone)
+      client.socket.send(encodeVideoProgressRequest({ zones: [queue.zone] }))
+    }
+  }
+
+  if (zones.size > 0) {
+    setTimeout(() => broadcastPassiveVideoSync(space, zones), videoProgressBroadcastDelay)
+  }
+}
+
+function randomVideoProgressClient(space: SpaceState, zone: VideoZone) {
+  const candidates = spaceClients(space)
+    .filter(client => client.poseSynced && clientVideoZone(client) === zone)
+
+  return candidates.at(Math.floor(Math.random() * candidates.length))
+}
+
+function broadcastPassiveVideoSync(space: SpaceState, zones: Set<VideoZone>) {
+  for (const client of spaceClients(space)) {
+    const entries = currentVideoSync(space, zones, clientVideoZone(client))
+
+    if (entries.length > 0) {
+      client.socket.send(encodeVideoSync({ entries }))
+    }
+  }
+}
+
+function currentVideoSync(space: SpaceState, zones?: Set<VideoZone>, excludedZone?: VideoZone): VideoSyncEntry[] {
   return space.videoQueues
-    .filter(entry => !zones || zones.has(entry.zone))
+    .filter(entry => entry.zone !== excludedZone && (!zones || zones.has(entry.zone)))
     .map(entry => ({
       zone: entry.zone,
       currentId: entry.currentId,
       nextId: entry.nextId,
-      time: videoQueueTime(entry, now),
+      time: videoSyncTime(space, entry),
     }))
 }
 
-function currentVideoSyncForJoin(space: SpaceState, now = Date.now()): VideoSyncEntry[] {
-  return space.videoQueues.map(entry => {
-    const live = videoProgressFromClients(space, entry.zone, entry.currentId, now)
-
-    return {
-      zone: entry.zone,
-      currentId: entry.currentId,
-      nextId: entry.nextId,
-      time: live ?? videoQueueTime(entry, now),
-    }
-  })
+function videoSyncTime(space: SpaceState, entry: StoredVideoQueueEntry) {
+  return videoProgressFromClients(space, entry.zone, entry.currentId) ?? entry.time
 }
 
-function videoQueueTime(entry: StoredVideoQueueEntry, now: number) {
-  return entry.time + (now - entry.updatedAt) / 1000
-}
-
-function videoProgressFromClients(space: SpaceState, zone: VideoZone, id: string, now: number) {
+function videoProgressFromClients(space: SpaceState, zone: VideoZone, id: string) {
   return [...spaceClients(space)]
     .filter(client => client.video?.zone === zone && client.video.id === id)
     .map(client => client.video!)
-    .map(entry => entry.time + (now - entry.updatedAt) / 1000)
+    .map(entry => entry.time)
     .sort((a, b) => b - a)[0]
 }
 

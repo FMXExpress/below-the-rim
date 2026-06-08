@@ -125,13 +125,11 @@ export function createDjVideoUi(
     progress(): VideoProgressEntry | undefined {
       const state = states[zone]
 
-      if (!state) {
+      if (!state || !syncZoneTime(zone)) {
         return undefined
       }
 
-      syncZoneTime(zone)
-
-      return { zone, id: state.currentId, time: stateTime(state) }
+      return { zone, id: state.currentId, time: state.time }
     },
     requestPlaylists(zones: VideoZone[]) {
       for (const area of zones) {
@@ -177,8 +175,7 @@ export function createDjVideoUi(
 
                 if (event.data === endedState) {
                   if (!videoFinished(area)) {
-                    players[area]!.seekTo(states[area]!.time, true)
-                    players[area]!.playVideo()
+                    loadSyncedTrack(area)
                     return
                   }
 
@@ -187,7 +184,9 @@ export function createDjVideoUi(
                   return
                 }
 
-                syncZoneTime(area)
+                if (states[area] && !syncZoneTime(area)) {
+                  loadSyncedTrack(area)
+                }
               },
             },
           })
@@ -265,13 +264,13 @@ export function createDjVideoUi(
     const shouldPlay = playUnlocked && active
     const loadedId = player.getVideoData()?.video_id
     const now = performance.now()
-    const time = stateTime(state, now)
+    const time = state.time
 
     if (loadedId === state.currentId) {
       const currentTime = player.getCurrentTime()
       const shouldSeek = !shouldPlay || time > currentTime + syncSeekTolerance
 
-      setStateTime(state, shouldSeek ? time : Math.max(time, currentTime), now)
+      setStateTime(state, shouldSeek ? time : currentTime, now)
       if (shouldSeek) {
         player.seekTo(time, true)
       }
@@ -306,7 +305,9 @@ export function createDjVideoUi(
     const currentTime = player.getCurrentTime()
     const now = performance.now()
 
-    setStateTime(state, Math.max(stateTime(state, now), currentTime), now)
+    setStateTime(state, currentTime, now)
+
+    return true
   }
 
   function playQueuedTrack(area: VideoZone) {
@@ -331,7 +332,9 @@ export function createDjVideoUi(
     const state = states[area]!
     const player = players[area]!
     const now = performance.now()
-    const time = Math.max(stateTime(state, now), player.getCurrentTime())
+    const time = player.getVideoData()?.video_id === state.currentId
+      ? Math.max(state.time, player.getCurrentTime())
+      : state.time
     const duration = player.getDuration()
 
     setStateTime(state, time, now)
@@ -400,10 +403,6 @@ export function createDjVideoUi(
     discoveringPlaylists[area] = false
     console.error(new Error(`Missing YouTube playlist ids for ${area}`))
   }
-}
-
-function stateTime(state: VideoTrackState, now = performance.now()) {
-  return state.time + (now - state.updatedAt) / 1000
 }
 
 function setStateTime(state: VideoTrackState, time: number, now = performance.now()) {

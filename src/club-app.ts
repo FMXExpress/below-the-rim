@@ -38,6 +38,7 @@ import { ACTION_BUBBLING, ACTION_FOAMING } from './protocol.ts'
 import { emojiReactionFromMessage, pickerEmojis, reactionEmojis } from './reactions.ts'
 import {
   bartenderDrinkWall,
+  insideArcade,
   loftBounds,
   loftCornerFigures,
   loftDjBooth,
@@ -1202,6 +1203,24 @@ function outsidePlantMeshColor(meshIndex: number): Vec3 {
   const lift = (meshIndex % 4) * 0.025
 
   return [0.07 + lift * 0.3, 0.44 + lift, 0.12 + lift * 0.5]
+}
+
+const arcadeMeshColors: Vec3[] = [
+  [0.015, 0.014, 0.018],
+  [0.12, 0.018, 0.08],
+  [0.42, 0.035, 0.14],
+  [0.012, 0.018, 0.028],
+  [0.08, 0.8, 0.9],
+  [0.18, 0.025, 0.28],
+  [0.95, 0.12, 0.58],
+  [0.02, 0.9, 0.74],
+  [0.02, 0.35, 0.95],
+  [0.98, 0.18, 0.04],
+  [1, 0.88, 0.08],
+]
+
+function arcadeMeshColor(index: number): Vec3 {
+  return arcadeMeshColors[index]!
 }
 
 function outsidePlantPlacements() {
@@ -3997,6 +4016,21 @@ function loadMainWorldOnce() {
           .catch((error: unknown) => {
             console.error(error)
             refreshRoomBuffer()
+          }),
+        loadStaticFbxObject(vertices, {
+          color: arcadeMeshColor,
+          height: insideArcade.height,
+          lightBounds: { x: insideArcade.x, z: insideArcade.z, radius: 1.2, nightUplight: 4.8 },
+          path: '/arcade.fbx',
+          position: [insideArcade.x, characterFloor, insideArcade.z],
+          sourceUp: 'y',
+          turn: insideArcade.turn,
+        }, addSunLitTriangle)
+          .then(() => {
+            refreshRoomBuffer()
+          })
+          .catch((error: unknown) => {
+            console.error(error)
           }),
         loadStaticFbxObject(vertices, {
           color: outsideMotif === 'afternoon' ? [1, 1, 1] : [2, 2, 2],

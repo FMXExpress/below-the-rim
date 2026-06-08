@@ -3,11 +3,11 @@ import { electricNavy, outsideMotif } from './constants.ts'
 import { addBox, addDisc, addGrassQuad, addQuad, addTriangle, pack, packSmoke } from './geometry.ts'
 import { tShirtLogoTextureBounds } from './graffiti.ts'
 import { add, mix, scale, subtract } from './math.ts'
-import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, landscapeBounds, outsideBounds, outsideCouches,
-  outsideDjBooth, outsideDjSpeakers, outsideHut, outsideHutBar, outsideHutBarStools, outsideHutDeckHeight,
-  outsidePhotoWall, outsideStage, outsideToiletDoor, outsideToilets, outsideTShirtStands, outsideVideoScreenWall,
-  roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentDoorAngle, tentPole, tentVideoAngle,
-  tentVideoWall, type TShirtStand } from './scene-data.ts'
+import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, insideSideLightZs, landscapeBounds,
+  outsideBounds, outsideCouches, outsideDjBooth, outsideDjSpeakers, outsideHut, outsideHutBar, outsideHutBarStools,
+  outsideHutDeckHeight, outsidePhotoWall, outsideStage, outsideToiletDoor, outsideToilets, outsideTShirtStands,
+  outsideVideoScreenWall, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor, tentDoorAngle,
+  tentPole, tentVideoAngle, tentVideoWall, type TShirtStand } from './scene-data.ts'
 import { strobeTarget } from './strobe-object.ts'
 import type { Bounds, StrobeLight, Vec3, Vertex, VideoZone } from './types.ts'
 
@@ -809,7 +809,7 @@ function addXDisc(target: Vertex[], center: Vec3, radiusY: number, radiusZ: numb
 export function addWallStrips(target: Vertex[]) {
   let id = 101
 
-  for (const z of [-2, -6, -10, -14, -18, -22]) {
+  for (const z of insideSideLightZs) {
     addSideStrip(target, -6.98, z, id++)
     addSideStrip(target, 6.98, z, id++)
   }

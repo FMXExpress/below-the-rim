@@ -1,11 +1,11 @@
 import { characterFloor } from './character-data.ts'
 import { clamp } from './math.ts'
 import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, loftBounds, loftCornerFigures, loftCouches,
-  loftDjBooth, loftDjSpeakers, loftPlants, loftTables, outsideBounds, outsideBuddha, outsideCouches, outsideDjBooth,
-  outsideDjSpeakers, outsideFoodTruck, outsideFoodTruckSize, outsideFoodTruckTurn, outsideHut, outsideHutBar,
-  outsideHutBarStools, outsideHutDeckHeight, outsidePalmTree, outsidePhotoWall, outsideStage, outsideToiletDoor,
-  outsideToilets, outsideTShirtStands, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers, tentDoor,
-  tentDoorAngle, tentPole, tentVideoAngle } from './scene-data.ts'
+  insideArcade, loftDjBooth, loftDjSpeakers, loftPlants, loftTables, outsideBounds, outsideBuddha, outsideCouches,
+  outsideDjBooth, outsideDjSpeakers, outsideFoodTruck, outsideFoodTruckSize, outsideFoodTruckTurn, outsideHut,
+  outsideHutBar, outsideHutBarStools, outsideHutDeckHeight, outsidePalmTree, outsidePhotoWall, outsideStage,
+  outsideToiletDoor, outsideToilets, outsideTShirtStands, roomBounds, tent, tentCenterBench, tentDjBooth,
+  tentDjSpeakers, tentDoor, tentDoorAngle, tentPole, tentVideoAngle } from './scene-data.ts'
 import type { Bounds, CircleBounds, Vec3, VideoZone } from './types.ts'
 
 export type Seat = {
@@ -38,6 +38,13 @@ type HeightOptions = {
 const djBoothCollision = paddedBounds(djBooth)
 const bartenderBarCollision = paddedBounds(bartenderBar)
 const bartenderStoolCollisions = bartenderStools.map(bounds => paddedBounds(bounds))
+const insideArcadeCollision = orientedBounds(
+  insideArcade.x,
+  insideArcade.z,
+  insideArcade.width,
+  insideArcade.depth,
+  insideArcade.turn,
+)
 const seatStools = [...bartenderStools, ...outsideHutBarStools]
 const djSpeakerCollisions = djSpeakers.map(bounds => paddedBounds(bounds))
 const outsideDjBoothCollision = paddedBounds(outsideDjBooth)
@@ -223,6 +230,7 @@ export function collideRoom(
   if (!onPaddedPlatform(position, bartenderBarCollision, barTop)) {
     collidePaddedBounds(position, bartenderBarCollision)
   }
+  collideOrientedBounds(position, insideArcadeCollision, 0.28)
 
   for (const stool of bartenderStoolCollisions) {
     if (!onPaddedPlatform(position, stool, stoolTop)) {
@@ -350,6 +358,7 @@ export function isWalkable(x: number, z: number, outsideTree: CircleBounds) {
     && z <= roomBounds.front + 0.45
     && !inPaddedBounds(x, z, djBoothCollision)
     && !inPaddedBounds(x, z, bartenderBarCollision)
+    && !inOrientedBounds(x, z, insideArcadeCollision, 0.28)
     && bartenderStoolCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
     && djSpeakerCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
 }

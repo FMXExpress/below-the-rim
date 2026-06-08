@@ -21,6 +21,7 @@ export const VIDEO_ENDED = 18
 export const VIDEO_PLAYLIST_REQUEST = 19
 export const NICKNAME = 20
 export const ACTIONS = 21
+export const VIDEO_PROGRESS_REQUEST = 22
 
 export const ACTION_BUBBLING = 1
 export const ACTION_FOAMING = 2
@@ -29,7 +30,7 @@ export const roomCount = 3
 export const messageMaxLength = 120
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 39
+export const protocolVersion = 40
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -105,6 +106,10 @@ export type VideoEndedPacket = {
 }
 
 export type VideoPlaylistRequestPacket = {
+  zones: VideoZone[]
+}
+
+export type VideoProgressRequestPacket = {
   zones: VideoZone[]
 }
 
@@ -360,17 +365,33 @@ export function decodeVideoEnded(view: DataView): VideoEndedPacket {
 }
 
 export function encodeVideoPlaylistRequest(packet: VideoPlaylistRequestPacket) {
-  const data = new ArrayBuffer(2 + packet.zones.length)
+  return encodeVideoZoneRequest(VIDEO_PLAYLIST_REQUEST, packet.zones)
+}
+
+export function decodeVideoPlaylistRequest(view: DataView): VideoPlaylistRequestPacket {
+  return { zones: decodeVideoZoneRequest(view) }
+}
+
+export function encodeVideoProgressRequest(packet: VideoProgressRequestPacket) {
+  return encodeVideoZoneRequest(VIDEO_PROGRESS_REQUEST, packet.zones)
+}
+
+export function decodeVideoProgressRequest(view: DataView): VideoProgressRequestPacket {
+  return { zones: decodeVideoZoneRequest(view) }
+}
+
+function encodeVideoZoneRequest(type: number, zones: VideoZone[]) {
+  const data = new ArrayBuffer(2 + zones.length)
   const view = new DataView(data)
 
-  view.setUint8(0, VIDEO_PLAYLIST_REQUEST)
-  view.setUint8(1, packet.zones.length)
-  packet.zones.forEach((zone, index) => view.setUint8(2 + index, videoZoneToProtocol(zone)))
+  view.setUint8(0, type)
+  view.setUint8(1, zones.length)
+  zones.forEach((zone, index) => view.setUint8(2 + index, videoZoneToProtocol(zone)))
 
   return data
 }
 
-export function decodeVideoPlaylistRequest(view: DataView): VideoPlaylistRequestPacket {
+function decodeVideoZoneRequest(view: DataView) {
   expectAtLeastSize(view, 2)
   const count = view.getUint8(1)
   expectSize(view, 2 + count)
@@ -380,7 +401,7 @@ export function decodeVideoPlaylistRequest(view: DataView): VideoPlaylistRequest
     zones.push(protocolToVideoZone(view.getUint8(2 + i)))
   }
 
-  return { zones }
+  return zones
 }
 
 export function encodeVideoPlaylist(packet: VideoPlaylistPacket) {

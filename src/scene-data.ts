@@ -156,6 +156,14 @@ export const videoPlaylists: Partial<Record<VideoZone, string>> = {
 }
 export const backDoor = { x: -4.75, z: 4, width: 1.45, height: 2.55 }
 export const roomBounds = { left: -7, right: 7, back: -24, front: 4 }
+export const insideSideLightZs = [-2, -6, -10, -14, -18, -22] as const
+const arcadeCabinetSize = { width: 0.88, depth: 0.86, height: 2.2 } as const
+export const insideArcade: Bounds & { height: number; turn: number } = {
+  x: roomBounds.right - arcadeCabinetSize.depth / 2 - 0.08,
+  z: (insideSideLightZs[0] + insideSideLightZs[1]) * 0.5,
+  ...arcadeCabinetSize,
+  turn: -Math.PI / 2,
+}
 const foodTruckDistanceFromTent = tent.radius + 8.4
 const foodTruckToClubX = ((roomBounds.left + roomBounds.right) * 0.5) - tent.x
 const foodTruckToClubZ = ((roomBounds.back + roomBounds.front) * 0.5) - tent.z

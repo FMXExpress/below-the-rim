@@ -20,6 +20,7 @@ import {
   decodeServerNickname,
   decodeSpawn,
   decodeVideoPlaylistRequest,
+  decodeVideoProgressRequest,
   decodeVideoSync,
   encodeAdminMessage,
   encodeBeachBalls,
@@ -54,11 +55,13 @@ import {
   type SpawnPacket,
   truncateMessage,
   VIDEO_PLAYLIST_REQUEST,
+  VIDEO_PROGRESS_REQUEST,
   VIDEO_SYNC,
   type VideoEndedEntry,
   type VideoPlaylistEntry,
   type VideoPlaylistRequestPacket,
   type VideoProgressEntry,
+  type VideoProgressRequestPacket,
   type VideoSyncEntry,
 } from './protocol.ts'
 import { collideRoom, isOutside, seatAt, walkHeight } from './scene.ts'
@@ -247,6 +250,11 @@ export function createMultiplayer(options: {
       return
     }
 
+    if (type === VIDEO_PROGRESS_REQUEST) {
+      sendRequestedVideoProgress(decodeVideoProgressRequest(view).zones)
+      return
+    }
+
     if (type === BEACH_BALLS) {
       options.onBeachBalls(decodeBeachBalls(view).balls)
       return
@@ -341,6 +349,14 @@ export function createMultiplayer(options: {
     const entry = options.videoProgress()
 
     if (entry) {
+      send(encodeVideoProgress({ entry }))
+    }
+  }
+
+  function sendRequestedVideoProgress(zones: VideoProgressRequestPacket['zones']) {
+    const entry = options.videoProgress()
+
+    if (entry && zones.includes(entry.zone)) {
       send(encodeVideoProgress({ entry }))
     }
   }
