@@ -149,7 +149,7 @@ export function getDomElements() {
   introNicknameIcon.alt = ''
   introNicknameInput.maxLength = 32
   introNicknameInput.pattern = '[^<>\\n]+'
-  introNicknameInput.placeholder = 'Your nickname'
+  introNicknameInput.placeholder = 'Your nickname (required)'
   introNicknameInput.required = true
   introNicknameInput.setAttribute('autocomplete', 'nickname')
   introNicknameInput.setAttribute('enterkeyhint', 'done')
@@ -157,7 +157,7 @@ export function getDomElements() {
   introInstagramIcon.src = '/instagram.svg'
   introInstagramIcon.alt = ''
   introInstagramInput.maxLength = 30
-  introInstagramInput.placeholder = 'Your Instagram id'
+  introInstagramInput.placeholder = 'Your Instagram id (optional)'
   introInstagramInput.autocomplete = 'username'
   introInstagramInput.setAttribute('enterkeyhint', 'done')
   introStart.type = 'button'
@@ -182,8 +182,8 @@ export function getDomElements() {
   introPanel.append(introTrack, introProgress, introNicknameField, introInstagramField, introStart)
   introGithub.append(introGithubIcon)
   intro.append(introEffect, introPanel, introGithub)
-  document.body.prepend(canvas, djVideo, photoWall, chatForm, chatBubble, onlineIndicator, reactionButtons,
-    waveButton, bubbleButton, foamButton, breakdanceButton, photoButton, roomsButton, supportLink, merchCards, intro)
+  document.body.prepend(canvas, djVideo, photoWall, chatForm, chatBubble, onlineIndicator, reactionButtons, waveButton,
+    bubbleButton, foamButton, breakdanceButton, photoButton, roomsButton, supportLink, merchCards, intro)
 
   return {
     canvas,

@@ -107,6 +107,8 @@ export function createMultiplayer(options: {
   videoProgress: () => VideoProgressEntry | undefined
 }) {
   const players = new Map<number, Player>()
+  const pendingPlayers = new Map<number, SpawnPacket>()
+  const profiledPlayers = new Set<number>()
   const heartbeatInterval = 5_000
   const videoProgressInterval = 2_000
   const reconnectDelay = 1_500
@@ -183,28 +185,25 @@ export function createMultiplayer(options: {
       const previousSelfId = selfId
       const previousRoom = room
       const previousIds = new Set(players.keys())
+      const previousPendingIds = new Set(pendingPlayers.keys())
 
       selfId = state.selfId
       room = state.room
 
       for (const player of state.players) {
-        if (player.id !== selfId && validRemotePose(player)) {
-          const existing = players.get(player.id)
-
-          if (existing) {
-            applyRemotePose(existing, player)
-          }
-          else {
-            players.set(player.id, createRemotePlayer(player))
-          }
-
+        if (player.id !== selfId && applyRemotePlayerPacket(player)) {
           previousIds.delete(player.id)
+          previousPendingIds.delete(player.id)
         }
       }
 
       for (const id of previousIds) {
         players.delete(id)
         options.onLeave(id)
+      }
+      for (const id of previousPendingIds) {
+        pendingPlayers.delete(id)
+        profiledPlayers.delete(id)
       }
 
       if (selfId !== previousSelfId || room !== previousRoom) {
@@ -217,8 +216,8 @@ export function createMultiplayer(options: {
     if (type === S_SPAWN) {
       const packet = decodeSpawn(view)
 
-      if (packet.id !== selfId && validRemotePose(packet)) {
-        players.set(packet.id, createRemotePlayer(packet))
+      if (packet.id !== selfId) {
+        applyRemotePlayerPacket(packet)
       }
 
       return
@@ -231,6 +230,9 @@ export function createMultiplayer(options: {
       if (player && validRemotePose(packet)) {
         applyRemotePose(player, packet)
       }
+      else if (packet.id !== selfId) {
+        applyRemotePlayerPacket(packet)
+      }
 
       return
     }
@@ -239,6 +241,8 @@ export function createMultiplayer(options: {
       const id = decodeLeave(view)
 
       players.delete(id)
+      pendingPlayers.delete(id)
+      profiledPlayers.delete(id)
       options.onLeave(id)
       return
     }
@@ -283,6 +287,8 @@ export function createMultiplayer(options: {
     if (type === NICKNAME) {
       const profile = decodeServerProfile(view)
 
+      profiledPlayers.add(profile.id)
+      promotePendingPlayer(profile.id)
       options.onProfile(profile)
       return
     }
@@ -329,6 +335,35 @@ export function createMultiplayer(options: {
     }
 
     profileQueued = false
+  }
+
+  function applyRemotePlayerPacket(packet: SpawnPacket) {
+    if (!validRemotePose(packet)) {
+      return false
+    }
+
+    const player = players.get(packet.id)
+
+    if (player) {
+      applyRemotePose(player, packet)
+    }
+    else if (profiledPlayers.has(packet.id)) {
+      players.set(packet.id, createRemotePlayer(packet))
+    }
+    else {
+      pendingPlayers.set(packet.id, packet)
+    }
+
+    return true
+  }
+
+  function promotePendingPlayer(id: number) {
+    const packet = pendingPlayers.get(id)
+
+    if (packet) {
+      pendingPlayers.delete(id)
+      players.set(id, createRemotePlayer(packet))
+    }
   }
 
   function sendMotion() {
