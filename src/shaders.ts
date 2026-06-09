@@ -1,6 +1,7 @@
+import { landscapeBounds, tent } from './scene-data.ts'
+
 import { characterFloor } from './character-data.ts'
 import { imageTextureHaze } from './geometry.ts'
-import { tent } from './scene-data.ts'
 
 const tentX = glslFloat(tent.x)
 const tentZ = glslFloat(tent.z)
@@ -13,6 +14,10 @@ const tentWallTopGlsl = glslFloat(tentWallTop)
 const tentRoofHeightGlsl = glslFloat(tentTop - tentWallTop)
 const tentRoofShellBottom = glslFloat(tentWallTop - 0.15)
 const tentRoofShellTop = glslFloat(tentTop + 0.15)
+const treeShadowLeft = glslFloat(landscapeBounds.left)
+const treeShadowFront = glslFloat(landscapeBounds.front)
+const treeShadowWidth = glslFloat(landscapeBounds.right - landscapeBounds.left)
+const treeShadowDepth = glslFloat(landscapeBounds.front - landscapeBounds.back)
 const imageTextureThreshold = glslFloat(imageTextureHaze - 0.5)
 
 function glslFloat(value: number) {
@@ -326,12 +331,16 @@ vec2 grassBladeLayer(vec2 point, float scale, float angle, float width) {
   return vec2(line * lengthMask, (sideShadow * lengthMask + rootShadow * line * 0.55) * gate) * gate;
 }
 
+vec2 treeShadowUv(vec3 point) {
+  return vec2(
+    (point.x - ${treeShadowLeft}) / ${treeShadowWidth},
+    (${treeShadowFront} - point.z) / ${treeShadowDepth}
+  );
+}
+
 vec3 grassColor() {
   vec2 field = worldPosition.xz * 0.11;
-  vec2 shadowUv = vec2(
-    (worldPosition.x + 72.0) / 144.0,
-    (worldPosition.z + 84.0) / 172.0
-  );
+  vec2 shadowUv = treeShadowUv(worldPosition);
   float cameraDistance = length(worldPosition.xz - cameraEye.xz);
   float detail = noise(worldPosition.xz * 2.6) * 0.10 + noise(worldPosition.xz * 0.55) * 0.16;
   float band = sin(field.x * 2.7 + noise(field * 2.0) * 2.4) * 0.5 + 0.5;

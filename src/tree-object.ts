@@ -185,9 +185,21 @@ export function addTreeShadowReceiver(target: Vertex[], characterFloor: number, 
   const b: Vec3 = [landscapeBounds.right, y, landscapeBounds.front]
   const c: Vec3 = [landscapeBounds.right, y, landscapeBounds.back]
   const d: Vec3 = [landscapeBounds.left, y, landscapeBounds.back]
+  const uvA = shadowTextureUv(a, landscapeBounds)
+  const uvB = shadowTextureUv(b, landscapeBounds)
+  const uvC = shadowTextureUv(c, landscapeBounds)
+  const uvD = shadowTextureUv(d, landscapeBounds)
 
-  target.push(pack(a, color, 0, 0, 0, 0, 5), pack(b, color, 0, 0, 1, 0, 5), pack(c, color, 0, 0, 1, 1, 5))
-  target.push(pack(a, color, 0, 0, 0, 0, 5), pack(c, color, 0, 0, 1, 1, 5), pack(d, color, 0, 0, 0, 1, 5))
+  target.push(
+    pack(a, color, 0, 0, uvA[0], uvA[1], 5),
+    pack(b, color, 0, 0, uvB[0], uvB[1], 5),
+    pack(c, color, 0, 0, uvC[0], uvC[1], 5),
+  )
+  target.push(
+    pack(a, color, 0, 0, uvA[0], uvA[1], 5),
+    pack(c, color, 0, 0, uvC[0], uvC[1], 5),
+    pack(d, color, 0, 0, uvD[0], uvD[1], 5),
+  )
 }
 
 function clipGroundPolygonFront(points: Vec3[], front: number): Vec3[] {
@@ -290,7 +302,7 @@ export function uploadTreeShadowMap(
   canvas.height = size
   blurCanvas.width = size
   blurCanvas.height = size
-  context.fillStyle = 'rgba(0,0,0,0.95)'
+  context.fillStyle = 'rgba(0,0,0,0.12)'
 
   for (const caster of casters) {
     for (const mesh of caster.meshes) {
@@ -335,8 +347,14 @@ function drawShadowPolygon(context: CanvasRenderingContext2D, points: Vec3[], si
 }
 
 function shadowTexturePoint(point: Vec3, size: number, landscapeBounds: EdgeBounds): [number, number] {
+  const uv = shadowTextureUv(point, landscapeBounds)
+
+  return [uv[0] * size, uv[1] * size]
+}
+
+function shadowTextureUv(point: Vec3, landscapeBounds: EdgeBounds): [number, number] {
   return [
-    ((point[0] - landscapeBounds.left) / (landscapeBounds.right - landscapeBounds.left)) * size,
-    (1 - (point[2] - landscapeBounds.back) / (landscapeBounds.front - landscapeBounds.back)) * size,
+    (point[0] - landscapeBounds.left) / (landscapeBounds.right - landscapeBounds.left),
+    (landscapeBounds.front - point[2]) / (landscapeBounds.front - landscapeBounds.back),
   ]
 }
