@@ -787,6 +787,7 @@ function deleteChatLogMessages(id: number) {
 
 const adminDialog = document.createElement('dialog')
 const adminForm = document.createElement('form')
+const adminUsername = document.createElement('input')
 const adminInput = document.createElement('input')
 const adminSubmit = document.createElement('button')
 const adminBanIdInput = document.createElement('input')
@@ -796,6 +797,7 @@ const adminMusicSubmit = document.createElement('button')
 const adminRandomTrackSubmit = document.createElement('button')
 const loftMusicDialog = document.createElement('dialog')
 const loftMusicForm = document.createElement('form')
+const loftMusicUsername = document.createElement('input')
 const loftMusicPassword = document.createElement('input')
 const loftMusicSource = document.createElement('input')
 const loftMusicCancel = document.createElement('button')
@@ -816,6 +818,10 @@ const photoPreviewSave = document.createElement('button')
 
 adminDialog.id = 'admin-dialog'
 adminForm.method = 'dialog'
+adminUsername.type = 'text'
+adminUsername.autocomplete = 'username'
+adminUsername.hidden = true
+adminUsername.value = 'admin'
 adminInput.type = 'password'
 adminInput.autocomplete = 'current-password'
 adminInput.placeholder = 'admin pass'
@@ -836,11 +842,15 @@ adminMusicSubmit.setAttribute('aria-label', 'set room music')
 adminRandomTrackSubmit.type = 'button'
 adminRandomTrackSubmit.textContent = '🔀'
 adminRandomTrackSubmit.setAttribute('aria-label', 'random track')
-adminForm.append(adminInput, adminSubmit, adminBanIdInput, adminBanIdSubmit, adminMusicInput, adminMusicSubmit,
+adminForm.append(adminUsername, adminInput, adminSubmit, adminBanIdInput, adminBanIdSubmit, adminMusicInput, adminMusicSubmit,
   adminRandomTrackSubmit)
 adminDialog.append(adminForm)
 loftMusicDialog.id = 'loft-music-dialog'
 loftMusicForm.method = 'dialog'
+loftMusicUsername.type = 'text'
+loftMusicUsername.autocomplete = 'username'
+loftMusicUsername.hidden = true
+loftMusicUsername.value = 'room'
 loftMusicPassword.type = 'password'
 loftMusicPassword.autocomplete = 'current-password'
 loftMusicPassword.placeholder = 'room password'
@@ -852,7 +862,7 @@ loftMusicCancel.setAttribute('aria-label', 'cancel')
 loftMusicSubmit.type = 'submit'
 loftMusicSubmit.textContent = '📺'
 loftMusicSubmit.setAttribute('aria-label', 'set video')
-loftMusicForm.append(loftMusicPassword, loftMusicSource, loftMusicCancel, loftMusicSubmit)
+loftMusicForm.append(loftMusicUsername, loftMusicPassword, loftMusicSource, loftMusicCancel, loftMusicSubmit)
 loftMusicDialog.append(loftMusicForm)
 banDialog.id = 'ban-dialog'
 banForm.method = 'dialog'
@@ -2261,6 +2271,7 @@ const claimDialog = document.createElement('dialog')
 const claimForm = document.createElement('form')
 const claimTitle = document.createElement('h2')
 const claimText = document.createElement('p')
+const claimUsername = document.createElement('input')
 const claimPassword = document.createElement('input')
 const claimNext = document.createElement('button')
 let pendingClaimSlug = ''
@@ -2308,6 +2319,10 @@ rentRoomDialog.append(rentRoomForm)
 claimDialog.id = 'loft-claim-dialog'
 claimForm.method = 'dialog'
 claimTitle.textContent = 'claim room'
+claimUsername.type = 'text'
+claimUsername.autocomplete = 'username'
+claimUsername.hidden = true
+claimUsername.value = 'room'
 claimPassword.type = 'password'
 claimPassword.autocomplete = 'new-password'
 claimPassword.value = 'admin'
@@ -2315,7 +2330,7 @@ claimPassword.placeholder = 'room password'
 claimNext.type = 'submit'
 claimNext.textContent = '🔑'
 claimNext.setAttribute('aria-label', 'claim room')
-claimForm.append(claimTitle, claimText, claimPassword, claimNext)
+claimForm.append(claimTitle, claimText, claimUsername, claimPassword, claimNext)
 claimDialog.append(claimForm)
 document.body.append(loftExit, roomsDialog, rentRoomDialog, claimDialog)
 for (const input of [rentRoomInput, claimPassword]) {

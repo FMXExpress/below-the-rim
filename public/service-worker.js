@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hallucinate-v6'
+const CACHE_NAME = 'hallucinate-v7'
 const urlsToCache = [
   '/',
   '/index.html',
@@ -35,6 +35,10 @@ self.addEventListener('fetch', event => {
   }
 
   const url = new URL(request.url)
+
+  if (request.headers.has('range')) {
+    return
+  }
 
   if (url.pathname.startsWith('/photos/')) {
     url.pathname = `/api${url.pathname}`
@@ -76,8 +80,8 @@ async function networkFirst(request, isHtmlRequest) {
   try {
     const response = await fetch(request)
 
-    if (response.ok && response.type === 'basic') {
-      cache.put(request, response.clone())
+    if (canCacheResponse(response)) {
+      await cache.put(request, response.clone())
     }
 
     return response
@@ -106,10 +110,10 @@ async function staleWhileRevalidate(request) {
   const cached = await caches.match(request)
   const fetchPromise = fetch(request)
     .then(async response => {
-      if (response.ok && response.type === 'basic') {
+      if (canCacheResponse(response)) {
         const cache = await caches.open(CACHE_NAME)
 
-        cache.put(request, response.clone())
+        await cache.put(request, response.clone())
       }
 
       return response
@@ -120,4 +124,8 @@ async function staleWhileRevalidate(request) {
     })
 
   return cached ?? fetchPromise
+}
+
+function canCacheResponse(response) {
+  return response.ok && response.status !== 206 && response.type === 'basic'
 }

@@ -579,8 +579,8 @@ body[data-arcade-open="true"] #merch-cards {
 #intro-start {
   display: none;
   justify-self: center;
-  min-width: 156px;
-  height: 46px;
+  width: min(240px, 100%);
+  height: 34px;
   border: 1px solid rgb(255 255 255 / 0.28);
   border-bottom-color: rgb(255 255 255 / 0.1);
   border-radius: 7px;
@@ -750,15 +750,9 @@ body[data-intro-visible="true"] #bubble-button,
 body[data-intro-visible="true"] #foam-button,
 body[data-intro-visible="true"] #breakdance-button,
 body[data-intro-visible="true"] #photo-button,
-body[data-intro-visible="true"] #rooms-button {
+body[data-intro-visible="true"] #rooms-button,
+body[data-intro-visible="true"] #support-link {
   display: none;
-}
-
-body[data-intro-visible="true"][data-intro-ready="false"] #support-link {
-  right: auto;
-  left: calc(50% + 40px);
-  bottom: calc(18px + var(--app-bottom));
-  transform: translateX(-50%);
 }
 
 #help-ui {
