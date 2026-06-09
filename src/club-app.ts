@@ -334,6 +334,7 @@ const djVideoUi = createDjVideoUi(djVideo, characterPosition, {
 const photoWallUi = createPhotoWallUi(photoWall, {
   admin: () => ({ enabled: adminView, pass: adminPass }),
   alternativeInput: () => alternativeInput,
+  onLike: photo => sendChatMessage('❤️', photo.timestamp),
   recoverFocus: () => canvas.focus(),
 })
 const helpUi = createHelpUi()
@@ -577,12 +578,28 @@ function addChatLogMessage(packet: MessagePacket) {
   const color = chatMessageColor(packet)
   const emoji = emojiReactionFromMessage(packet.text)
   const last = chatLog.lastElementChild
+  const entry = { ...packet, color, emoji }
 
   if (emoji && !packet.photoTimestamp && last instanceof HTMLElement) {
     const entries = chatLogRows.get(last)
-    const entry = { ...packet, color, emoji }
 
-    if (entries?.every(entry => entry.emoji) && chatLogEntryKey(entries[0]!) === chatLogEntryKey(entry)) {
+    if (
+      entries?.every(entry => entry.emoji && !entry.photoTimestamp)
+      && chatLogEntryKey(entries[0]!) === chatLogEntryKey(entry)
+    ) {
+      entries.push(entry)
+      renderChatLogRow(last)
+      chatLog.scrollTop = chatLog.scrollHeight
+
+      return color
+    }
+  }
+
+  if (emoji && packet.photoTimestamp && last instanceof HTMLElement) {
+    const entries = chatLogRows.get(last)
+    const first = entries?.[0]
+
+    if (entries && first?.photoTimestamp === packet.photoTimestamp) {
       entries.push(entry)
       renderChatLogRow(last)
       chatLog.scrollTop = chatLog.scrollHeight
@@ -618,7 +635,7 @@ function addChatLogMessage(packet: MessagePacket) {
   ban.addEventListener('pointerdown', sendBan, { capture: true })
   ban.addEventListener('click', sendBan)
   row.append(ban, message)
-  chatLogRows.set(row, [{ ...packet, color, emoji }])
+  chatLogRows.set(row, [entry])
   renderChatLogRow(row)
   chatLog.append(row)
   chatLog.scrollTop = chatLog.scrollHeight
@@ -633,7 +650,10 @@ function renderChatLogRow(row: HTMLElement) {
 
   row.style.color = first.color
   row.dataset.userIds = entries.map(entry => entry.id).join(' ')
-  if (entries.every(entry => entry.emoji)) {
+  if (first.photoTimestamp && entries.some(entry => entry.emoji)) {
+    renderChatLogPhotoGroup(message, entries)
+  }
+  else if (entries.every(entry => entry.emoji)) {
     message.replaceChildren()
     renderChatLogEntryLabel(message, first)
     message.append(document.createTextNode(` ${entries.map(entry => entry.emoji).join(' ')}`))
@@ -689,10 +709,37 @@ function renderChatLogText(target: HTMLElement, entry: ChatLogEntry) {
   }
 }
 
+function renderChatLogPhotoGroup(target: HTMLElement, entries: ChatLogEntry[]) {
+  const first = entries[0]!
+  const photoEntry = entries.find(entry => !entry.emoji) ?? first
+  const reactions = entries.filter(entry => entry.emoji)
+  const group = document.createElement('span')
+  const reactionList = document.createElement('span')
+
+  target.replaceChildren()
+  renderChatNickname(target, chatLogEntryLabel(photoEntry), photoEntry.insta)
+  target.append(document.createTextNode(' '))
+  group.className = 'chat-photo-group'
+  reactionList.className = 'chat-photo-reactions'
+  renderChatPhoto(group, chatPhoto(photoEntry))
+  for (const reaction of reactions) {
+    const row = document.createElement('span')
+
+    row.className = 'chat-photo-reaction-row'
+    row.append(document.createTextNode(`${reaction.emoji} `))
+    renderChatLogEntryLabel(row, reaction)
+    reactionList.append(row)
+  }
+  group.append(reactionList)
+  target.append(group)
+}
+
 function renderChatPhoto(target: HTMLElement, photo: Photo) {
+  const item = document.createElement('span')
   const button = document.createElement('button')
   const image = document.createElement('img')
 
+  item.className = 'chat-photo-entry'
   button.type = 'button'
   button.className = 'chat-photo-button'
   button.setAttribute('aria-label', 'open photo')
@@ -706,7 +753,8 @@ function renderChatPhoto(target: HTMLElement, photo: Photo) {
     event.preventDefault()
     void photoWallUi.open(photo, image)
   })
-  target.append(button)
+  item.append(button)
+  target.append(item)
 }
 
 function chatPhoto(message: Pick<MessagePacket, 'photoTimestamp'>): Photo {
@@ -714,6 +762,8 @@ function chatPhoto(message: Pick<MessagePacket, 'photoTimestamp'>): Photo {
 
   return {
     createdAt: timestamp,
+    liked: false,
+    likes: 0,
     thumbnailUrl: `/api/photos/${timestamp}.thumb.webp`,
     timestamp,
     url: `/api/photos/${timestamp}.webp`,

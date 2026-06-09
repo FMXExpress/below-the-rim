@@ -797,7 +797,7 @@ async function handleRoomApi(request: Request, url: URL) {
 
 async function handlePhotoApi(request: Request, url: URL, ip: string) {
   if (request.method === 'GET' && url.pathname === '/api/photos') {
-    return jsonResponse(listPhotos(photoListOffset(url)))
+    return jsonResponse(listPhotos(photoListOffset(url), ip))
   }
 
   const photoFile = photoFileRequest(url.pathname)
@@ -825,10 +825,24 @@ async function handlePhotoApi(request: Request, url: URL, ip: string) {
     db.query('INSERT INTO photos (timestamp, created_at, ip) VALUES ($timestamp, $createdAt, $ip)')
       .run({ timestamp, createdAt, ip })
 
-    return jsonResponse({ timestamp, createdAt, thumbnailUrl: photoThumbnailUrl(timestamp), url: photoUrl(timestamp) })
+    return jsonResponse(photoPayload({ timestamp, createdAt }, ip))
   }
 
   const timestamp = photoApiTimestamp(url.pathname)
+
+  if (request.method === 'POST' && timestamp !== undefined && url.pathname === `/api/photos/${timestamp}/likes`) {
+    if (!photoExists(timestamp)) {
+      return new Response('Not Found', { status: 404 })
+    }
+
+    const result = db.query(`
+      INSERT INTO photo_likes (timestamp, ip, created_at)
+      VALUES ($timestamp, $ip, $createdAt)
+      ON CONFLICT(timestamp, ip) DO NOTHING
+    `).run({ timestamp, ip, createdAt: Date.now() })
+
+    return jsonResponse({ ...photoLikePayload(timestamp, ip), added: result.changes > 0 })
+  }
 
   if (request.method === 'DELETE' && timestamp !== undefined) {
     const body = await request.json() as { pass?: string }
@@ -843,6 +857,7 @@ async function handlePhotoApi(request: Request, url: URL, ip: string) {
 
     await unlink(photoPath(timestamp, existingPhotoExtension(timestamp)))
     await unlink(photoThumbnailPath(timestamp))
+    db.query('DELETE FROM photo_likes WHERE timestamp = $timestamp').run({ timestamp })
     db.query('DELETE FROM photos WHERE timestamp = $timestamp').run({ timestamp })
 
     return jsonResponse({ ok: true })
@@ -877,7 +892,7 @@ async function servePhotoFile(request: Request, photoFile: PhotoFile) {
   })
 }
 
-function listPhotos(offset: number) {
+function listPhotos(offset: number, ip: string) {
   const photos = db.query<{
     createdAt: number
     timestamp: number
@@ -890,15 +905,39 @@ function listPhotos(offset: number) {
   const total = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM photos').get()!.count
 
   return {
-    photos: photos.map(photo => ({
-      ...photo,
-      thumbnailUrl: photoThumbnailUrl(photo.timestamp),
-      url: photoUrl(photo.timestamp),
-    })),
+    photos: photos.map(photo => photoPayload(photo, ip)),
     total,
     offset,
     limit: photoPageLimit,
   }
+}
+
+function photoPayload(photo: { createdAt: number; timestamp: number }, ip: string) {
+  return {
+    ...photo,
+    ...photoLikePayload(photo.timestamp, ip),
+    thumbnailUrl: photoThumbnailUrl(photo.timestamp),
+    url: photoUrl(photo.timestamp),
+  }
+}
+
+function photoLikePayload(timestamp: number, ip: string) {
+  return {
+    liked: photoLiked(timestamp, ip),
+    likes: photoLikeCount(timestamp),
+  }
+}
+
+function photoLikeCount(timestamp: number) {
+  return db.query<{ count: number }, { timestamp: number }>(
+    'SELECT COUNT(*) AS count FROM photo_likes WHERE timestamp = $timestamp',
+  ).get({ timestamp })!.count
+}
+
+function photoLiked(timestamp: number, ip: string) {
+  return !!db.query<{ timestamp: number }, { timestamp: number; ip: string }>(
+    'SELECT timestamp FROM photo_likes WHERE timestamp = $timestamp AND ip = $ip',
+  ).get({ timestamp, ip })
 }
 
 function photoListOffset(url: URL) {
@@ -938,7 +977,7 @@ function photoExists(timestamp: number) {
 }
 
 function photoApiTimestamp(path: string) {
-  const match = /^\/api\/photos\/(\d+)$/.exec(path)
+  const match = /^\/api\/photos\/(\d+)(?:\/likes)?$/.exec(path)
 
   return match ? Number(match[1]) : undefined
 }
@@ -1866,6 +1905,13 @@ function setupDb() {
       created_at INTEGER NOT NULL,
       ip TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS photo_likes (
+      timestamp INTEGER NOT NULL,
+      ip TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (timestamp, ip),
+      FOREIGN KEY (timestamp) REFERENCES photos(timestamp) ON DELETE CASCADE
+    );
     CREATE TABLE IF NOT EXISTS online_analytics (
       time INTEGER PRIMARY KEY,
       online_sum INTEGER NOT NULL,
@@ -1874,6 +1920,7 @@ function setupDb() {
     );
     CREATE INDEX IF NOT EXISTS photos_created_at_index ON photos (created_at DESC, timestamp DESC);
     CREATE INDEX IF NOT EXISTS photos_ip_created_at_index ON photos (ip, created_at);
+    CREATE INDEX IF NOT EXISTS photo_likes_timestamp_index ON photo_likes (timestamp);
   `)
 }
 

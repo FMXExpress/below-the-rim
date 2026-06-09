@@ -11,6 +11,8 @@ type Camera = {
 
 export type Photo = {
   createdAt: number
+  liked: boolean
+  likes: number
   thumbnailUrl: string
   timestamp: number
   url: string
@@ -27,6 +29,7 @@ type PhotoElement = {
   decodeId: number
   image: HTMLImageElement
   item: HTMLDivElement
+  like: HTMLButtonElement
   photo?: Photo
   thumbnailUrl: string
 }
@@ -42,6 +45,7 @@ const viewerSlideDuration = 420
 export function createPhotoWallUi(element: HTMLElement, options: {
   admin: () => { enabled: boolean; pass: string }
   alternativeInput: () => boolean
+  onLike?: (photo: Photo) => void
   recoverFocus?: () => void
 }) {
   const parkedPhotoWallSizePx = `${parkedPhotoWallSize}px`
@@ -62,6 +66,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   const viewerImage = document.createElement('img')
   const viewerPrevious = document.createElement('button')
   const viewerNext = document.createElement('button')
+  const viewerLike = document.createElement('button')
   const viewerClose = document.createElement('button')
   const photoElements: PhotoElement[] = []
   const fullPhotoPreloads = new Map<string, Promise<void>>()
@@ -89,9 +94,11 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   viewerImage.id = 'photo-viewer-image'
   viewerPrevious.id = 'photo-viewer-previous'
   viewerNext.id = 'photo-viewer-next'
+  viewerLike.id = 'photo-viewer-like'
   viewerClose.id = 'photo-viewer-close'
   viewerPrevious.className = 'photo-viewer-control photo-viewer-previous'
   viewerNext.className = 'photo-viewer-control photo-viewer-next'
+  viewerLike.className = 'photo-viewer-control photo-viewer-like'
   viewerClose.className = 'photo-viewer-control photo-viewer-close'
   viewerImage.alt = 'photo'
   viewerImage.className = 'photo-viewer-image'
@@ -103,11 +110,13 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   viewerNext.type = 'button'
   viewerNext.textContent = '👉'
   viewerNext.setAttribute('aria-label', 'next photo')
+  viewerLike.type = 'button'
+  viewerLike.setAttribute('aria-label', 'like photo')
   viewerClose.type = 'button'
   viewerClose.textContent = '✕'
   viewerClose.setAttribute('aria-label', 'close photo')
   panel.append(grid)
-  viewerPolaroid.append(viewerImage, viewerPrevious, viewerNext, viewerClose)
+  viewerPolaroid.append(viewerImage, viewerPrevious, viewerNext, viewerLike, viewerClose)
   viewerStage.append(viewerPolaroid)
   viewer.append(viewerStage)
   element.append(panel)
@@ -122,6 +131,13 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   })
   viewerNext.addEventListener('click', () => {
     void moveViewer(1)
+  })
+  viewerLike.addEventListener('click', () => {
+    if (!viewedPhoto) {
+      throw new Error('Missing viewed photo')
+    }
+
+    void likePhoto(viewedPhoto)
   })
   viewer.addEventListener('keydown', event => {
     const key = event.key.toLowerCase()
@@ -376,15 +392,30 @@ export function createPhotoWallUi(element: HTMLElement, options: {
   function createPhotoElement(): PhotoElement {
     const item = document.createElement('div')
     const image = document.createElement('img')
+    const like = document.createElement('button')
 
     item.className = 'photo-wall-item'
     item.dataset.ready = 'false'
     item.tabIndex = -1
+    like.type = 'button'
+    like.className = 'photo-wall-like'
+    like.setAttribute('aria-label', 'like photo')
     image.decoding = 'async'
     image.loading = 'eager'
-    item.append(image)
+    like.addEventListener('click', event => {
+      const photo = photoElements.find(element => element.like === event.currentTarget)?.photo
 
-    return { decodeId: 0, image, item, thumbnailUrl: '' }
+      event.preventDefault()
+      event.stopPropagation()
+      if (!photo) {
+        throw new Error('Missing liked photo')
+      }
+
+      void likePhoto(photo)
+    })
+    item.append(image, like)
+
+    return { decodeId: 0, image, item, like, thumbnailUrl: '' }
   }
 
   function syncPhotoElement(element: PhotoElement, photo: Photo | undefined) {
@@ -394,6 +425,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
       delete element.item.dataset.photo
       element.item.onclick = null
       element.item.onkeydown = null
+      element.like.disabled = true
       element.image.alt = ''
       element.item.tabIndex = -1
       unloadPhotoElement(element)
@@ -406,6 +438,7 @@ export function createPhotoWallUi(element: HTMLElement, options: {
     if (element.image.alt !== alt) {
       element.image.alt = alt
     }
+    syncLikeButton(element.like, photo)
     element.item.onclick = () => {
       void openViewer(photo, page.photos.indexOf(photo), element.image)
     }
@@ -605,10 +638,48 @@ export function createPhotoWallUi(element: HTMLElement, options: {
 
     viewerPolaroid.style.setProperty('--photo-viewer-tilt', `${tilt}deg`)
     syncViewerNav(index)
+    syncLikeButton(viewerLike, photo)
     preloadNeighborPhotos(index)
     syncViewerSource(photo)
 
     return tilt
+  }
+
+  async function likePhoto(photo: Photo) {
+    const response = await fetch(`/api/photos/${photo.timestamp}/likes`, { method: 'POST' })
+
+    if (!response.ok) {
+      throw new Error(`Photo like failed ${response.status}`)
+    }
+
+    const like = await jsonApiResponse<Pick<Photo, 'liked' | 'likes'> & { added: boolean }>(response, 'Photo like')
+    const next = updatePhotoLike(photo, like)
+
+    if (like.added) {
+      options.onLike?.(next)
+    }
+  }
+
+  function updatePhotoLike(photo: Photo, like: Pick<Photo, 'liked' | 'likes'>) {
+    const timestamp = photo.timestamp
+    const index = page.photos.findIndex(photo => photo.timestamp === timestamp)
+    const next = { ...(page.photos[index] ?? photo), ...like }
+
+    if (index >= 0) {
+      page.photos[index] = next
+    }
+    const element = photoElements.find(element => element.photo?.timestamp === timestamp)
+
+    if (element) {
+      element.photo = next
+      syncLikeButton(element.like, next)
+    }
+    if (viewedPhoto?.timestamp === timestamp) {
+      viewedPhoto = next
+      syncLikeButton(viewerLike, next)
+    }
+
+    return next
   }
 
   function photoElement(photo: Photo) {
@@ -874,6 +945,12 @@ function sortedPhotos(photos: Photo[]) {
   return [...photosByTimestamp.values()].sort((a, b) =>
     b.createdAt === a.createdAt ? b.timestamp - a.timestamp : b.createdAt - a.createdAt
   )
+}
+
+function syncLikeButton(button: HTMLButtonElement, photo: Photo) {
+  button.disabled = photo.liked
+  button.dataset.liked = String(photo.liked)
+  button.textContent = `❤️ ${photo.likes}`
 }
 
 async function jsonApiResponse<T>(response: Response, label: string): Promise<T> {
