@@ -31,7 +31,7 @@ export const messageMaxLength = 120
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 46
+export const protocolVersion = 47
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -150,9 +150,13 @@ export type GraffitiSnapshot = {
   url: string
 }
 
-export type ActionsPacket = {
-  id: number
+export type ClientActionsPacket = {
   actions: number
+  angle: number
+}
+
+export type ActionsPacket = ClientActionsPacket & {
+  id: number
 }
 
 export type AdminPacket = {
@@ -808,39 +812,45 @@ export function decodeServerProfile(view: DataView): ProfilePacket {
   }
 }
 
-export function encodeClientActions(actions: number) {
-  const data = new ArrayBuffer(2)
+export function encodeClientActions(packet: ClientActionsPacket) {
+  const data = new ArrayBuffer(3)
   const view = new DataView(data)
 
   view.setUint8(0, ACTIONS)
-  view.setUint8(1, actions)
+  view.setUint8(1, packet.actions)
+  view.setUint8(2, packet.angle)
 
   return data
 }
 
-export function decodeClientActions(view: DataView) {
-  expectSize(view, 2)
+export function decodeClientActions(view: DataView): ClientActionsPacket {
+  expectSize(view, 3)
 
-  return view.getUint8(1)
+  return {
+    actions: view.getUint8(1),
+    angle: view.getUint8(2),
+  }
 }
 
 export function encodeServerActions(packet: ActionsPacket) {
-  const data = new ArrayBuffer(4)
+  const data = new ArrayBuffer(5)
   const view = new DataView(data)
 
   view.setUint8(0, ACTIONS)
   view.setUint16(1, packet.id)
   view.setUint8(3, packet.actions)
+  view.setUint8(4, packet.angle)
 
   return data
 }
 
 export function decodeServerActions(view: DataView): ActionsPacket {
-  expectSize(view, 4)
+  expectSize(view, 5)
 
   return {
     id: view.getUint16(1),
     actions: view.getUint8(3),
+    angle: view.getUint8(4),
   }
 }
 

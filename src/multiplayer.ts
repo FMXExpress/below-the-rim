@@ -82,6 +82,7 @@ export function createMultiplayer(options: {
   localIdleClipIndex: () => number
   localSunglasses: () => boolean
   localActions: () => number
+  localActionTurn: () => number
   localInstagram: () => string
   localNickname: () => string
   localProfileReady: () => boolean
@@ -126,6 +127,7 @@ export function createMultiplayer(options: {
   let lastMode = -1
   let lastHeight = Infinity
   let lastActions = -1
+  let lastActionAngle = -1
   let profileQueued = false
   let socket = connect()
 
@@ -140,6 +142,7 @@ export function createMultiplayer(options: {
       videoProgress = setInterval(() => sendVideoProgress(), videoProgressInterval)
       room = options.initialRoom
       lastActions = -1
+      lastActionAngle = -1
       sendMotion()
       if (options.localProfileReady() && !profileQueued) {
         sendProfile()
@@ -299,6 +302,7 @@ export function createMultiplayer(options: {
       const player = players.get(packet.id)
 
       if (player) {
+        player.actionTurn = protocolToAngle(packet.angle)
         player.bubbling = (packet.actions & ACTION_BUBBLING) !== 0
         player.foaming = (packet.actions & ACTION_FOAMING) !== 0
       }
@@ -458,10 +462,12 @@ export function createMultiplayer(options: {
     sendMotion,
     sendActionsIfChanged() {
       const actions = options.localActions()
+      const angle = angleToProtocol(options.localActionTurn())
 
-      if (actions !== lastActions) {
+      if (actions !== lastActions || (actions !== 0 && angle !== lastActionAngle)) {
         lastActions = actions
-        send(encodeClientActions(actions))
+        lastActionAngle = angle
+        send(encodeClientActions({ actions, angle }))
       }
     },
     sendVideoEnded,

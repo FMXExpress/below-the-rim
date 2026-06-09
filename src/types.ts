@@ -219,6 +219,7 @@ export type Player = {
   sunglasses?: boolean
   bubbling?: boolean
   foaming?: boolean
+  actionTurn?: number
 }
 
 export type BeachBall = {

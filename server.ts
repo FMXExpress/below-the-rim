@@ -457,8 +457,14 @@ const server = Bun.serve<SocketData>({
         }
 
         if (type === ACTIONS) {
+          const actions = decodeClientActions(view)
+
           touchInteraction(client)
-          broadcast(client, encodeServerActions({ id: client.id, actions: decodeClientActions(view) & 0b11 }))
+          broadcast(client, encodeServerActions({
+            id: client.id,
+            actions: actions.actions & 0b11,
+            angle: actions.angle,
+          }))
           return
         }
 

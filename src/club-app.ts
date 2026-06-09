@@ -2196,6 +2196,7 @@ function connectMultiplayer(spaceSlug?: string) {
     localIdleClipIndex: () => idleClipIndex,
     localSunglasses: () => sunglasses,
     localActions: () => (bubbling ? ACTION_BUBBLING : 0) | (foaming ? ACTION_FOAMING : 0),
+    localActionTurn: () => cameraController.turn,
     localInstagram: () => instagram,
     localNickname: () => nickname,
     localProfileReady: () => profileSubmitted,
