@@ -110,11 +110,13 @@ import {
   createCharacterBoxGeometry,
   createImageTexture,
   createProgram,
+  createSceneTarget,
   createSmokeMap,
   createStrobeGeometry,
   createTarget,
   createTreeShadowMap,
   resizeTarget,
+  resizeSceneTarget,
 } from './webgl.ts'
 
 import { createArcadeUi } from './arcade-ui.ts'
@@ -1782,6 +1784,7 @@ const viewProjection = gl.getUniformLocation(program, 'viewProjection')
 const cameraEye = gl.getUniformLocation(program, 'cameraEye')
 const renderZone = gl.getUniformLocation(program, 'renderZone')
 const bloomPass = gl.getUniformLocation(program, 'bloomPass')
+const bloomWrite = gl.getUniformLocation(program, 'bloomWrite')
 const characterPass = gl.getUniformLocation(program, 'characterPass')
 const doorCoverVisible = gl.getUniformLocation(program, 'doorCoverVisible')
 const treeShadowSampler = gl.getUniformLocation(program, 'treeShadowMap')
@@ -1850,8 +1853,7 @@ const smokePuffArray = gl.createVertexArray()
 const smokePuffBuffer = gl.createBuffer()
 const graffitiArray = gl.createVertexArray()
 const graffitiBuffer = gl.createBuffer()
-const target = createTarget(gl, 1, 1)
-const bloomTarget = createTarget(gl, 1, 1)
+const target = createSceneTarget(gl, 1, 1)
 const feedback = {
   amount: 0,
   current: createTarget(gl, 1, 1),
@@ -1866,7 +1868,7 @@ const characterBoxGeometry = createCharacterBoxGeometry()
 const characterBoxInstanceSize = 17
 const characterBoxInstanceStride = characterBoxInstanceSize * Float32Array.BYTES_PER_ELEMENT
 
-if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !characterPass || !doorCoverVisible
+if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !bloomWrite || !characterPass || !doorCoverVisible
   || !treeShadowSampler
   || !graffitiMap || !objectTextureMap || !outsideNight || !graffitiTexture
   || !characterBoxViewProjection
@@ -3404,7 +3406,7 @@ const resize = () => {
   const feedbackHeight = feedback.current.height
 
   if (canvas.width === width && canvas.height === height
-    && bloomTarget.width === bloomWidth && bloomTarget.height === bloomHeight
+    && target.width === bloomWidth && target.height === bloomHeight
     && feedbackWidth === width && feedbackHeight === height)
   {
     return
@@ -3412,8 +3414,7 @@ const resize = () => {
 
   canvas.width = width
   canvas.height = height
-  resizeTarget(gl, target, width, height)
-  resizeTarget(gl, bloomTarget, bloomWidth, bloomHeight)
+  resizeSceneTarget(gl, target, bloomWidth, bloomHeight)
   if (feedbackWidth !== width || feedbackHeight !== height) {
     resizeTarget(gl, feedback.next, width, height)
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, feedback.current.frame)
@@ -3547,7 +3548,6 @@ function renderCurrentSceneFrame(options: {
       smoke: smokeArray,
       treeSwing: treeSwingArray,
     },
-    bloomTarget,
     camera: options.camera,
     character: {
       boxGeometry: characterBoxGeometry,
@@ -3608,6 +3608,7 @@ function renderCurrentSceneFrame(options: {
     program,
     roomUniforms: {
       bloomPass: bloomPass!,
+      bloomWrite: bloomWrite!,
       cameraEye: cameraEye!,
       characterPass: characterPass!,
       doorCoverVisible: doorCoverVisible!,

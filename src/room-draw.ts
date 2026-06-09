@@ -19,6 +19,7 @@ export function drawRoomDepth(options: {
   treeShadowMap: WebGLTexture
   uniforms: {
     bloomPass: WebGLUniformLocation
+    bloomWrite: WebGLUniformLocation
     cameraEye: WebGLUniformLocation
     characterPass: WebGLUniformLocation
     doorCoverVisible: WebGLUniformLocation

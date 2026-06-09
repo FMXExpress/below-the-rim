@@ -115,12 +115,14 @@ uniform sampler2D image;
 
 in vec2 imageUv;
 
-out vec4 pixel;
+layout(location = 0) out vec4 pixel;
+layout(location = 1) out vec4 bloomPixel;
 
 void main() {
   vec3 color = texture(image, imageUv).rgb;
 
   pixel = vec4(color, 1.0);
+  bloomPixel = vec4(0.0, 0.0, 0.0, 1.0);
 }
 `
 
@@ -137,7 +139,8 @@ in float hazeAmount;
 in vec3 worldPosition;
 flat in float strobeId;
 
-out vec4 pixel;
+layout(location = 0) out vec4 pixel;
+layout(location = 1) out vec4 bloomPixel;
 
 bool sceneVisible() {
   bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
@@ -180,10 +183,14 @@ void main() {
     }
 
     pixel = vec4(shade * light * 2.2 * alpha, alpha);
+    bloomPixel = vec4(0.0);
     return;
   }
 
   pixel = vec4(shade + shade * light * 2.2, alpha);
+  bloomPixel = light < 0.15
+    ? vec4(0.0, 0.0, 0.0, alpha)
+    : max(vec4(shade * light * 2.2 * alpha, alpha), vec4(0.0, 0.0, 0.0, alpha));
 }
 `
 
@@ -196,6 +203,7 @@ uniform vec3 cameraEye;
 uniform int renderZone;
 uniform int bloomPass;
 uniform int characterPass;
+uniform int bloomWrite;
 uniform int doorCoverVisible;
 uniform sampler2D treeShadowMap;
 uniform sampler2D graffitiMap;
@@ -208,7 +216,8 @@ in float hazeAmount;
 in vec3 worldPosition;
 flat in float strobeId;
 
-out vec4 pixel;
+layout(location = 0) out vec4 pixel;
+layout(location = 1) out vec4 bloomPixel;
 
 bool sceneVisible() {
   if (strobeId > 9000.0 && doorCoverVisible == 0) {
@@ -391,20 +400,22 @@ void main() {
   float random = fract(sin(max(strobeId, 0.0) * 17.13 + time * 9.27) * 43758.5453);
   float strobe = strobeId < 0.0 ? 1.0 : mix(1.0, step(0.82, random), white);
   float receiverShadow = texture(treeShadowMap, patternUv).a;
+  vec4 glowPixel = vec4(0.0);
+
+  if (nightUplightSurface()) {
+    glowPixel = vec4(nightUplightColor() * 0.5, trailAlpha);
+  }
+  else if (light >= 0.15) {
+    glowPixel = vec4(shade * light * 2.2 * strobe * trailAlpha, trailAlpha);
+  }
 
   if (bloomPass == 1) {
-    if (nightUplightSurface()) {
-      vec3 uplight = nightUplightColor() * 0.5;
-
-      pixel = vec4(uplight, trailAlpha);
-      return;
-    }
-
-    if (light < 0.15) {
+    if (glowPixel.a == 0.0) {
       discard;
     }
 
-    pixel = vec4(shade * light * 2.2 * strobe * trailAlpha, trailAlpha);
+    pixel = glowPixel;
+    bloomPixel = vec4(0.0);
     return;
   }
 
@@ -413,6 +424,7 @@ void main() {
     vec3 base = outsideModeColor(image * shade);
 
     pixel = vec4(base + surfaceEmission(strobe), trailAlpha);
+    bloomPixel = bloomWrite == 1 ? max(glowPixel, vec4(0.0, 0.0, 0.0, trailAlpha)) : vec4(0.0, 0.0, 0.0, trailAlpha);
     return;
   }
 
@@ -423,6 +435,7 @@ void main() {
       vec3 base = shade;
 
       pixel = vec4(mix(base, paint.rgb, paint.a), 1.0);
+      bloomPixel = vec4(0.0, 0.0, 0.0, 1.0);
       return;
     }
 
@@ -431,6 +444,7 @@ void main() {
     }
 
     pixel = paint;
+    bloomPixel = vec4(0.0);
     return;
   }
 
@@ -442,6 +456,7 @@ void main() {
     }
 
     pixel = vec4(vec3(0.002, 0.018, 0.004), shadowAlpha);
+    bloomPixel = vec4(0.0);
     return;
   }
 
@@ -450,6 +465,7 @@ void main() {
   float alpha = (hazeAmount > 3.5 ? 0.34 : 1.0) * trailAlpha;
 
   pixel = vec4(base + emissive, alpha);
+  bloomPixel = bloomWrite == 1 ? max(glowPixel, vec4(0.0, 0.0, 0.0, alpha)) : vec4(0.0, 0.0, 0.0, alpha);
 }
 `
 
@@ -468,7 +484,8 @@ in float flashGate;
 in vec3 worldPosition;
 flat in float strobeId;
 
-out vec4 pixel;
+layout(location = 0) out vec4 pixel;
+layout(location = 1) out vec4 bloomPixel;
 
 bool sceneVisible() {
   bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
@@ -524,6 +541,7 @@ void main() {
   }
 
   pixel = vec4(shade + shade * light * 2.2 * strobe * density, clamp(light * strobe * density, 0.0, 1.0));
+  bloomPixel = pixel;
 }
 `
 
@@ -561,7 +579,8 @@ uniform int renderZone;
 in vec3 shade;
 in vec3 worldPosition;
 
-out vec4 pixel;
+layout(location = 0) out vec4 pixel;
+layout(location = 1) out vec4 bloomPixel;
 
 bool sceneVisible() {
   bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
@@ -584,6 +603,7 @@ void main() {
   }
 
   pixel = vec4(shade, 1.0);
+  bloomPixel = vec4(0.0);
 }
 `
 
@@ -676,7 +696,8 @@ in vec2 localUv;
 in float opacity;
 in float patchSeed;
 
-out vec4 pixel;
+layout(location = 0) out vec4 pixel;
+layout(location = 1) out vec4 bloomPixel;
 
 void main() {
   float swirl = time * 0.42 + patchSeed * 1.71;
@@ -696,6 +717,7 @@ void main() {
   float alpha = body * opacity;
 
   pixel = vec4(vec3(0.58, 0.55, 0.5), alpha);
+  bloomPixel = vec4(0.0);
 }
 `
 

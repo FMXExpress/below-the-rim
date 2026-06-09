@@ -294,6 +294,10 @@ export type Target = {
   height: number
 }
 
+export type SceneTarget = Target & {
+  bloom: WebGLTexture
+}
+
 export type Bounds = {
   x: number
   z: number

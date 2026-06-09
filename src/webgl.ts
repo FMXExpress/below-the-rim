@@ -1,5 +1,5 @@
 import { clamp } from './math.ts'
-import type { CharacterBoxGeometry, Target, Vec3 } from './types.ts'
+import type { CharacterBoxGeometry, SceneTarget, Target, Vec3 } from './types.ts'
 
 export function createCharacterBoxGeometry(): CharacterBoxGeometry {
   const vertices: number[] = []
@@ -168,9 +168,37 @@ export function createTarget(context: WebGL2RenderingContext, width: number, hei
   context.framebufferTexture2D(context.FRAMEBUFFER, context.COLOR_ATTACHMENT0, context.TEXTURE_2D, color, 0)
   context.bindRenderbuffer(context.RENDERBUFFER, depth)
   context.framebufferRenderbuffer(context.FRAMEBUFFER, context.DEPTH_ATTACHMENT, context.RENDERBUFFER, depth)
+  context.drawBuffers([context.COLOR_ATTACHMENT0])
   const target = { frame, color, depth, width: 0, height: 0 }
 
   resizeTarget(context, target, width, height)
+  context.bindFramebuffer(context.FRAMEBUFFER, null)
+
+  return target
+}
+
+export function createSceneTarget(context: WebGL2RenderingContext, width: number, height: number) {
+  const frame = context.createFramebuffer()
+  const color = context.createTexture()
+  const bloom = context.createTexture()
+  const depth = context.createRenderbuffer()
+
+  if (!frame || !color || !bloom || !depth) {
+    throw new Error('Failed to create scene target')
+  }
+
+  setupTargetTexture(context, color)
+  setupTargetTexture(context, bloom)
+
+  context.bindFramebuffer(context.FRAMEBUFFER, frame)
+  context.framebufferTexture2D(context.FRAMEBUFFER, context.COLOR_ATTACHMENT0, context.TEXTURE_2D, color, 0)
+  context.framebufferTexture2D(context.FRAMEBUFFER, context.COLOR_ATTACHMENT1, context.TEXTURE_2D, bloom, 0)
+  context.bindRenderbuffer(context.RENDERBUFFER, depth)
+  context.framebufferRenderbuffer(context.FRAMEBUFFER, context.DEPTH_ATTACHMENT, context.RENDERBUFFER, depth)
+  context.drawBuffers([context.COLOR_ATTACHMENT0, context.COLOR_ATTACHMENT1])
+  const target = { bloom, color, depth, frame, width: 0, height: 0 }
+
+  resizeSceneTarget(context, target, width, height)
   context.bindFramebuffer(context.FRAMEBUFFER, null)
 
   return target
@@ -282,6 +310,14 @@ export function createImageTexture(context: WebGL2RenderingContext, path: string
   return texture
 }
 
+function setupTargetTexture(context: WebGL2RenderingContext, texture: WebGLTexture) {
+  context.bindTexture(context.TEXTURE_2D, texture)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.NEAREST)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.NEAREST)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
+}
+
 export function resizeTarget(context: WebGL2RenderingContext, target: Target, width: number, height: number) {
   if (target.width === width && target.height === height) {
     return
@@ -294,8 +330,37 @@ export function resizeTarget(context: WebGL2RenderingContext, target: Target, wi
   context.bindRenderbuffer(context.RENDERBUFFER, target.depth)
   context.renderbufferStorage(context.RENDERBUFFER, context.DEPTH_COMPONENT24, width, height)
   context.bindFramebuffer(context.FRAMEBUFFER, target.frame)
+  context.drawBuffers([context.COLOR_ATTACHMENT0])
 
   if (context.checkFramebufferStatus(context.FRAMEBUFFER) !== context.FRAMEBUFFER_COMPLETE) {
     throw new Error('Render target is incomplete')
+  }
+}
+
+export function resizeSceneTarget(
+  context: WebGL2RenderingContext,
+  target: SceneTarget,
+  width: number,
+  height: number,
+) {
+  if (target.width === width && target.height === height) {
+    return
+  }
+
+  target.width = width
+  target.height = height
+  context.bindTexture(context.TEXTURE_2D, target.color)
+  context.texImage2D(context.TEXTURE_2D, 0, context.RGBA, width, height, 0, context.RGBA, context.UNSIGNED_BYTE, null)
+  context.bindTexture(context.TEXTURE_2D, target.bloom)
+  context.texImage2D(context.TEXTURE_2D, 0, context.RGBA, width, height, 0, context.RGBA, context.UNSIGNED_BYTE, null)
+  context.bindRenderbuffer(context.RENDERBUFFER, target.depth)
+  context.renderbufferStorage(context.RENDERBUFFER, context.DEPTH_COMPONENT24, width, height)
+  context.bindFramebuffer(context.FRAMEBUFFER, target.frame)
+  context.framebufferTexture2D(context.FRAMEBUFFER, context.COLOR_ATTACHMENT0, context.TEXTURE_2D, target.color, 0)
+  context.framebufferTexture2D(context.FRAMEBUFFER, context.COLOR_ATTACHMENT1, context.TEXTURE_2D, target.bloom, 0)
+  context.drawBuffers([context.COLOR_ATTACHMENT0, context.COLOR_ATTACHMENT1])
+
+  if (context.checkFramebufferStatus(context.FRAMEBUFFER) !== context.FRAMEBUFFER_COMPLETE) {
+    throw new Error('Scene target is incomplete')
   }
 }
