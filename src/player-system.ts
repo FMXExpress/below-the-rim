@@ -11,13 +11,8 @@ import {
   roomBounds,
 } from './scene-data.ts'
 import { collideRoom, isOutside, seatAt, seatById, seats, walkHeight } from './scene.ts'
+import { createObjectTurnBasisCache } from './turn-basis.ts'
 import type { CircleBounds, Player, PlayerDestination, PlayerStyle, Vec3 } from './types.ts'
-
-type TurnBasis = {
-  cos: number
-  sin: number
-  turn: number
-}
 
 const npcConfig = {
   initialSeatedCount: 12,
@@ -89,7 +84,7 @@ const doorClearOutside = roomBounds.front + 2.35
 const destinationSeats = seats()
 const loungeDestinationSeats = destinationSeats.filter(seat => !seat.id.startsWith('stool:'))
 const stoolDestinationSeats = destinationSeats.filter(seat => seat.id.startsWith('stool:'))
-const turnBasisCache = new WeakMap<Player, TurnBasis>()
+const playerTurnBasis = createObjectTurnBasisCache<Player>()
 
 export function createPlayers(count: number, outsideTree: CircleBounds, occupiedSeats: Set<string>) {
   const next: Player[] = []
@@ -227,7 +222,7 @@ export function updatePlayers(
     if (moving) {
       const lastX = player.position[0]
       const lastZ = player.position[2]
-      const turn = playerTurnBasis(player)
+      const turn = playerTurnBasis(player, player.turn)
       const inputX = turn.sin * player.input[2] + turn.cos * player.input[0]
       const inputZ = turn.cos * player.input[2] - turn.sin * player.input[0]
       const inputLength = Math.sqrt(inputX * inputX + inputZ * inputZ)
@@ -261,24 +256,6 @@ export function updatePlayers(
 
     player.position[1] = walkHeight(player.position[0], player.position[1], player.position[2])
   }
-}
-
-function playerTurnBasis(player: Player) {
-  const cached = turnBasisCache.get(player)
-
-  if (cached?.turn === player.turn) {
-    return cached
-  }
-
-  const next = {
-    cos: Math.cos(player.turn),
-    sin: Math.sin(player.turn),
-    turn: player.turn,
-  }
-
-  turnBasisCache.set(player, next)
-
-  return next
 }
 
 export function takeNpcSeat(

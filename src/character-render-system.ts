@@ -19,6 +19,7 @@ import { createCharacterStyleController } from './character-style.ts'
 import { createCigaretteGeometry, setCigaretteMouth as setCigaretteMouthPoint } from './cigarette.ts'
 import { createLocalCharacter } from './local-character.ts'
 import { afterNextPaint } from './startup.ts'
+import { createObjectTurnBasisCache } from './turn-basis.ts'
 import type { CharacterLight, CharacterMode, CharacterRig, HairRenderMesh, Player, SampledPose, Vec3 } from './types.ts'
 
 type CigarettePoseInput = {
@@ -80,7 +81,7 @@ export function createCharacterRenderSystem(options: {
   const vertexWriter: VertexWriter = drawCache.vertices
   const cigarettePose = Array.from({ length: characterPoseJoints.length }, () => [0, 0, 0] as Vec3)
   const cigaretteGeometry = createCigaretteGeometry()
-  const cigaretteTurn = { cos: 1, sin: 0 }
+  const cigaretteTurnBasis = createObjectTurnBasisCache<CigarettePoseInput>()
   let cigaretteBasePose: SampledPose | undefined
 
   function loadCoreOnce(onLoaded?: () => void) {
@@ -198,8 +199,7 @@ export function createCharacterRenderSystem(options: {
       return false
     }
 
-    cigaretteTurn.cos = Math.cos(player.turn)
-    cigaretteTurn.sin = Math.sin(player.turn)
+    const cigaretteTurn = cigaretteTurnBasis(player, player.turn)
     setPoseCigaretteGeometry(cigaretteGeometry, sampleCigarettePose(rig, player, time), cigaretteTurn, time)
     target[0] = cigaretteGeometry.emberTip[0]
     target[1] = cigaretteGeometry.emberTip[1]
@@ -216,8 +216,7 @@ export function createCharacterRenderSystem(options: {
       return false
     }
 
-    cigaretteTurn.cos = Math.cos(player.turn)
-    cigaretteTurn.sin = Math.sin(player.turn)
+    const cigaretteTurn = cigaretteTurnBasis(player, player.turn)
     setCigaretteMouthPoint(target, sampleCigarettePose(rig, player, time)[headPoseIndex]!, cigaretteTurn)
     forward[0] = cigaretteTurn.sin
     forward[1] = 0

@@ -106,22 +106,30 @@ export function createStrobeLights() {
 
 export function strobeTarget(light: StrobeLight, time: number): Vec3 {
   const frame = Math.floor(time * 60)
-  const cached = strobeTargetCache.get(light)
+  let cached = strobeTargetCache.get(light)
 
   if (cached?.frame === frame) {
     return cached.target
   }
 
-  const target = light.zone === 'outside'
-    ? outsideStrobeTarget(light, time)
-    : insideStrobeTarget(light, time)
+  if (!cached) {
+    cached = { frame, target: [0, 0, 0] }
+    strobeTargetCache.set(light, cached)
+  }
 
-  strobeTargetCache.set(light, { frame, target })
+  cached.frame = frame
 
-  return target
+  if (light.zone === 'outside') {
+    outsideStrobeTarget(cached.target, light, time)
+  }
+  else {
+    insideStrobeTarget(cached.target, light, time)
+  }
+
+  return cached.target
 }
 
-function insideStrobeTarget(light: StrobeLight, time: number): Vec3 {
+function insideStrobeTarget(target: Vec3, light: StrobeLight, time: number) {
   const cycle = time % 16
   const sweepTime = cycle < 5.5 ? time : time - 3
   const speed = 1.15
@@ -132,15 +140,19 @@ function insideStrobeTarget(light: StrobeLight, time: number): Vec3 {
   const x = mix(sweepX, light.x, vertical)
   const z = mix(sweepZ, light.z, vertical)
 
-  return [clamp(x, light.minX, light.maxX), light.floor, clamp(z, light.minZ, light.maxZ)]
+  target[0] = clamp(x, light.minX, light.maxX)
+  target[1] = light.floor
+  target[2] = clamp(z, light.minZ, light.maxZ)
 }
 
-function outsideStrobeTarget(light: StrobeLight, time: number): Vec3 {
+function outsideStrobeTarget(target: Vec3, light: StrobeLight, time: number) {
   const side = Math.sign(light.x - outsideDjBooth.x)
   const phase = time * 0.56 + light.id * 2.17
   const drift = time * 0.37 + light.id * 1.31
   const x = Math.sin(phase) * 5.8 + Math.sin(drift * 1.73) * 2.6 - side * 0.9
   const z = light.z - 6.8 - Math.cos(drift) * 3.4 - Math.sin(phase * 0.61) * 2.1
 
-  return [clamp(x, light.minX, light.maxX), light.floor, clamp(z, light.minZ, light.maxZ)]
+  target[0] = clamp(x, light.minX, light.maxX)
+  target[1] = light.floor
+  target[2] = clamp(z, light.minZ, light.maxZ)
 }

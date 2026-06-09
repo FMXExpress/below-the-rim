@@ -17,6 +17,7 @@ import { raiseCigaretteArm, setCigaretteGeometry } from './cigarette.ts'
 import type { CigaretteGeometry } from './cigarette.ts'
 import { clamp, normalizeIndex } from './math.ts'
 import { roomAt } from './scene.ts'
+import { createObjectTurnBasisCache } from './turn-basis.ts'
 import type {
   CharacterLight,
   CharacterMode,
@@ -63,7 +64,6 @@ type HeadBasis = {
   up: Vec3
   forward: Vec3
 }
-type CachedTurnBasis = TurnBasis & { turn: number }
 
 export type CharacterDrawCache = {
   basePose?: SampledPose
@@ -148,7 +148,7 @@ const playerVisibility = { depth: 0, distanceSq: 0, visible: false }
 const farHairDistanceSq = 34 * 34
 const maxCachedBasePoses = 960
 const maxCachedBlendPoses = 1440
-const turnBasisCache = new WeakMap<object, CachedTurnBasis>()
+const characterTurnBasis = createObjectTurnBasisCache<CharacterInput>()
 
 export function buildCharacterDrawData(options: BuildOptions) {
   const cache = options.drawCache
@@ -303,7 +303,7 @@ function addRenderedCharacter(
     groundJointIndices, characterScale, basePose, blendCache, placedPose, cacheFrame)
   const style = player.resolvedStyle ?? resolvePlayerStyle(player.style)
   const localReflection = detailedHair
-  const turn = characterTurnBasis(player)
+  const turn = characterTurnBasis(player, player.turn)
 
   if (style.accessoryKind === 'cigarette') {
     raisePoseCigaretteArm(pose, turn, options.time)
@@ -347,24 +347,6 @@ function addRenderedCharacter(
   else if (hair && renderHair && options.hairMeshes.length > 0) {
     addNpcHairInstance(hairInstances, pose, hair, style.hairColor)
   }
-}
-
-function characterTurnBasis(player: CharacterInput): TurnBasis {
-  const cached = turnBasisCache.get(player)
-
-  if (cached && cached.turn === player.turn) {
-    return cached
-  }
-
-  const next = {
-    cos: Math.cos(player.turn),
-    sin: Math.sin(player.turn),
-    turn: player.turn,
-  }
-
-  turnBasisCache.set(player, next)
-
-  return next
 }
 
 function addSunglasses(

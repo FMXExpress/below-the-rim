@@ -8,6 +8,7 @@ import {
 import { findPath } from './pathfinding.ts'
 import { collideLoftRoom, collideRoom, isOutside, seatAt, seatById, walkHeight, walkLoftHeight } from './scene.ts'
 import type { Seat } from './scene.ts'
+import { createTurnBasisCache } from './turn-basis.ts'
 import type { BottomMode, CharacterMode, CircleBounds, Vec3 } from './types.ts'
 
 const jumpDuration = 0.8
@@ -45,6 +46,8 @@ export function createLocalCharacter(keys: Set<string>) {
   let waveElapsed = 0
   let waveOutElapsed = 0
   let breakdanceElapsed = 0
+  const cameraTurnBasis = createTurnBasisCache()
+  const localTurnBasis = createTurnBasisCache()
 
   function startJump() {
     hasDestination = false
@@ -241,12 +244,11 @@ export function createLocalCharacter(keys: Set<string>) {
         const distance = Math.sqrt(distanceSq)
         const worldX = dx / distance
         const worldZ = dz / distance
-        const sin = Math.sin(cameraTurn)
-        const cos = Math.cos(cameraTurn)
+        const camera = cameraTurnBasis(cameraTurn)
 
-        input[0] = -cos * worldX + sin * worldZ
+        input[0] = -camera.cos * worldX + camera.sin * worldZ
         input[1] = 0
-        input[2] = sin * worldX + cos * worldZ
+        input[2] = camera.sin * worldX + camera.cos * worldZ
       }
       if (hasJumpTarget) {
         if (waypointReached(position, jumpTarget)) {
@@ -314,8 +316,9 @@ export function createLocalCharacter(keys: Set<string>) {
           seat = ''
           mode = 'run'
           motionBlend = 1
-          position[0] += Math.sin(turn) * 0.46
-          position[2] += Math.cos(turn) * 0.46
+          const local = localTurnBasis(turn)
+          position[0] += local.sin * 0.46
+          position[2] += local.cos * 0.46
         }
         else {
           motionBlend = 0
@@ -370,20 +373,20 @@ export function createLocalCharacter(keys: Set<string>) {
       if (moving) {
         normalizeInto(input)
         if (hasJumpTarget) {
-          direction[0] = Math.sin(turn)
+          const local = localTurnBasis(turn)
+          direction[0] = local.sin
           direction[1] = 0
-          direction[2] = Math.cos(turn)
+          direction[2] = local.cos
         }
         else {
-          const sin = Math.sin(cameraTurn)
-          const cos = Math.cos(cameraTurn)
+          const camera = cameraTurnBasis(cameraTurn)
 
-          forward[0] = sin
+          forward[0] = camera.sin
           forward[1] = 0
-          forward[2] = cos
-          right[0] = -cos
+          forward[2] = camera.cos
+          right[0] = -camera.cos
           right[1] = 0
-          right[2] = sin
+          right[2] = camera.sin
           direction[0] = forward[0] * input[2] + right[0] * input[0]
           direction[1] = 0
           direction[2] = forward[2] * input[2] + right[2] * input[0]

@@ -145,6 +145,7 @@ import { createStrobeLights } from './strobe-object.ts'
 import { createVideoPreviewRenderer } from './video-preview-renderer.ts'
 import { afterNextPaint, introLoadProgressValue, setIntroLoadProgress } from './startup.ts'
 import { treeSwing, updateTreeSwing, writeTreeSwingGeometry } from './tree-swing.ts'
+import { createObjectTurnBasisCache } from './turn-basis.ts'
 
 const clubGlobal = globalThis as ClubGlobal
 
@@ -2141,6 +2142,8 @@ type ParticlePlayer = {
   modeTime?: number
 }
 const particleTimers = new Map<number, ParticleTimers>()
+const particleTurnBasis = createObjectTurnBasisCache<ParticlePlayer>()
+const particleActionTurnBasis = createObjectTurnBasisCache<ParticlePlayer>()
 const localParticleSource = -1
 const localParticlePlayer: ParticlePlayer = {
   position: characterPosition,
@@ -3714,10 +3717,18 @@ function arcadeScreenRect(projector: WallProjector) {
     projectWallPointWithMinDepthInto(arcadeScreenCorners[i]!, projector, arcadeScreenPoints[i]!, 0.05)
   }
 
-  const left = Math.min(...arcadeScreenPoints.map(point => point.x))
-  const right = Math.max(...arcadeScreenPoints.map(point => point.x))
-  const top = Math.min(...arcadeScreenPoints.map(point => point.y))
-  const bottom = Math.max(...arcadeScreenPoints.map(point => point.y))
+  let left = arcadeScreenPoints[0]!.x
+  let right = left
+  let top = arcadeScreenPoints[0]!.y
+  let bottom = top
+
+  for (let i = 1; i < arcadeScreenPoints.length; i++) {
+    const point = arcadeScreenPoints[i]!
+    left = Math.min(left, point.x)
+    right = Math.max(right, point.x)
+    top = Math.min(top, point.y)
+    bottom = Math.max(bottom, point.y)
+  }
 
   return {
     left,
@@ -3964,10 +3975,12 @@ function emitPlayerParticles(
   const position = player.position
   const turn = player.turn
   const actionTurn = player.actionTurn ?? turn
-  const forwardX = Math.sin(turn)
-  const forwardZ = Math.cos(turn)
-  const actionForwardX = Math.sin(actionTurn)
-  const actionForwardZ = Math.cos(actionTurn)
+  const forward = particleTurnBasis(player, turn)
+  const actionForward = actionTurn === turn ? forward : particleActionTurnBasis(player, actionTurn)
+  const forwardX = forward.sin
+  const forwardZ = forward.cos
+  const actionForwardX = actionForward.sin
+  const actionForwardZ = actionForward.cos
 
   if (isBubbling && stamp >= timers.bubble) {
     timers.bubble = stamp + bubbleInterval
