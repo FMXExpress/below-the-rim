@@ -33,7 +33,7 @@ import { createMultiplayer, updateRemotePlayers } from './multiplayer.ts'
 import { createPlayers, takeNpcSeat, updatePlayers } from './player-system.ts'
 import type { ProjectedPoint, Viewport, WallProjector } from './projection.ts'
 import { createWallProjector, projectWallPointInto, projectWallPointWithMinDepthInto } from './projection.ts'
-import { ACTION_BUBBLING, ACTION_FOAMING, instagramMaxLength, npcChatIdCount, npcChatIdStart } from './protocol.ts'
+import { ACTION_BUBBLING, ACTION_FOAMING, instagramMaxLength } from './protocol.ts'
 import type { GraffitiSnapshot, MessagePacket, VideoEndedEntry } from './protocol.ts'
 import { emojiReactionFromMessage, pickerEmojis, reactionEmojis } from './reactions.ts'
 import {
@@ -292,7 +292,7 @@ const chatPalette = [
 const keys = new Set<string>()
 const occupiedSeats = new Set<string>()
 const remoteSeats = new Set<string>()
-const maxNpcPlayers = 350
+const maxNpcPlayers = 300
 const npcPopulationInterval = 60_000
 let idleClipIndex = 0
 let alternativeInput = true
@@ -1196,18 +1196,6 @@ function chatMessageColor(message: MessagePacket) {
   return identityColor(name)
 }
 
-function serverNpcId(id: number) {
-  return id >= npcChatIdStart && id < npcChatIdStart + npcChatIdCount
-}
-
-function serverNpcIndex(id: number) {
-  return id - npcChatIdStart
-}
-
-function serverNpcPlayer(id: number) {
-  return npcPlayers[serverNpcIndex(id)]!
-}
-
 function chatMessageKey(message: Pick<MessagePacket, 'id' | 'photoTimestamp' | 'text'>) {
   return `${message.id}\n${message.photoTimestamp}\n${message.text}`
 }
@@ -1267,7 +1255,7 @@ function syncOnlineSelf() {
 
   const label = nicknameLabel(name)
   const color = identityColor(name)
-  const text = ` ${onlineCountValue + npcChatIdCount} online`
+  const text = ` ${onlineCountValue} online`
 
   if (label !== lastOnlineSelfLabel) {
     onlineSelf.textContent = label
@@ -1315,24 +1303,6 @@ function syncChatFormColor() {
 function syncNicknameLabels() {
   syncChatFormColor()
 
-  if (appSpace.kind === 'main') {
-    serverNpcLabelsSynced = true
-    for (let i = 0; i < npcChatIdCount; i++) {
-      const id = npcChatIdStart + i
-      const name = playerNicknames.get(id)
-
-      if (name) {
-        const cached = cachedNicknameLabel(id, name, '')
-
-        chatUi.setLabel(id, cached.label, serverNpcPlayer(id).position, cached.color)
-      }
-    }
-  }
-  else if (serverNpcLabelsSynced) {
-    clearServerNpcLabels()
-    serverNpcLabelsSynced = false
-  }
-
   for (const [id, player] of multiplayer.players) {
     const name = identityName(id, playerNicknames.get(id))
     const cached = cachedNicknameLabel(id, name, playerInstagrams.get(id) ?? '')
@@ -1341,25 +1311,7 @@ function syncNicknameLabels() {
   }
 }
 
-function clearServerNpcLabels() {
-  for (let i = 0; i < npcChatIdCount; i++) {
-    chatUi.remove(npcChatIdStart + i)
-  }
-}
-
 function syncRemoteNicknameLabel(id: number) {
-  if (serverNpcId(id)) {
-    const name = playerNicknames.get(id)
-
-    if (name && appSpace.kind === 'main') {
-      const cached = cachedNicknameLabel(id, name, '')
-
-      chatUi.setLabel(id, cached.label, serverNpcPlayer(id).position, cached.color)
-    }
-
-    return
-  }
-
   const player = multiplayer.players.get(id)
 
   if (player) {
@@ -1673,7 +1625,6 @@ let lastOnlineSelfName = ''
 let lastOnlineSelfLabel = ''
 let lastOnlineText = ''
 let lastOnlineCountValue = -1
-let serverNpcLabelsSynced = false
 let introWaveSent = false
 let profileSubmitted = false
 
@@ -2276,7 +2227,6 @@ function resetServerState() {
   chatLogRows.clear()
   chatLog.replaceChildren()
   clearAdminIdLabels()
-  serverNpcLabelsSynced = false
 }
 
 function connectMultiplayer(spaceSlug?: string) {
@@ -2334,11 +2284,9 @@ function connectMultiplayer(spaceSlug?: string) {
         return
       }
 
-      const position = serverNpcId(message.id)
-        ? serverNpcPlayer(message.id).position
-        : message.id === multiplayer.selfId
-          ? characterPosition
-          : multiplayer.players.get(message.id)?.position
+      const position = message.id === multiplayer.selfId
+        ? characterPosition
+        : multiplayer.players.get(message.id)?.position
 
       rememberPlayerProfile(message.id, message.nick, message.insta)
 
@@ -4602,7 +4550,7 @@ function syncNpcPopulation(stamp: number) {
   }
 
   nextNpcPopulationSyncAt = stamp + npcPopulationInterval
-  setNpcPlayerCount(Math.max(npcChatIdCount, maxNpcPlayers - onlineCountValue))
+  setNpcPlayerCount(maxNpcPlayers - onlineCountValue)
 }
 
 function setNpcPlayerCount(count: number) {

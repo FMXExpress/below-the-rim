@@ -29,8 +29,6 @@ export const ACTION_FOAMING = 2
 
 export const roomCount = 3
 export const messageMaxLength = 120
-export const npcChatIdCount = 60
-export const npcChatIdStart = 60000
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
