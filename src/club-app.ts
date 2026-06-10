@@ -3165,9 +3165,22 @@ function toggleChatInput(focus = true) {
   }
 }
 
+function submitChatInput() {
+  sendChatMessage(chatUi.submit(document.documentElement.dataset.touchControls !== 'true'))
+}
+
+chatInput.addEventListener('keydown', event => {
+  if (event.key !== 'Enter') {
+    return
+  }
+
+  event.preventDefault()
+  submitChatInput()
+})
+
 chatForm.addEventListener('submit', event => {
   event.preventDefault()
-  sendChatMessage(chatUi.submit(document.documentElement.dataset.touchControls !== 'true'))
+  submitChatInput()
 })
 
 photoButton.addEventListener('pointerdown', event => {

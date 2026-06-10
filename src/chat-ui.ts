@@ -93,7 +93,7 @@ export function createChatUi(
       }
       else {
         input.value = ''
-        input.blur()
+        input.focus()
       }
 
       return text
