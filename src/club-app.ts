@@ -1631,6 +1631,10 @@ function setIntroEffectPointer(event: PointerEvent) {
 }
 
 function startIntro() {
+  if (introHidden) {
+    return
+  }
+
   if (!introReadyToEnter()) {
     return
   }
@@ -1670,6 +1674,10 @@ function submitIntroProfile() {
   return true
 }
 
+introStart.addEventListener('pointerdown', event => {
+  event.preventDefault()
+  startIntro()
+})
 introStart.addEventListener('click', startIntro)
 introNicknameInput.addEventListener('change', () => syncNickname(introNicknameInput.value))
 introNicknameInput.addEventListener('input', syncChatFormColor)
@@ -2178,12 +2186,7 @@ let graffitiSnapshotMaxId = 0
 
 renderGraffitiTexture([])
 
-function connectMultiplayer(spaceSlug?: string) {
-  if (hasMultiplayer) {
-    multiplayer.close()
-  }
-
-  hasMultiplayer = true
+function resetServerState() {
   predictedMessages.clear()
   playerInstagrams.clear()
   playerNicknames.clear()
@@ -2192,6 +2195,15 @@ function connectMultiplayer(spaceSlug?: string) {
   chatLogRows.clear()
   chatLog.replaceChildren()
   clearAdminIdLabels()
+}
+
+function connectMultiplayer(spaceSlug?: string) {
+  if (hasMultiplayer) {
+    multiplayer.close()
+  }
+
+  hasMultiplayer = true
+  resetServerState()
   multiplayer = createMultiplayer({
     localPosition: characterPosition,
     localTurn: () => localCharacter.turn,
@@ -2216,7 +2228,10 @@ function connectMultiplayer(spaceSlug?: string) {
     }),
     initialRoom: activeRoom,
     spaceSlug,
-    onRoomState: room => {
+    onRoomState: (room, state) => {
+      if (state.selfChanged) {
+        resetServerState()
+      }
       activeRoom = room
       requestedRoom = room
       saveCurrentClubState(true, room)
@@ -3911,9 +3926,11 @@ const draw = (stamp: number) => {
 
   syncMerchCards(outside)
 
-  if (introHidden) {
+  if (introHidden || introReadyToEnter()) {
     djVideoUi.update(camera, projector)
+  }
 
+  if (introHidden) {
     if (outside) {
       foodTruckWallProjection.update(camera, projector, outsideFoodTruckFoodWall)
       outsideHutDrinkWallProjection.update(camera, projector, outsideHutDrinkWall)

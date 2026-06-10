@@ -154,7 +154,7 @@ export function createDjVideoUi(
       return id ? { id, zone: area } : undefined
     },
     canPlay() {
-      return ready[zone] === true
+      return videoReady(zone)
     },
     load() {
       const youtube = window as YouTubeWindow
@@ -177,7 +177,7 @@ export function createDjVideoUi(
                   loadSyncedTrack(area)
                 }
                 else {
-                  players[area]!.pauseVideo()
+                  cueFallbackTrack(area)
                   requestPlaylist(area)
                 }
               },
@@ -266,7 +266,7 @@ export function createDjVideoUi(
         loadSyncedTrack(zone)
       }
       else {
-        playFallbackTrack(zone)
+        playCurrentOrFallbackTrack(zone)
       }
       pauseOtherVideos(zone, players, ready)
 
@@ -324,6 +324,28 @@ export function createDjVideoUi(
 
     player.loadVideoById({ videoId: id, startSeconds: time })
     player.playVideo()
+  }
+
+  function playCurrentOrFallbackTrack(area: VideoZone) {
+    const player = players[area]!
+
+    if (player.getVideoData()?.video_id) {
+      player.playVideo()
+      return
+    }
+
+    playFallbackTrack(area)
+  }
+
+  function cueFallbackTrack(area: VideoZone) {
+    const player = players[area]!
+    const id = videoTracks[area]
+
+    if (player.getVideoData()?.video_id === id) {
+      return
+    }
+
+    player.cueVideoById({ videoId: id, startSeconds: videoStartTimes[area] })
   }
 
   function syncZoneTime(area: VideoZone) {
@@ -424,6 +446,9 @@ export function createDjVideoUi(
       if (states[area]) {
         loadSyncedTrack(area)
       }
+      else if (!playUnlocked) {
+        cueFallbackTrack(area)
+      }
       return
     }
 
@@ -433,7 +458,21 @@ export function createDjVideoUi(
     }
 
     discoveringPlaylists[area] = false
+    if (!states[area] && !playUnlocked) {
+      cueFallbackTrack(area)
+    }
     console.error(new Error(`Missing YouTube playlist ids for ${area}`))
+  }
+
+  function videoReady(area: VideoZone) {
+    if (!ready[area]) {
+      return false
+    }
+
+    const id = players[area]!.getVideoData()?.video_id
+    const state = states[area]
+
+    return state ? id === state.currentId : Boolean(id)
   }
 }
 

@@ -98,7 +98,7 @@ export function createMultiplayer(options: {
   }
   initialRoom: number
   spaceSlug?: string
-  onRoomState: (room: number) => void
+  onRoomState: (room: number, state: { selfChanged: boolean }) => void
   onMessage: (message: MessagePacket) => void
   onProfile: (profile: ProfilePacket) => void
   onDeleteMessages: (id: number) => void
@@ -198,6 +198,9 @@ export function createMultiplayer(options: {
 
       selfId = state.selfId
       room = state.room
+      removeRemotePlayer(selfId, true)
+      previousIds.delete(selfId)
+      previousPendingIds.delete(selfId)
 
       for (const player of state.players) {
         if (player.id !== selfId && applyRemotePlayerPacket(player)) {
@@ -207,16 +210,14 @@ export function createMultiplayer(options: {
       }
 
       for (const id of previousIds) {
-        players.delete(id)
-        options.onLeave(id)
+        removeRemotePlayer(id, true)
       }
       for (const id of previousPendingIds) {
-        pendingPlayers.delete(id)
-        profiledPlayers.delete(id)
+        removeRemotePlayer(id, false)
       }
 
       if (selfId !== previousSelfId || room !== previousRoom) {
-        options.onRoomState(room)
+        options.onRoomState(room, { selfChanged: selfId !== previousSelfId })
       }
 
       return
@@ -234,12 +235,17 @@ export function createMultiplayer(options: {
 
     if (type === S_MOTION) {
       const packet = decodeServerMotion(view)
+
+      if (packet.id === selfId) {
+        return
+      }
+
       const player = players.get(packet.id)
 
       if (player && validRemotePose(packet)) {
         applyRemotePose(player, packet)
       }
-      else if (packet.id !== selfId) {
+      else {
         applyRemotePlayerPacket(packet)
       }
 
@@ -249,10 +255,9 @@ export function createMultiplayer(options: {
     if (type === S_LEAVE) {
       const id = decodeLeave(view)
 
-      players.delete(id)
-      pendingPlayers.delete(id)
-      profiledPlayers.delete(id)
-      options.onLeave(id)
+      if (id !== selfId) {
+        removeRemotePlayer(id, true)
+      }
       return
     }
 
@@ -296,14 +301,21 @@ export function createMultiplayer(options: {
     if (type === NICKNAME) {
       const profile = decodeServerProfile(view)
 
-      profiledPlayers.add(profile.id)
-      promotePendingPlayer(profile.id)
+      if (profile.id !== selfId) {
+        profiledPlayers.add(profile.id)
+        promotePendingPlayer(profile.id)
+      }
       options.onProfile(profile)
       return
     }
 
     if (type === ACTIONS) {
       const packet = decodeServerActions(view)
+
+      if (packet.id === selfId) {
+        return
+      }
+
       const player = players.get(packet.id)
 
       if (player) {
@@ -373,6 +385,16 @@ export function createMultiplayer(options: {
     if (packet) {
       pendingPlayers.delete(id)
       players.set(id, createRemotePlayer(packet))
+    }
+  }
+
+  function removeRemotePlayer(id: number, notify: boolean) {
+    const removed = players.delete(id)
+
+    pendingPlayers.delete(id)
+    profiledPlayers.delete(id)
+    if (removed && notify) {
+      options.onLeave(id)
     }
   }
 
