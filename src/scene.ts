@@ -6,7 +6,8 @@ import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, insideArc
   outsideHutBar, outsideHutBarStools, outsideHutDeckHeight, outsidePalmTree, outsidePhotoWall, outsideRooftop,
   outsideRooftopLanding, outsideRooftopStairs, outsideRooftopStairRiseAtZ, outsideStage, outsideStageRocks,
   outsideToiletDoor, outsideToilets, outsideTShirtStands, roomBounds, tent, tentCenterBench, tentDjBooth, tentDjSpeakers,
-  tentDoor, tentDoorAngle, tentPole, tentVideoAngle } from './scene-data.ts'
+  tentDoor, tentDoorAngle, tentPole, tentVideoAngle, upstairsBar, upstairsBarCounterRail, upstairsBarDrinkCounter,
+  upstairsBarStools, upstairsCouches, upstairsDjBooth, upstairsDjSpeakers, upstairsDoor } from './scene-data.ts'
 import { treeSwingSeatAt, treeSwingSeats } from './tree-swing.ts'
 import type { Bounds, CircleBounds, Vec3, VideoZone } from './types.ts'
 
@@ -51,11 +52,17 @@ const insideArcadeCollision = orientedBounds(
   insideArcade.depth,
   insideArcade.turn,
 )
-const seatStools = [...bartenderStools, ...outsideHutBarStools]
+const seatStools = [...bartenderStools, ...outsideHutBarStools, ...upstairsBarStools]
 const djSpeakerCollisions = djSpeakers.map(bounds => paddedBounds(bounds))
 const outsideDjBoothCollision = paddedBounds(outsideDjBooth)
 const outsideStageCollision = paddedBounds(outsideStage, 0.12)
 const outsideDjSpeakerCollisions = outsideDjSpeakers.map(bounds => paddedBounds(bounds))
+const upstairsDjBoothCollision = paddedBounds(upstairsDjBooth)
+const upstairsDjSpeakerCollisions = upstairsDjSpeakers.map(bounds => paddedBounds(bounds))
+const upstairsBarCounterCollisions = upstairsBarCounterBounds().map(bounds => paddedBounds(bounds, 0.18))
+const upstairsBarDrinkCounterCollision = paddedBounds(upstairsBarDrinkCounter, 0.18)
+const upstairsBarStoolCollisions = upstairsBarStools.map(bounds => paddedBounds(bounds))
+const upstairsCouchCollisions = upstairsCouches.map(bounds => couchCollisionBounds(bounds))
 const tentDjBoothCollision = paddedBounds(tentDjBooth)
 const tentDjSpeakerCollisions = tentDjSpeakers.map(bounds => paddedBounds(bounds))
 const loftDjBoothCollision = paddedBounds(loftDjBooth)
@@ -104,6 +111,8 @@ const stoolTop = characterFloor + 0.72
 const outsideHutStoolTop = characterFloor + outsideHutDeckHeight + 0.72
 const outsideStageTop = characterFloor + 4.2
 const outsideRooftopTop = characterFloor + outsideRooftop.height
+const upstairsBarCounterHeight = outsideRooftopTop + 1
+const upstairsStoolTop = outsideRooftopTop + 0.72
 const platformStep = 0.42
 const outsideRooftopStairSidePadding = 0.72
 const outsideRooftopStairSideInset = 0.24
@@ -117,6 +126,12 @@ const outsideStageRockCollisions: PaddedPlatform[] = outsideStageRocks.map(rock 
 const emptySeats = new Set<string>()
 
 export function walkHeight(x: number, y: number, z: number) {
+  const upstairsPlatform = upstairsPlatformHeight(x, z)
+
+  if (upstairsPlatform !== undefined && y > upstairsPlatform - platformStep) {
+    return upstairsPlatform
+  }
+
   if ((inBoundsInclusive(x, z, outsideRooftop) || inBoundsInclusive(x, z, outsideRooftopLanding))
     && y > outsideRooftopTop - platformStep)
   {
@@ -165,13 +180,18 @@ function isAtTentDoor(position: Vec3, padding = 0) {
 }
 
 export function isOutside(position: Vec3) {
-  return onOutsideRooftopPath(position)
+  return !isUpstairs(position) && onOutsideRooftopPath(position)
     || position[0] < roomBounds.left || position[0] > roomBounds.right || position[2] < roomBounds.back
     || position[2] > roomBounds.front
 }
 
+export function isUpstairs(position: Vec3) {
+  return position[1] > outsideRooftopTop - platformStep
+    && inBoundsInclusive(position[0], position[2], outsideRooftop)
+}
+
 export function roomAt(position: Vec3): VideoZone {
-  return inTent(position[0], position[2]) ? 'tent' : isOutside(position) ? 'outside' : 'inside'
+  return inTent(position[0], position[2]) ? 'tent' : isUpstairs(position) ? 'upstairs' : isOutside(position) ? 'outside' : 'inside'
 }
 
 export function usesSkyBackground(_camera: { eye: Vec3; center: Vec3 }) {
@@ -185,6 +205,11 @@ export function collideRoom(
   previous?: Vec3,
   options?: CollisionOptions,
 ) {
+  if (isUpstairs(position) || (previous !== undefined && isUpstairs(previous))) {
+    collideUpstairsRoom(position)
+    return
+  }
+
   const outsideZone = outside || (previous !== undefined && onOutsideRooftopPath(previous))
 
   if (outsideZone) {
@@ -285,6 +310,81 @@ export function collideRoom(
   }
 }
 
+function collideUpstairsRoom(position: Vec3) {
+  const padding = 0.45
+  const left = roomBounds.left + padding
+  const right = roomBounds.right - padding
+  const back = roomBounds.back + padding
+  const front = roomBounds.front - padding
+
+  if (position[0] > right) {
+    position[0] = right
+  }
+  if (position[0] < left && !isAtUpstairsDoor(position[2], padding)) {
+    position[0] = left
+  }
+
+  position[2] = clamp(position[2], back, front)
+
+  if (!onPaddedPlatform(position, upstairsDjBoothCollision, djBoothTop + outsideRooftop.height)) {
+    collidePaddedBounds(position, upstairsDjBoothCollision)
+  }
+  for (const speaker of upstairsDjSpeakerCollisions) {
+    if (!onPaddedPlatform(position, speaker, speakerTop + outsideRooftop.height)) {
+      collidePaddedBounds(position, speaker)
+    }
+  }
+  for (const counter of upstairsBarCounterCollisions) {
+    if (!onPaddedPlatform(position, counter, upstairsBarCounterHeight)) {
+      collidePaddedBounds(position, counter)
+    }
+  }
+  if (!onPaddedPlatform(position, upstairsBarDrinkCounterCollision, upstairsBarCounterHeight)) {
+    collidePaddedBounds(position, upstairsBarDrinkCounterCollision)
+  }
+  for (const couch of upstairsCouchCollisions) {
+    collidePaddedBounds(position, couch)
+  }
+  for (const stool of upstairsBarStoolCollisions) {
+    if (!onPaddedPlatform(position, stool, upstairsStoolTop)) {
+      collidePaddedBounds(position, stool)
+    }
+  }
+}
+
+function isAtUpstairsDoor(z: number, padding = 0) {
+  return z > upstairsDoor.z - upstairsDoor.width / 2 - padding
+    && z < upstairsDoor.z + upstairsDoor.width / 2 + padding
+}
+
+function upstairsPlatformHeight(x: number, z: number) {
+  if (inPaddedBounds(x, z, upstairsDjBoothCollision)) {
+    return djBoothTop + outsideRooftop.height
+  }
+
+  if (upstairsDjSpeakerCollisions.some(bounds => inPaddedBounds(x, z, bounds))) {
+    return speakerTop + outsideRooftop.height
+  }
+
+  if (upstairsBarCounterCollisions.some(bounds => inPaddedBounds(x, z, bounds))
+    || inPaddedBounds(x, z, upstairsBarDrinkCounterCollision))
+  {
+    return upstairsBarCounterHeight
+  }
+}
+
+function upstairsBarCounterBounds(): Bounds[] {
+  const rail = upstairsBarCounterRail
+  const innerDepth = upstairsBar.depth - rail * 2
+
+  return [
+    { x: upstairsBar.x, z: upstairsBar.z - upstairsBar.depth / 2 + rail / 2, width: upstairsBar.width, depth: rail },
+    { x: upstairsBar.x, z: upstairsBar.z + upstairsBar.depth / 2 - rail / 2, width: upstairsBar.width, depth: rail },
+    { x: upstairsBar.x - upstairsBar.width / 2 + rail / 2, z: upstairsBar.z, width: rail, depth: innerDepth },
+    { x: upstairsBar.x + upstairsBar.width / 2 - rail / 2, z: upstairsBar.z, width: rail, depth: innerDepth },
+  ]
+}
+
 export function collideLoftRoom(position: Vec3, options?: CollisionOptions) {
   position[0] = clamp(position[0], loftLeft, loftRight)
   position[2] = clamp(position[2], loftBack, loftFront)
@@ -369,8 +469,21 @@ export function collideSphereRoom(position: Vec3, radius: number, outsideTree: C
   }
 }
 
-export function isWalkable(x: number, z: number, outsideTree: CircleBounds) {
-  const point: Vec3 = [x, characterFloor, z]
+export function isWalkable(x: number, z: number, outsideTree: CircleBounds, y = characterFloor) {
+  const point: Vec3 = [x, y, z]
+
+  if (isUpstairs(point)) {
+    return x >= roomBounds.left + 0.55
+      && x <= roomBounds.right - 0.55
+      && z >= roomBounds.back + 0.55
+      && z <= roomBounds.front - 0.55
+      && !inPaddedBounds(x, z, upstairsDjBoothCollision)
+      && upstairsDjSpeakerCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
+      && upstairsBarCounterCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
+      && !inPaddedBounds(x, z, upstairsBarDrinkCounterCollision)
+      && upstairsBarStoolCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
+      && upstairsCouchCollisions.every(bounds => !inPaddedBounds(x, z, bounds))
+  }
 
   if (isOutside(point)) {
     return x >= outsideBounds.left && x <= outsideBounds.right && z >= outsideBounds.back && z <= outsideBounds.front
@@ -408,7 +521,7 @@ export function isWalkable(x: number, z: number, outsideTree: CircleBounds) {
 }
 
 export function nearInsideArcade(position: Vec3, padding = 0.44) {
-  return !isOutside(position) && inOrientedBounds(position[0], position[2], insideArcadeCollision, padding)
+  return roomAt(position) === 'inside' && inOrientedBounds(position[0], position[2], insideArcadeCollision, padding)
 }
 
 function inTent(x: number, z: number) {
@@ -455,6 +568,12 @@ export function seatAt(position: Vec3, occupiedSeats = emptySeats, padding = 0.4
   }
 
   const outside = isOutside(position)
+
+  if (isUpstairs(position)) {
+    return couchSeatAt(upstairsCouches, 'upstairs-couch', position, occupiedSeats, padding, includeOccupied, walkHeight)
+      ?? stoolSeatAt(position, occupiedSeats, padding, includeOccupied, bartenderStools.length + outsideHutBarStools.length,
+        seatStools.length)
+  }
 
   if (!outside) {
     return stoolSeatAt(position, occupiedSeats, padding, includeOccupied, 0, bartenderStools.length)
@@ -592,7 +711,11 @@ function couchSeatAt(
       && position[2] > couch.z - couch.depth * 0.5 - padding
       && position[2] < couch.z + couch.depth * 0.5 + padding)
     {
-      const seats = idPrefix === 'couch' ? cachedOutsideCouchSeatsByCouch[i]! : cachedLoftCouchSeatsByCouch[i]!
+      const seats = idPrefix === 'couch'
+        ? cachedOutsideCouchSeatsByCouch[i]!
+        : idPrefix === 'upstairs-couch'
+        ? cachedUpstairsCouchSeatsByCouch[i]!
+        : cachedLoftCouchSeatsByCouch[i]!
 
       return nearestSeat(seats, position, occupiedSeats, includeOccupied)
     }
@@ -653,12 +776,13 @@ function couchSeats(
   const depth = couch.face === 'north' || couch.face === 'south' ? couch.depth : couch.width
   const width = couch.face === 'north' || couch.face === 'south' ? couch.width : couch.depth
   const offsets = [-width * 0.3, 0, width * 0.3]
+  const floor = idPrefix === 'upstairs-couch' ? outsideRooftopTop : characterFloor
 
   return offsets.map((offset, index) => ({
     id: `${idPrefix}:${couchIndex}:${index}`,
     position: [
       couch.x + direction[0] * depth * 0.12 + side[0] * offset,
-      heightAt(couch.x, characterFloor, couch.z) + 0.28,
+      heightAt(couch.x, floor, couch.z) + 0.28,
       couch.z + direction[2] * depth * 0.12 + side[2] * offset,
     ] as Vec3,
     turn: Math.atan2(direction[0], direction[2]),
@@ -667,11 +791,12 @@ function couchSeats(
 
 function stoolSeat(stool: Bounds, index: number): Seat {
   const outside = index >= bartenderStools.length
+  const upstairs = index >= bartenderStools.length + outsideHutBarStools.length
 
   return {
     id: `stool:${index}`,
-    position: [stool.x, walkHeight(stool.x, characterFloor, stool.z) + 0.34, stool.z],
-    turn: outside ? Math.PI / 2 : Math.PI,
+    position: [stool.x, (upstairs ? outsideRooftopTop : walkHeight(stool.x, characterFloor, stool.z)) + 0.34, stool.z],
+    turn: upstairs ? Math.atan2(upstairsBar.x - stool.x, upstairsBar.z - stool.z) : outside ? Math.PI / 2 : Math.PI,
   }
 }
 
@@ -684,13 +809,18 @@ const cachedOutsideCouchSeatsByCouch = outsideCouches.map((couch, index) =>
 const cachedLoftCouchSeatsByCouch = loftCouches.map((couch, index) =>
   couchSeats(couch, 'loft-couch', index, walkLoftHeight)
 )
+const cachedUpstairsCouchSeatsByCouch = upstairsCouches.map((couch, index) =>
+  couchSeats(couch, 'upstairs-couch', index, walkHeight)
+)
 const cachedOutsideCouchSeats = cachedOutsideCouchSeatsByCouch.flat()
+const cachedUpstairsCouchSeats = cachedUpstairsCouchSeatsByCouch.flat()
 const cachedStoolSeats = seatStools.map((stool, index) => stoolSeat(stool, index))
 const cachedSeats = [
   cachedBuddhaSeat,
   ...cachedTentSeats,
   ...cachedTentCenterSeats,
   ...cachedOutsideCouchSeats,
+  ...cachedUpstairsCouchSeats,
   ...cachedStoolSeats,
 ]
 const cachedSeatById = new Map([...treeSwingSeats, ...cachedSeats].map(seat => [seat.id, seat]))
@@ -1021,12 +1151,38 @@ function collideOutsideRooftopPath(position: Vec3, previous?: Vec3) {
   }
 
   if (!fromPath || position[1] <= outsideRooftopTop - platformStep) {
+    collideUnderOutsideRooftopStairs(position, previous)
     return
   }
 
   position[0] = clamp(position[0], inLandingZ ? landingLeft : roofLeft, inLandingZ ? Math.max(roofRight,
     landingRight) : roofRight)
   position[2] = clamp(position[2], roofBack, roofFront)
+}
+
+function collideUnderOutsideRooftopStairs(position: Vec3, previous?: Vec3) {
+  if (onOutsideRooftopPath(position)) {
+    return
+  }
+
+  const stairs = outsideRooftopStairs
+  const front = stairs.z + stairs.depth / 2
+  const bottomOpeningBack = front - 1.1
+
+  if (position[0] < stairs.x - stairs.width / 2 - 0.12
+    || position[0] > stairs.x + stairs.width / 2 + 0.12
+    || position[2] < stairs.z - stairs.depth / 2 - 0.12
+    || position[2] > bottomOpeningBack)
+  {
+    return
+  }
+
+  if (previous && previous[2] >= bottomOpeningBack && position[2] < bottomOpeningBack) {
+    position[2] = bottomOpeningBack
+    return
+  }
+
+  collidePaddedBounds(position, paddedBounds(stairs, 0.12))
 }
 
 function collideOutsideRooftopSideWall(position: Vec3, previous: Vec3, x: number, back: number, front: number) {

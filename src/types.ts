@@ -78,7 +78,7 @@ export type TreeMesh = {
   color: Vec3
 }
 
-export type VideoZone = 'inside' | 'loft' | 'outside' | 'tent'
+export type VideoZone = 'inside' | 'loft' | 'outside' | 'tent' | 'upstairs'
 
 export type VideoPreview = {
   id: string
@@ -181,9 +181,10 @@ export type ResolvedPlayerStyle = {
 }
 
 export type PlayerDestination = {
-  kind: 'dj' | 'foodTruck' | 'kiosk' | 'lounge' | 'random' | 'stool' | 'tree'
+  kind: 'dj' | 'foodTruck' | 'kiosk' | 'lounge' | 'photoWall' | 'random' | 'restroom' | 'stool' | 'tree'
   outside: boolean
   position: Vec3
+  zone: VideoZone
   lookAt?: Vec3
   linger?: [number, number]
 }
@@ -204,6 +205,7 @@ export type Player = {
   sidestepUntil?: number
   travelLateralUntil?: number
   travelLateralDirection?: -1 | 1
+  travelSpeed: number
   travelTarget?: Vec3
   travelPath?: Vec3[]
   travelPathTarget?: Vec3

@@ -30,6 +30,7 @@ const defaultMinDepth = 0.05
 const defaultScale = 120
 
 export function createDomWallProjection(element: HTMLElement, options: {
+  doubleSided?: boolean
   hidden?: HiddenStyle
   hiddenOpacity?: string
   minDepth?: number
@@ -44,6 +45,7 @@ export function createDomWallProjection(element: HTMLElement, options: {
   const opacity = options.opacity ?? '1'
   const pointerEvents = options.pointerEvents
   const scale = options.scale ?? defaultScale
+  const doubleSided = options.doubleSided ?? false
   const cornerA: Vec3 = [0, 0, 0]
   const cornerB: Vec3 = [0, 0, 0]
   const cornerC: Vec3 = [0, 0, 0]
@@ -66,7 +68,7 @@ export function createDomWallProjection(element: HTMLElement, options: {
       }
     },
     update(camera: Camera, projector: WallProjector, wall: DomWall) {
-      if (!domWallFacesCamera(camera, wall)) {
+      if (!doubleSided && !domWallFacesCamera(camera, wall)) {
         applyHiddenStyle()
         if (pointerEvents) {
           setStyle('pointerEvents', 'none')

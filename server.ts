@@ -75,7 +75,7 @@ import {
   type VideoProgressEntry,
   type VideoSyncEntry,
 } from './src/protocol.ts'
-import { outsideBounds, roomBounds, videoPlaylists } from './src/scene-data.ts'
+import { outsideBounds, outsideRooftop, roomBounds, upstairsWallHeight, videoPlaylists } from './src/scene-data.ts'
 import { roomAt, seatAt } from './src/scene.ts'
 import type { GraffitiSplat, VideoZone } from './src/types.ts'
 
@@ -1761,13 +1761,14 @@ function validateMotionValues(client: Client, motion: MotionPacket) {
   }
 
   const height = protocolToScene(motion.height)
+  const maxHeight = outsideRooftop.height + upstairsWallHeight
 
-  if (height < -3 || height > 2.5) {
+  if (height < -3 || height > maxHeight) {
     throw new Error(`Invalid height ${height}`)
   }
 
   if (client.spaceKey === mainSpace.key && (motion.mode === 2 || motion.mode === 3)
-    && !seatAt([x, 0, z], new Set(), 0.46, true))
+    && !seatAt([x, height, z], new Set(), 0.46, true))
   {
     throw new Error(`Invalid seated position ${x}, ${z}`)
   }
@@ -1796,9 +1797,10 @@ function validateMotionStep(client: Client, motion: MotionPacket) {
 function clientPoseRoom(client: Client) {
   const x = protocolToScene(client.pose.x)
   const z = protocolToScene(client.pose.y)
-  const zone = roomAt([x, 0, z])
+  const height = protocolToScene(client.pose.height)
+  const zone = roomAt([x, height, z])
 
-  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : 0
+  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : zone === 'upstairs' ? 3 : 0
 }
 
 function sendRoomState(client: Client) {
@@ -2281,7 +2283,7 @@ function spacePlaylistSource(space: SpaceState, zone: VideoZone) {
 }
 
 function spacePlaylistZones(space: SpaceState): VideoZone[] {
-  return space.kind === 'loft' ? ['loft'] : ['inside', 'outside', 'tent']
+  return space.kind === 'loft' ? ['loft'] : ['inside', 'outside', 'upstairs', 'tent']
 }
 
 function loadVideoQueues(space: SpaceState) {
@@ -2845,7 +2847,7 @@ function clientVideoZone(client: Client) {
 }
 
 function roomVideoZone(room: number): VideoZone {
-  return room === 1 ? 'inside' : room === 2 ? 'tent' : 'outside'
+  return room === 1 ? 'inside' : room === 2 ? 'tent' : room === 3 ? 'upstairs' : 'outside'
 }
 
 function validateVideoPlaylist(client: Client, entries: VideoPlaylistEntry[]) {

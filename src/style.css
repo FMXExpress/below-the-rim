@@ -125,7 +125,8 @@ canvas {
 }
 
 #bartender-drink-wall,
-#outside-hut-drink-wall {
+#outside-hut-drink-wall,
+#upstairs-bar-drink-wall {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 

@@ -2,8 +2,8 @@ import { createDomWallProjection } from './dom-wall.ts'
 import type { DomWall } from './dom-wall.ts'
 import type { WallProjector } from './projection.ts'
 import type { VideoEndedEntry, VideoProgressEntry, VideoSyncEntry } from './protocol.ts'
-import { djVideoWall, loftVideoWall, outsideVideoScreenWall, tentVideoWall, videoPlaylists, videoStartTimes,
-  videoTracks } from './scene-data.ts'
+import { djVideoWall, loftVideoWall, outsideVideoScreenWall, tentVideoWall, upstairsVideoWall, videoPlaylists,
+  videoStartTimes, videoTracks } from './scene-data.ts'
 import { roomAt } from './scene.ts'
 import { createStyleSetter } from './style-setter.ts'
 import type { Vec3, VideoPreview, VideoZone, YouTubePlayer, YouTubeWindow } from './types.ts'
@@ -25,7 +25,7 @@ const hiddenDjVideoOpacity = '0.01'
 const parkedDjVideoSize = 12
 
 export function videoZones(): VideoZone[] {
-  return ['inside', 'outside', 'tent', 'loft']
+  return ['inside', 'outside', 'upstairs', 'tent', 'loft']
 }
 
 export function createDjVideoUi(
@@ -44,12 +44,14 @@ export function createDjVideoUi(
     loft: document.createElement('div'),
     outside: document.createElement('div'),
     tent: document.createElement('div'),
+    upstairs: document.createElement('div'),
   }
   const mounts: Record<VideoZone, HTMLElement> = {
     inside: document.createElement('div'),
     loft: document.createElement('div'),
     outside: document.createElement('div'),
     tent: document.createElement('div'),
+    upstairs: document.createElement('div'),
   }
   const states: Partial<Record<VideoZone, VideoTrackState>> = {}
   const players: Partial<Record<VideoZone, YouTubePlayer>> = {}
@@ -71,6 +73,7 @@ export function createDjVideoUi(
   const setInsideStyle = createStyleSetter(layers.inside.style)
   const setLoftStyle = createStyleSetter(layers.loft.style)
   const setOutsideStyle = createStyleSetter(layers.outside.style)
+  const setUpstairsStyle = createStyleSetter(layers.upstairs.style)
   let pointerPassthroughUntil = 0
 
   addEventListener('blur', () => {
@@ -240,6 +243,7 @@ export function createDjVideoUi(
         setInsideStyle('pointerEvents', 'none')
         setLoftStyle('pointerEvents', 'none')
         setOutsideStyle('pointerEvents', 'none')
+        setUpstairsStyle('pointerEvents', 'none')
         layers.tent.style.pointerEvents = 'none'
         return
       }
@@ -247,12 +251,14 @@ export function createDjVideoUi(
       setInsideStyle('opacity', zone === 'inside' ? '1' : '0')
       setLoftStyle('opacity', zone === 'loft' ? '1' : '0')
       setOutsideStyle('opacity', zone === 'outside' ? '1' : '0')
+      setUpstairsStyle('opacity', zone === 'upstairs' ? '1' : '0')
       layers.tent.style.opacity = zone === 'tent' ? '1' : '0'
       const pointerEvents = performance.now() > pointerPassthroughUntil ? 'auto' : 'none'
 
       setInsideStyle('pointerEvents', zone === 'inside' ? pointerEvents : 'none')
       setLoftStyle('pointerEvents', zone === 'loft' ? pointerEvents : 'none')
       setOutsideStyle('pointerEvents', zone === 'outside' ? pointerEvents : 'none')
+      setUpstairsStyle('pointerEvents', zone === 'upstairs' ? pointerEvents : 'none')
       layers.tent.style.pointerEvents = zone === 'tent' ? pointerEvents : 'none'
     },
     play() {
@@ -490,6 +496,9 @@ function videoWall(zone: VideoZone): DomWall {
   }
   if (zone === 'outside') {
     return outsideVideoScreenWall
+  }
+  if (zone === 'upstairs') {
+    return upstairsVideoWall
   }
 
   return tentVideoWall

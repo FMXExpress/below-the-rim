@@ -27,12 +27,12 @@ export const C_ENTER = 23
 export const ACTION_BUBBLING = 1
 export const ACTION_FOAMING = 2
 
-export const roomCount = 3
+export const roomCount = 4
 export const messageMaxLength = 120
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 49
+export const protocolVersion = 50
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -172,7 +172,7 @@ export type ModerationPacket = {
 
 const protocolModes: CharacterMode[] = ['stand', 'run', 'manSitting', 'womanSitting', 'jump', 'wave', 'waveOut',
   'breakdance']
-const protocolVideoZones: VideoZone[] = ['inside', 'outside', 'tent', 'loft']
+const protocolVideoZones: VideoZone[] = ['inside', 'outside', 'tent', 'loft', 'upstairs']
 export const modeCount = protocolModes.length
 
 export function modeToProtocol(mode: CharacterMode) {

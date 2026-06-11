@@ -1,7 +1,7 @@
 import type { CameraMatrix } from './camera-matrix.ts'
 import { domWallCorners } from './dom-wall.ts'
 import type { DomWall } from './dom-wall.ts'
-import { djVideoWall, loftVideoWall, outsideVideoScreenWall, tentVideoWall } from './scene-data.ts'
+import { djVideoWall, loftVideoWall, outsideVideoScreenWall, tentVideoWall, upstairsVideoWall } from './scene-data.ts'
 import { videoPreviewFragment, videoPreviewVertex } from './shaders.ts'
 import type { Vec3, VideoPreview, VideoZone } from './types.ts'
 import { createProgram } from './webgl.ts'
@@ -29,6 +29,7 @@ export function createVideoPreviewRenderer(gl: WebGL2RenderingContext) {
     loft: videoPreviewGeometry(videoPreviewWall('loft')),
     outside: videoPreviewGeometry(videoPreviewWall('outside')),
     tent: videoPreviewGeometry(videoPreviewWall('tent')),
+    upstairs: videoPreviewGeometry(videoPreviewWall('upstairs')),
   }
 
   if (!viewProjection || !image || !array || !buffer) {
@@ -175,6 +176,9 @@ function videoPreviewWall(zone: VideoZone): DomWall {
   }
   if (zone === 'tent') {
     return tentVideoWall
+  }
+  if (zone === 'upstairs') {
+    return upstairsVideoWall
   }
 
   return djVideoWall

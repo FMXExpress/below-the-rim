@@ -6,8 +6,9 @@ import {
   smoothAngle,
 } from './math.ts'
 import { findPath } from './pathfinding.ts'
-import { collideLoftRoom, collideRoom, isOutside, seatAt, seatById, walkHeight, walkLoftHeight } from './scene.ts'
+import { collideLoftRoom, collideRoom, isOutside, roomAt, seatAt, seatById, walkHeight, walkLoftHeight } from './scene.ts'
 import type { Seat } from './scene.ts'
+import { outsideRooftop, upstairsWallHeight } from './scene-data.ts'
 import { createTurnBasisCache } from './turn-basis.ts'
 import type { BottomMode, CharacterMode, CircleBounds, Vec3 } from './types.ts'
 
@@ -370,7 +371,7 @@ export function createLocalCharacter(keys: Set<string>) {
           ? walkLoftHeight(position[0], position[1], position[2], collisionOptions)
           : walkHeight(position[0], position[1], position[2])
 
-        position[1] = floorY + jumpOffset(jumpElapsed)
+        position[1] = jumpY(floorY, jumpElapsed, position, loft)
         velocityY = 0
       }
 
@@ -436,7 +437,7 @@ export function createLocalCharacter(keys: Set<string>) {
         : walkHeight(position[0], position[1], position[2])
 
       if (jumping) {
-        position[1] = floorY + jumpOffset(jumpElapsed)
+        position[1] = jumpY(floorY, jumpElapsed, position, loft)
         velocityY = 0
       }
       else if (floorY > position[1]) {
@@ -469,6 +470,16 @@ function jumpOffset(elapsed: number) {
     : 0.5 + (elapsed - jumpRiseDuration) / (jumpDuration - jumpRiseDuration) * 0.5
 
   return Math.sin(progress * Math.PI) * jumpHeight
+}
+
+function jumpY(floorY: number, elapsed: number, position: Vec3, loft: boolean) {
+  const y = floorY + jumpOffset(elapsed)
+
+  if (loft || roomAt(position) !== 'upstairs') {
+    return y
+  }
+
+  return Math.min(y, characterFloor + outsideRooftop.height + upstairsWallHeight - 1.45)
 }
 
 function waypointReached(position: Vec3, waypoint: Vec3) {

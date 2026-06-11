@@ -581,10 +581,12 @@ function createRemotePlayer(packet: SpawnPacket): Player {
     idleClipIndex: packet.idleClipIndex,
     input: decodeKeys(packet.keys, packet.angle),
     nextDecision: 0,
+    travelSpeed: 1,
     destination: {
       kind: 'random',
       outside: false,
       position: [0, characterFloor, 0],
+      zone: 'inside',
     },
     style: packet.style,
     resolvedStyle: resolvePlayerStyle(packet.style),

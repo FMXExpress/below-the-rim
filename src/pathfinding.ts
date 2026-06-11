@@ -1,4 +1,3 @@
-import { characterFloor } from './character-data.ts'
 import { outsideBounds } from './scene-data.ts'
 import { isWalkable } from './scene.ts'
 import type { CircleBounds, Vec3 } from './types.ts'
@@ -25,8 +24,9 @@ const directions = [
 ] as const
 
 export function findPath(from: Vec3, to: Vec3, outsideTree: CircleBounds) {
-  const start = nearestWalkableCell(from[0], from[2], outsideTree)
-  const goal = nearestWalkableCell(to[0], to[2], outsideTree)
+  const y = to[1]
+  const start = nearestWalkableCell(from[0], from[2], outsideTree, y)
+  const goal = nearestWalkableCell(to[0], to[2], outsideTree, y)
   const bounds = searchBounds()
   const open: Node[] = [{
     ...start,
@@ -45,7 +45,7 @@ export function findPath(from: Vec3, to: Vec3, outsideTree: CircleBounds) {
     }
 
     if (current.x === goal.x && current.z === goal.z) {
-      return smoothPath(readPath(current), outsideTree)
+        return smoothPath(readPath(current, y), outsideTree, y)
     }
 
     closed.add(current.key)
@@ -55,10 +55,10 @@ export function findPath(from: Vec3, to: Vec3, outsideTree: CircleBounds) {
       const z = current.z + dz
       const key = cellKey(x, z)
 
-      if (closed.has(key) || !inSearchBounds(x, z, bounds) || !walkableCell(x, z, outsideTree)
+      if (closed.has(key) || !inSearchBounds(x, z, bounds) || !walkableCell(x, z, outsideTree, y)
         || (dx !== 0 && dz !== 0
-          && (!walkableCell(current.x + dx, current.z, outsideTree)
-            || !walkableCell(current.x, current.z + dz, outsideTree))))
+          && (!walkableCell(current.x + dx, current.z, outsideTree, y)
+            || !walkableCell(current.x, current.z + dz, outsideTree, y))))
       {
         continue
       }
@@ -84,13 +84,13 @@ export function findPath(from: Vec3, to: Vec3, outsideTree: CircleBounds) {
   throw new Error(`No path from ${from[0]},${from[2]} to ${to[0]},${to[2]}`)
 }
 
-function nearestWalkableCell(x: number, z: number, outsideTree: CircleBounds) {
+function nearestWalkableCell(x: number, z: number, outsideTree: CircleBounds, y: number) {
   const cell = {
     x: toCell(x),
     z: toCell(z),
   }
 
-  if (walkableCell(cell.x, cell.z, outsideTree)) {
+  if (walkableCell(cell.x, cell.z, outsideTree, y)) {
     return cell
   }
 
@@ -106,7 +106,7 @@ function nearestWalkableCell(x: number, z: number, outsideTree: CircleBounds) {
           z: cell.z + dz,
         }
 
-        if (walkableCell(next.x, next.z, outsideTree)) {
+        if (walkableCell(next.x, next.z, outsideTree, y)) {
           return next
         }
       }
@@ -116,14 +116,14 @@ function nearestWalkableCell(x: number, z: number, outsideTree: CircleBounds) {
   throw new Error(`No walkable cell near ${x},${z}`)
 }
 
-function smoothPath(path: Vec3[], outsideTree: CircleBounds) {
+function smoothPath(path: Vec3[], outsideTree: CircleBounds, y: number) {
   const next: Vec3[] = []
   let index = 0
 
   while (index < path.length - 1) {
     let target = path.length - 1
 
-    while (target > index + 1 && !clearPath(path[index]!, path[target]!, outsideTree)) {
+    while (target > index + 1 && !clearPath(path[index]!, path[target]!, outsideTree, y)) {
       target--
     }
 
@@ -134,7 +134,7 @@ function smoothPath(path: Vec3[], outsideTree: CircleBounds) {
   return next
 }
 
-function clearPath(from: Vec3, to: Vec3, outsideTree: CircleBounds) {
+function clearPath(from: Vec3, to: Vec3, outsideTree: CircleBounds, y: number) {
   const dx = to[0] - from[0]
   const dz = to[2] - from[2]
   const count = Math.ceil(Math.hypot(dx, dz) / (step * 0.5))
@@ -142,7 +142,7 @@ function clearPath(from: Vec3, to: Vec3, outsideTree: CircleBounds) {
   for (let i = 1; i <= count; i++) {
     const t = i / count
 
-    if (!isWalkable(from[0] + dx * t, from[2] + dz * t, outsideTree)) {
+    if (!isWalkable(from[0] + dx * t, from[2] + dz * t, outsideTree, y)) {
       return false
     }
   }
@@ -150,12 +150,12 @@ function clearPath(from: Vec3, to: Vec3, outsideTree: CircleBounds) {
   return true
 }
 
-function readPath(node: Node) {
+function readPath(node: Node, y: number) {
   const path: Vec3[] = []
   let current: Node | undefined = node
 
   while (current) {
-    path.unshift([current.x * step, characterFloor, current.z * step])
+    path.unshift([current.x * step, y, current.z * step])
     current = current.parent
   }
 
@@ -174,10 +174,10 @@ function takeBest(open: Node[]) {
   return open.splice(best, 1)[0]!
 }
 
-function walkableCell(x: number, z: number, outsideTree: CircleBounds) {
+function walkableCell(x: number, z: number, outsideTree: CircleBounds, y: number) {
   return x * step >= outsideBounds.left && x * step <= outsideBounds.right
     && z * step >= outsideBounds.back && z * step <= outsideBounds.front
-    && isWalkable(x * step, z * step, outsideTree)
+    && isWalkable(x * step, z * step, outsideTree, y)
 }
 
 function toCell(value: number) {

@@ -8,9 +8,17 @@ import {
   outsideDjBooth,
   outsideFoodTruckFoodWall,
   outsideHutBar,
+  outsidePhotoWall,
+  outsideRooftop,
+  outsideRooftopLanding,
+  outsideRooftopStairs,
+  outsideToilets,
   roomBounds,
+  upstairsBar,
+  upstairsDjBooth,
+  upstairsDoor,
 } from './scene-data.ts'
-import { collideRoom, isOutside, seatAt, seatById, seats, walkHeight } from './scene.ts'
+import { collideRoom, isOutside, roomAt, seatAt, seatById, seats, walkHeight } from './scene.ts'
 import { createObjectTurnBasisCache } from './turn-basis.ts'
 import { treeSwing } from './tree-swing.ts'
 import type { CircleBounds, Player, PlayerDestination, PlayerStyle, Vec3 } from './types.ts'
@@ -19,8 +27,8 @@ const npcConfig = {
   initialSeatedCount: 12,
   leaveSeatTime: 1.4,
   movement: {
-    minimumTravelers: 4,
-    travelerRatio: 0.06,
+    minimumTravelers: 7,
+    travelerRatio: 0.12,
   },
   arrive: {
     waypoint: 0.75,
@@ -30,14 +38,19 @@ const npcConfig = {
   destination: {
     weights: {
       insideDj: 0.2,
-      outsideDj: 0.42,
-      lounge: 0.58,
-      stool: 0.72,
-      tree: 0.84,
-      kiosk: 0.92,
+      outsideDj: 0.36,
+      upstairsDj: 0.52,
+      upstairsBarDance: 0.57,
+      lounge: 0.68,
+      stool: 0.8,
+      tree: 0.88,
+      kiosk: 0.95,
       foodTruck: 0.98,
+      restroom: 0.99,
+      photoWall: 0.995,
     },
-    linger: [45, 120] as const,
+    linger: [20, 65] as const,
+    shortLinger: [5, 14] as const,
     jitter: [0.35, 0.9] as const,
     danceFloor: {
       sideRange: 4.7,
@@ -58,21 +71,22 @@ const npcConfig = {
     treeSpots: 12,
   },
   seat: {
-    linger: [90, 240] as const,
+    linger: [35, 110] as const,
   },
   decision: {
-    interval: [1.2, 3.4] as const,
-    repickChance: 0.05,
+    interval: [0.8, 2.2] as const,
+    repickChance: 0.12,
   },
   travel: {
     targetJitter: 0.85,
-    targetJitterTime: [5, 10] as const,
-    lateralTime: [0.6, 1.4] as const,
+    targetJitterTime: [3, 7] as const,
+    lateralTime: [0.4, 1.15] as const,
+    speed: [0.82, 1.28] as const,
   },
   pause: {
-    random: [2, 5] as const,
+    random: [1.2, 3.2] as const,
     blocked: [10, 30] as const,
-    randomInputChance: 0.22,
+    randomInputChance: 0.16,
     destinationJitterChance: 0.85,
   },
 }
@@ -82,6 +96,22 @@ const doorFlowInside = roomBounds.front - 1.65
 const doorFlowOutside = roomBounds.front + 1.95
 const doorClearInside = roomBounds.front - 2.05
 const doorClearOutside = roomBounds.front + 2.35
+const upstairsFloor = characterFloor + outsideRooftop.height
+const upstairsStairBottom: Vec3 = [
+  outsideRooftopStairs.x,
+  characterFloor,
+  outsideRooftopStairs.z + outsideRooftopStairs.depth / 2 - 0.55,
+]
+const upstairsStairTop: Vec3 = [
+  outsideRooftopLanding.x,
+  upstairsFloor,
+  outsideRooftopLanding.z,
+]
+const upstairsDoorTarget: Vec3 = [
+  roomBounds.left + 1.2,
+  upstairsFloor,
+  upstairsDoor.z,
+]
 const destinationSeats = seats()
 const loungeDestinationSeats = destinationSeats.filter(seat => !seat.id.startsWith('stool:'))
 const stoolDestinationSeats = destinationSeats.filter(seat => seat.id.startsWith('stool:'))
@@ -96,7 +126,7 @@ export function createPlayers(count: number, outsideTree: CircleBounds, occupied
     const destination = playerDestination(seed, 0, outsideTree, occupiedSeats)
     const position: Vec3 = [
       destination.position[0] + seededRange(seed, 10, -0.45, 0.45),
-      characterFloor,
+      destination.position[1],
       destination.position[2] + seededRange(seed, 11, -0.45, 0.45),
     ]
     const style: PlayerStyle = {
@@ -115,8 +145,9 @@ export function createPlayers(count: number, outsideTree: CircleBounds, occupied
       idleClipIndex: Math.floor(seededRange(seed, 18, 1, 20)),
       input: [0, 0, 0],
       nextDecision: seededRange(seed, 13, 0.3, 2.8),
+      travelSpeed: travelSpeed(seed, 22),
       destination,
-      destinationUntil: seededRange(seed, 20, 120, 240),
+      destinationUntil: seededRange(seed, 20, 35, 95),
       lingeringUntil: destination.kind === 'random'
         ? seededRange(seed, 21, destination.linger![0], destination.linger![1])
         : undefined,
@@ -223,6 +254,7 @@ export function updatePlayers(
     if (moving) {
       const lastX = player.position[0]
       const lastZ = player.position[2]
+      const previousPosition: Vec3 = [player.position[0], player.position[1], player.position[2]]
       const turn = playerTurnBasis(player, player.turn)
       const inputX = turn.sin * player.input[2] + turn.cos * player.input[0]
       const inputZ = turn.cos * player.input[2] - turn.sin * player.input[0]
@@ -232,10 +264,10 @@ export function updatePlayers(
 
       const speed = Math.min(Math.sqrt(inputLengthSq), 1)
 
-      player.position[0] += directionX * delta * 2.55 * speed
-      player.position[2] += directionZ * delta * 2.55 * speed
+      player.position[0] += directionX * delta * 2.55 * speed * player.travelSpeed
+      player.position[2] += directionZ * delta * 2.55 * speed * player.travelSpeed
 
-      collideRoom(player.position, outsideTree, isOutside(player.position))
+      collideRoom(player.position, outsideTree, isOutside(player.position), previousPosition)
       if ((!player.leavingSeatUntil || time >= player.leavingSeatUntil) && trySitPlayer(player, time, occupiedSeats)) {
         continue
       }
@@ -381,7 +413,7 @@ function updateDestinationPlayer(
   const dx = target[0] - player.position[0]
   const dz = target[2] - player.position[2]
   const distanceSq = dx * dx + dz * dz
-  const atDestinationSide = isOutside(player.position) === player.destination.outside
+  const atDestinationSide = roomAt(player.position) === player.destination.zone
   const destinationDx = player.destination.position[0] - player.position[0]
   const destinationDz = player.destination.position[2] - player.position[2]
   const destinationDistanceSq = destinationDx * destinationDx + destinationDz * destinationDz
@@ -449,7 +481,7 @@ function destinationReached(player: Player) {
     ? npcConfig.arrive.seat
     : npcConfig.arrive.destination
 
-  return isOutside(player.position) === player.destination.outside && dx * dx + dz * dz < arriveRadius * arriveRadius
+  return roomAt(player.position) === player.destination.zone && dx * dx + dz * dz < arriveRadius * arriveRadius
 }
 
 function useMovementSlot(movement: { count: number; max: number }) {
@@ -549,6 +581,10 @@ function turnTowardDestination(player: Player, delta: number) {
 }
 
 function activePlayerTarget(player: Player, time: number, outsideTree: CircleBounds) {
+  if (player.destination.zone === 'upstairs') {
+    return upstairsTravelTarget(player, time, outsideTree)
+  }
+
   if (!doorFlow(player)) {
     const target = travelTarget(player, time)
 
@@ -564,7 +600,15 @@ function activePlayerTarget(player: Player, time: number, outsideTree: CircleBou
 
 function doorFlow(player: Player) {
   return player.destination.kind !== 'random'
-    && (isOutside(player.position) !== player.destination.outside || inDoorFlow(player.position))
+    && (destinationNeedsBackDoor(player) || inDoorFlow(player.position))
+}
+
+function destinationNeedsBackDoor(player: Player) {
+  const zone = roomAt(player.position)
+
+  return player.destination.zone === 'upstairs'
+    ? zone === 'inside'
+    : isOutside(player.position) !== player.destination.outside
 }
 
 function inDoorFlow(position: Vec3) {
@@ -579,7 +623,7 @@ function doorTarget(player: Player) {
   }
 
   const lane = seededRange(player.seed, Math.floor(player.destinationUntil! * 5.3), -doorLaneRange, doorLaneRange)
-  const z = player.destination.outside ? doorClearOutside : doorClearInside
+  const z = player.destination.outside || player.destination.zone === 'upstairs' ? doorClearOutside : doorClearInside
 
   player.doorTarget = [backDoor.x + lane, characterFloor, z]
 
@@ -600,11 +644,11 @@ function travelTarget(player: Player, time: number) {
 
   const target: Vec3 = [
     player.destination.position[0] + Math.sin(angle) * radius,
-    characterFloor,
+    player.destination.position[1],
     player.destination.position[2] + Math.cos(angle) * radius,
   ]
 
-  player.travelTarget = isOutside(target) === player.destination.outside
+  player.travelTarget = roomAt(target) === player.destination.zone
     ? target
     : player.destination.position
   player.nextTravelTargetAt = time
@@ -612,6 +656,42 @@ function travelTarget(player: Player, time: number) {
       npcConfig.travel.targetJitterTime[1])
 
   return player.travelTarget
+}
+
+function upstairsTravelTarget(player: Player, time: number, outsideTree: CircleBounds) {
+  const zone = roomAt(player.position)
+
+  if (zone === 'inside' || inDoorFlow(player.position)) {
+    return doorTarget(player)
+  }
+
+  if (player.position[1] < upstairsFloor - 0.7) {
+    if (!onUpstairsStairPath(player.position) && distanceSq(player.position, upstairsStairBottom) > npcConfig.arrive.waypoint ** 2) {
+      return travelPathTarget(player, upstairsStairBottom, outsideTree)
+    }
+
+    return upstairsStairClimbTarget(player.position)
+  }
+
+  if (distanceSq(player.position, upstairsDoorTarget) > 1) {
+    return upstairsDoorTarget
+  }
+
+  return travelPathTarget(player, travelTarget(player, time), outsideTree)
+}
+
+function upstairsStairClimbTarget(position: Vec3): Vec3 {
+  const stairBack = outsideRooftopStairs.z - outsideRooftopStairs.depth / 2
+  const nextZ = Math.max(stairBack + 0.35, position[2] - 0.55)
+
+  return nextZ <= stairBack + 0.4 ? upstairsStairTop : [outsideRooftopStairs.x, position[1], nextZ]
+}
+
+function onUpstairsStairPath(position: Vec3) {
+  return position[0] >= outsideRooftopStairs.x - outsideRooftopStairs.width / 2 - 0.35
+    && position[0] <= outsideRooftopStairs.x + outsideRooftopStairs.width / 2 + 0.35
+    && position[2] >= outsideRooftopStairs.z - outsideRooftopStairs.depth / 2
+    && position[2] <= outsideRooftopStairs.z + outsideRooftopStairs.depth / 2
 }
 
 function travelPathTarget(player: Player, target: Vec3, outsideTree: CircleBounds) {
@@ -631,11 +711,15 @@ function samePoint(a: Vec3, b: Vec3) {
   return a[0] === b[0] && a[2] === b[2]
 }
 
-function waypointReached(position: Vec3, waypoint: Vec3) {
-  const dx = waypoint[0] - position[0]
-  const dz = waypoint[2] - position[2]
+function distanceSq(a: Vec3, b: Vec3) {
+  const dx = a[0] - b[0]
+  const dz = a[2] - b[2]
 
-  return dx * dx + dz * dz < npcConfig.arrive.waypoint * npcConfig.arrive.waypoint
+  return dx * dx + dz * dz
+}
+
+function waypointReached(position: Vec3, waypoint: Vec3) {
+  return distanceSq(position, waypoint) < npcConfig.arrive.waypoint * npcConfig.arrive.waypoint
 }
 
 function trySitPlayer(player: Player, time: number, occupiedSeats: Set<string>) {
@@ -740,6 +824,14 @@ function playerDestination(
     return djDestination(seed, step, false)
   }
 
+  if (pick < weights.upstairsDj) {
+    return upstairsDjDestination(seed, step)
+  }
+
+  if (pick < weights.upstairsBarDance) {
+    return upstairsBarDanceDestination(seed, step)
+  }
+
   if (pick < weights.lounge) {
     return seatDestination(seed, step, occupiedSeats, 'lounge') ?? treeDestination(seed, step, outsideTree, occupiedSeats)
   }
@@ -760,6 +852,14 @@ function playerDestination(
     return foodTruckDestination(seed, step)
   }
 
+  if (pick < weights.restroom) {
+    return restroomDestination(seed, step)
+  }
+
+  if (pick < weights.photoWall) {
+    return photoWallDestination(seed, step)
+  }
+
   return randomDestination(seed, step)
 }
 
@@ -770,6 +870,7 @@ function choosePlayerDestination(
   occupiedSeats: Set<string>,
 ) {
   player.destination = playerDestination(player.seed, Math.floor(time / 6 + player.seed), outsideTree, occupiedSeats)
+  player.travelSpeed = travelSpeed(player.seed, Math.floor(time * 5.1))
   player.lingeringUntil = player.destination.kind === 'random'
     ? time
       + seededRange(player.seed, Math.floor(time * 2.9), player.destination.linger![0],
@@ -785,7 +886,11 @@ function choosePlayerDestination(
   player.travelPathTarget = undefined
   player.nextTravelTargetAt = time
   player.doorTarget = undefined
-  player.destinationUntil = time + 120
+  player.destinationUntil = time + seededRange(player.seed, Math.floor(time * 4.9), 35, 95)
+}
+
+function travelSpeed(seed: number, step: number) {
+  return seededRange(seed, step, npcConfig.travel.speed[0], npcConfig.travel.speed[1])
 }
 
 function djDestination(seed: number, step: number, inside: boolean) {
@@ -837,12 +942,18 @@ function seatDestination(
   }
 
   const offset = seededRange(seed, step + 105, -0.18, 0.18)
+  const approachDistance = kind === 'stool' ? 0.78 : 0.52
+  const approachDirection = kind === 'stool' ? -approachDistance : approachDistance
 
   return {
     kind,
     outside: isOutside(seat.position),
-    position: [seat.position[0] + Math.sin(seat.turn) * offset, characterFloor, seat.position[2] + Math.cos(seat.turn)
-        * offset],
+    position: [
+      seat.position[0] + Math.sin(seat.turn) * approachDirection + Math.cos(seat.turn) * offset,
+      seat.position[1] - 0.28,
+      seat.position[2] + Math.cos(seat.turn) * approachDirection - Math.sin(seat.turn) * offset,
+    ],
+    zone: roomAt(seat.position),
     lookAt: seat.position,
     linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
@@ -859,6 +970,7 @@ function treeDestination(
       kind: 'tree',
       outside: true,
       position: [treeSwing.seat.position[0], characterFloor, treeSwing.seat.position[2]],
+      zone: 'outside',
       lookAt: [outsideTree.x, characterFloor, outsideTree.z],
       linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
     }
@@ -874,6 +986,7 @@ function treeDestination(
     kind: 'tree',
     outside: true,
     position: [outsideTree.x + Math.sin(angle) * distance, characterFloor, outsideTree.z + Math.cos(angle) * distance],
+    zone: 'outside',
     lookAt: [outsideTree.x, characterFloor, outsideTree.z],
     linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
@@ -889,6 +1002,7 @@ function kioskDestination(seed: number, step: number): PlayerDestination {
     outside: true,
     position: [outsideHutBar.x + Math.sin(angle) * distance, characterFloor,
       outsideHutBar.z + Math.cos(angle) * distance],
+    zone: 'outside',
     lookAt: [outsideHutBar.x, characterFloor, outsideHutBar.z],
     linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
@@ -910,8 +1024,38 @@ function foodTruckDestination(seed: number, step: number): PlayerDestination {
       outsideFoodTruckFoodWall.z + outsideFoodTruckFoodWall.tangent[2] * along
       + outsideFoodTruckFoodWall.normal[2] * distance,
     ],
+    zone: 'outside',
     lookAt: [outsideFoodTruckFoodWall.x, characterFloor, outsideFoodTruckFoodWall.z],
     linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
+  }
+}
+
+function restroomDestination(seed: number, step: number): PlayerDestination {
+  const x = outsideToilets.x + outsideToilets.width / 2 + seededRange(seed, step + 125, 1.1, 2.2)
+  const z = outsideToilets.z + seededRange(seed, step + 126, -1.65, 1.05)
+
+  return {
+    kind: 'restroom',
+    outside: true,
+    position: [x, characterFloor, z],
+    zone: 'outside',
+    lookAt: [outsideToilets.x + outsideToilets.width / 2, characterFloor, z],
+    linger: [npcConfig.destination.shortLinger[0], npcConfig.destination.shortLinger[1]],
+  }
+}
+
+function photoWallDestination(seed: number, step: number): PlayerDestination {
+  const z = outsidePhotoWall.z + seededRange(seed, step + 127, -outsidePhotoWall.width * 0.32,
+    outsidePhotoWall.width * 0.32)
+  const x = outsidePhotoWall.x + seededRange(seed, step + 128, 1.25, 2.45)
+
+  return {
+    kind: 'photoWall',
+    outside: true,
+    position: [x, characterFloor, z],
+    zone: 'outside',
+    lookAt: [outsidePhotoWall.x, characterFloor, z],
+    linger: [npcConfig.destination.shortLinger[0], npcConfig.destination.shortLinger[1]],
   }
 }
 
@@ -920,6 +1064,7 @@ function randomDestination(seed: number, step: number): PlayerDestination {
     kind: 'random',
     outside: seededRandom(seed, step + 108) < 0.5,
     position: [0, characterFloor, 0],
+    zone: seededRandom(seed, step + 108) < 0.5 ? 'outside' : 'inside',
     linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }
@@ -936,7 +1081,46 @@ function danceFloorDestination(
     kind: 'dj',
     outside,
     position: [bounds.x + jitterX, characterFloor, bounds.z + forward * (bounds.depth * 0.5 + distance + jitterZ)],
+    zone: outside ? 'outside' : 'inside',
     lookAt: [bounds.x, characterFloor, bounds.z],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
+  }
+}
+
+function upstairsDjDestination(seed: number, step: number): PlayerDestination {
+  const danceFloor = npcConfig.destination.danceFloor
+  const jitterX = seededRange(seed, step + 119, -danceFloor.sideRange, danceFloor.sideRange)
+    + seededRange(seed, step + 120, -danceFloor.jitter, danceFloor.jitter)
+  const jitterZ = seededRange(seed, step + 121, danceFloor.backRange[0], danceFloor.backRange[1])
+    + seededRange(seed, step + 122, -danceFloor.jitter, danceFloor.jitter)
+
+  return {
+    kind: 'dj',
+    outside: false,
+    position: [
+      upstairsDjBooth.x + jitterX,
+      upstairsFloor,
+      upstairsDjBooth.z - (upstairsDjBooth.depth * 0.5 + danceFloor.distance + jitterZ),
+    ],
+    zone: 'upstairs',
+    lookAt: [upstairsDjBooth.x, upstairsFloor, upstairsDjBooth.z],
+    linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
+  }
+}
+
+function upstairsBarDanceDestination(seed: number, step: number): PlayerDestination {
+  const x = upstairsBar.x + seededRange(seed, step + 123, -4.35, 4.35)
+  const backCouchFront = roomBounds.back + 1.08 + 0.82 / 2
+  const barBack = upstairsBar.z - upstairsBar.depth / 2
+  const centerZ = (backCouchFront + barBack) / 2
+  const z = centerZ + seededRange(seed, step + 124, -2.25, 2.25)
+
+  return {
+    kind: 'dj',
+    outside: false,
+    position: [x, upstairsFloor, z],
+    zone: 'upstairs',
+    lookAt: [upstairsDjBooth.x, upstairsFloor, upstairsDjBooth.z],
     linger: [npcConfig.destination.linger[0], npcConfig.destination.linger[1]],
   }
 }

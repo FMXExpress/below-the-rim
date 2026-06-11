@@ -1,7 +1,7 @@
 import { characterFloor } from './character-data.ts'
 import { electricNavy } from './constants.ts'
 import { clamp, mix, smoothstep } from './math.ts'
-import { outsideDjBooth, roomBounds } from './scene-data.ts'
+import { outsideDjBooth, outsideRooftop, roomBounds, upstairsDjBooth, upstairsWallHeight } from './scene-data.ts'
 import type { StrobeLight, StrobeReflectionLight, Vec3 } from './types.ts'
 
 type StrobeTargetCache = {
@@ -97,6 +97,32 @@ export function createStrobeLights() {
       maxX: outsideDjBooth.x + 10.5,
       minZ: roomBounds.front + 1.2,
       maxZ: outsideDjBooth.z - 1.0,
+    })
+    id++
+  }
+
+  const upstairsFloor = characterFloor + outsideRooftop.height
+  const upstairsTop = upstairsFloor + upstairsWallHeight - 0.32
+  const upstairsColors: Vec3[] = [
+    [0.04, 0.75, 1],
+    [0.96, 0.08, 0.62],
+    [0.96, 0.72, 0.08],
+    [0.12, 0.9, 0.42],
+  ]
+
+  for (const x of [-4.8, -1.6, 1.6, 4.8]) {
+    lights.push({
+      id,
+      x,
+      z: upstairsDjBooth.z - 1.2,
+      zone: 'upstairs',
+      top: upstairsTop,
+      floor: upstairsFloor + 0.02,
+      color: upstairsColors[id % upstairsColors.length]!,
+      minX: roomBounds.left + 1.1,
+      maxX: roomBounds.right - 1.1,
+      minZ: roomBounds.back + 1.3,
+      maxZ: upstairsDjBooth.z - 1.1,
     })
     id++
   }

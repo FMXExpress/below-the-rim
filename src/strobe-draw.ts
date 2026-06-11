@@ -54,6 +54,7 @@ export function createStrobeDrawController(options: StrobeDrawOptions) {
 
         const hit = strobeTarget(light, time)
         const outside = light.zone === 'outside'
+        const upstairs = light.zone === 'upstairs'
 
         instances[length++] = light.x
         instances[length++] = light.top
@@ -62,13 +63,13 @@ export function createStrobeDrawController(options: StrobeDrawOptions) {
         instances[length++] = light.floor
         instances[length++] = hit[2]
         instances[length++] = 0.07
-        instances[length++] = outside ? 1.35 : 0.5
-        instances[length++] = outside ? 1.85 : 0.68
+        instances[length++] = outside ? 1.35 : upstairs ? 0.82 : 0.5
+        instances[length++] = outside ? 1.85 : upstairs ? 1.05 : 0.68
         instances[length++] = light.color[0]
         instances[length++] = light.color[1]
         instances[length++] = light.color[2]
         instances[length++] = light.id
-        instances[length++] = outside ? 0.7 : 0.42
+        instances[length++] = outside ? 0.7 : upstairs ? 0.62 : 0.42
       }
 
       instanceCount = length / options.instanceSize
@@ -101,7 +102,7 @@ export function createStrobeDrawController(options: StrobeDrawOptions) {
   }
 
   function renderZone(zone: ReturnType<typeof roomAt>) {
-    return zone === 'inside' ? 0 : zone === 'tent' ? 2 : 1
+    return zone === 'inside' ? 0 : zone === 'tent' ? 2 : zone === 'upstairs' ? 3 : 1
   }
 
   function activeReflectionLights() {

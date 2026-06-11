@@ -28,7 +28,6 @@ import {
 import { bindKeyboardInput, setAlternativeInput } from './input.ts'
 import { addLoftLightGeometry, addLoftRoom, addLoftSmoke, loftSpawn } from './loft-scene.ts'
 import { lengthSq, mix } from './math.ts'
-import { createMobileControls } from './mobile-controls.ts'
 import { createMultiplayer, updateRemotePlayers } from './multiplayer.ts'
 import { createPlayers, takeNpcSeat, updatePlayers } from './player-system.ts'
 import type { ProjectedPoint, Viewport, WallProjector } from './projection.ts'
@@ -55,6 +54,7 @@ import {
   outsideFoodTruckTurn,
   outsideHutDrinkWall,
   outsidePalmTree,
+  outsideRooftop,
   outsideStageRocks,
   outsideToilets,
   outsideTreeStart,
@@ -62,6 +62,8 @@ import {
   roomBounds,
   tent,
   tentDoorAngle,
+  upstairsBarDrinkWall,
+  upstairsDoor,
 } from './scene-data.ts'
 import {
   isOutside,
@@ -140,6 +142,7 @@ import { createHelpUi } from './help-ui.ts'
 import { createInstagramLink } from './instagram-link.ts'
 import { createIntroEffect } from './intro-effect.ts'
 import { createLocalCharacter } from './local-character.ts'
+import { createMobileControls } from './mobile-controls.ts'
 import { createPhotoWallRenderer } from './photo-wall-renderer.ts'
 import type { Photo } from './photo-wall-ui.ts'
 import { createPhotoWallUi } from './photo-wall-ui.ts'
@@ -292,7 +295,7 @@ const chatPalette = [
 const keys = new Set<string>()
 const occupiedSeats = new Set<string>()
 const remoteSeats = new Set<string>()
-const maxNpcPlayers = 300
+const maxNpcPlayers = 400
 const npcPopulationInterval = 60_000
 let idleClipIndex = 0
 let alternativeInput = true
@@ -412,6 +415,13 @@ const bartenderDrinkWallProjection = createDomWallProjection(bartenderDrinkWallE
 })
 const outsideHutDrinkWallElement = createEmojiDomWall('outside-hut-drink-wall', 'drink-wall-emoji', drinkWallEmojis)
 const outsideHutDrinkWallProjection = createDomWallProjection(outsideHutDrinkWallElement, {
+  opacity: '0.94',
+  pointerEvents: 'auto',
+  scale: 112,
+})
+const upstairsBarDrinkWallElement = createEmojiDomWall('upstairs-bar-drink-wall', 'drink-wall-emoji', drinkWallEmojis)
+const upstairsBarDrinkWallProjection = createDomWallProjection(upstairsBarDrinkWallElement, {
+  doubleSided: true,
   opacity: '0.94',
   pointerEvents: 'auto',
   scale: 112,
@@ -1038,7 +1048,7 @@ function videoZoneRoom(zone: VideoZone) {
     return 0
   }
 
-  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : 0
+  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : zone === 'upstairs' ? 3 : 0
 }
 
 banCancel.addEventListener('click', () => {
@@ -1744,13 +1754,19 @@ let activeRoom = routeSlug() ? 0 : savedState ? roomIndex(roomAt(savedState.char
 let requestedRoom = activeRoom
 let lastPoseLog = 0
 const saveTimer = createSaveTimer(0.5)
-const roomStarts = [
+const roomStarts: { angle: number; x: number; y?: number; z: number }[] = [
   { x: -8.61, z: 9.64, angle: 0.505 },
   { x: -4.75, z: roomBounds.front - 0.85, angle: 0 },
   {
     x: tent.x + Math.sin(tentDoorAngle) * (tent.radius - 1.35),
     z: tent.z + Math.cos(tentDoorAngle) * (tent.radius - 1.35),
     angle: tentDoorAngle + Math.PI,
+  },
+  {
+    x: roomBounds.left + 1.2,
+    y: characterFloor + outsideRooftop.height,
+    z: upstairsDoor.z,
+    angle: Math.PI / 2,
   },
 ]
 
@@ -1759,7 +1775,7 @@ function roomIndex(zone: VideoZone) {
     return 0
   }
 
-  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : 0
+  return zone === 'inside' ? 1 : zone === 'tent' ? 2 : zone === 'upstairs' ? 3 : 0
 }
 
 function renderZoneIndex(zone: VideoZone) {
@@ -1767,7 +1783,7 @@ function renderZoneIndex(zone: VideoZone) {
     return 3
   }
 
-  return zone === 'inside' ? 0 : zone === 'tent' ? 2 : 1
+  return zone === 'inside' ? 0 : zone === 'tent' ? 2 : zone === 'upstairs' ? 3 : 1
 }
 
 function currentVideoZone(): VideoZone {
@@ -2046,7 +2062,7 @@ function moveToRoom(room: number) {
   const start = roomStarts[room]!
 
   characterPosition[0] = start.x
-  characterPosition[1] = characterFloor
+  characterPosition[1] = start.y ?? characterFloor
   characterPosition[2] = start.z
   localCharacter.turn = start.angle
   cameraController.turn = start.angle
@@ -3477,6 +3493,7 @@ function renderPhotoFrame(stamp: number, videoPreview: VideoPreview | undefined,
   const camera = cameraController.get()
   const outside = !inLoft && isOutside(characterPosition)
   const sky = !inLoft && zone === 'outside' && usesSkyBackground(camera)
+  const outdoorRender = outside || zone === 'upstairs'
 
   strobeController.setFrame(Math.floor(stamp / 16.6667))
   strobeController.updateInstances(stamp * 0.001, zone)
@@ -3487,7 +3504,7 @@ function renderPhotoFrame(stamp: number, videoPreview: VideoPreview | undefined,
     characterCount: characterRenderSystem.update(stamp * 0.001),
     doorCoverVisible: outside && doorCoverReleased,
     inLoft,
-    outside,
+    outside: outdoorRender,
     sky,
     stamp,
     photoWallPreview,
@@ -3807,6 +3824,7 @@ function hideProjectedWorldUi() {
   foodTruckWallProjection.hide()
   bartenderDrinkWallProjection.hide()
   outsideHutDrinkWallProjection.hide()
+  upstairsBarDrinkWallProjection.hide()
   merchCards.dataset.open = 'false'
 }
 
@@ -3969,6 +3987,7 @@ const draw = (stamp: number) => {
     face: characterRenderSystem.face,
     loft: inLoft,
     lookDown: localCharacter.jumping,
+    sideViewTurn: sitting ? seatedCameraTurn(localCharacter.turn) : undefined,
   })
   if (!inLoft) {
     saveTimer.update(delta, () => saveCurrentClubState(characterRenderSystem.assetsLoaded))
@@ -3994,11 +4013,17 @@ const draw = (stamp: number) => {
       foodTruckWallProjection.hide()
       outsideHutDrinkWallProjection.hide()
     }
-    if (!inLoft && !outside) {
+    if (!inLoft && !outside && zone !== 'upstairs') {
       bartenderDrinkWallProjection.update(camera, projector, bartenderDrinkWall)
     }
     else {
       bartenderDrinkWallProjection.hide()
+    }
+    if (zone === 'upstairs') {
+      upstairsBarDrinkWallProjection.update(camera, projector, upstairsBarDrinkWall)
+    }
+    else {
+      upstairsBarDrinkWallProjection.hide()
     }
     if (outside) {
       photoWallUi.update(camera, projector)
@@ -4012,6 +4037,7 @@ const draw = (stamp: number) => {
     foodTruckWallProjection.hide()
     bartenderDrinkWallProjection.hide()
     outsideHutDrinkWallProjection.hide()
+    upstairsBarDrinkWallProjection.hide()
   }
   chatUi.update(projector, stamp)
   updateAdminIdLabels(projector)
@@ -4030,6 +4056,7 @@ const draw = (stamp: number) => {
 
   wasOutside = outside
   const sky = !inLoft && zone === 'outside' && usesSkyBackground(camera)
+  const outdoorRender = outside || zone === 'upstairs'
 
   const characterCount = characterRenderSystem.update(stamp * 0.001)
   updateBeachBallBuffer()
@@ -4046,7 +4073,7 @@ const draw = (stamp: number) => {
     characterCount,
     doorCoverVisible: outside && doorCoverReleased,
     inLoft,
-    outside,
+    outside: outdoorRender,
     sky,
     stamp,
     zone,
@@ -4246,6 +4273,15 @@ function loftFloorAt(x: number, y: number, z: number) {
 
 function localPoseUp() {
   return localCharacter.seat === treeSwing.seat.id ? treeSwing.normal : undefined
+}
+
+function seatedCameraTurn(characterTurn: number) {
+  const left = characterTurn - Math.PI / 2
+  const right = characterTurn + Math.PI / 2
+  const leftForwardZ = Math.cos(left)
+  const rightForwardZ = Math.cos(right)
+
+  return leftForwardZ > rightForwardZ ? left : right
 }
 
 function treeSwingControl() {

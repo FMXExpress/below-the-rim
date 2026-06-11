@@ -4,6 +4,7 @@ import { characterFloor } from './character-data.ts'
 
 export type TShirtStand = Bounds & { height: number; turn: number }
 export type StageRock = Bounds & { height: number; meshIndex: number; turn: number }
+export type Couch = Bounds & { color: Vec3; face: 'east' | 'north' | 'south' | 'west' }
 
 export const djBooth: Bounds = { x: 0, z: -21.55, width: 3.6, depth: 1.24 }
 export const djSpeakers: Bounds[] = [
@@ -93,7 +94,7 @@ export const outsideHutBarStools: Bounds[] = [-1.35, 0, 1.35].map(offset => ({
   width: 0.36,
   depth: 0.36,
 }))
-export const outsideCouches: (Bounds & { color: Vec3; face: 'east' | 'north' | 'south' | 'west' })[] = [
+export const outsideCouches: Couch[] = [
   { x: 11.5, z: 9.2, width: 2.4, depth: 0.82, color: [0.5, 0.05, 0.16], face: 'north' },
   { x: 13.35, z: 11.1, width: 0.82, depth: 2.35, color: [0.05, 0.28, 0.5], face: 'west' },
   { x: 13.35, z: 13.65, width: 0.82, depth: 2.05, color: [0.42, 0.28, 0.04], face: 'west' },
@@ -150,7 +151,7 @@ export const loftDjSpeakers: Bounds[] = [
   { x: -4.16, z: loftBounds.back + 2.47, width: 0.71, depth: 0.79 },
   { x: 4.16, z: loftBounds.back + 2.47, width: 0.71, depth: 0.79 },
 ]
-export const loftCouches: (Bounds & { color: Vec3; face: 'east' | 'north' | 'south' | 'west' })[] = [
+export const loftCouches: Couch[] = [
   { x: -7.9, z: -1.2, width: 0.88, depth: 3.1, color: [0.48, 0.4, 0.3], face: 'east' },
   { x: -7.9, z: 2.5, width: 0.88, depth: 3.1, color: [0.48, 0.4, 0.3], face: 'east' },
   { x: 7.9, z: -1.2, width: 0.88, depth: 3.1, color: [0.48, 0.4, 0.3], face: 'west' },
@@ -182,17 +183,20 @@ export const videoTracks: Record<VideoZone, string> = {
   loft: '0oB97YhEukw',
   outside: 'rO6gtwvM764', // 'CU0wjRIL1AQ', // 'IIbcGjZy6OM', //  'AJ7lbqyLbX8', // 'HIn1BxT38mE', // '0oB97YhEukw', // 'mqz9HpVNSAQ', // '5lthiQoQiRA', // 'ZEaqqk8V1bY', // 'CU0wjRIL1AQ', // '5aqWdYBG_js', //  'mqz9HpVNSAQ', // 'JviNPyhY6U4', // 'DK5XBwLiWZY', // 'IIbcGjZy6OM', // '5lthiQoQiRA', 'CsGauHXioos', // 'HIn1BxT38mE', // , //
   tent: 'fz6nN5AtcYk',
+  upstairs: '0oB97YhEukw',
 }
 export const videoStartTimes: Record<VideoZone, number> = {
   inside: 0,
   loft: 0,
   outside: 0,
   tent: 0,
+  upstairs: 0,
 }
 export const videoPlaylists: Partial<Record<VideoZone, string>> = {
   inside: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
   outside: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
   tent: 'PLue4XlmLp3HJwLqVNq9qBC1z5slCHuPSJ',
+  upstairs: 'PLdfk8NH4EncB_75qaHdSR96vP8L7Lowpv',
 }
 export const backDoor = { x: -4.75, z: 4, width: 1.45, height: 2.55 }
 export const roomBounds = { left: -7, right: 7, back: -24, front: 4 }
@@ -230,6 +234,68 @@ export const outsideRooftopLanding: Bounds & { height: number } = {
   depth: outsideRooftopLandingDepth,
   height: outsideRooftop.height,
 }
+export const upstairsWallHeight = 4.25
+export const upstairsDoor = {
+  x: roomBounds.left,
+  z: outsideRooftopStairs.z - outsideRooftopStairs.depth / 2,
+  width: 2.4,
+  height: 2.5,
+}
+export const upstairsDjBooth: Bounds = { x: 0, z: roomBounds.front - 1.8, width: 3.6, depth: 1.24 }
+export const upstairsDjSpeakers: Bounds[] = [
+  { x: -4.16, z: upstairsDjBooth.z + 0.08, width: 0.71, depth: 0.79 },
+  { x: 4.16, z: upstairsDjBooth.z + 0.08, width: 0.71, depth: 0.79 },
+]
+export const upstairsVideoWall = {
+  x: upstairsDjBooth.x,
+  y: characterFloor + outsideRooftop.height + 2.05,
+  z: roomBounds.front - 0.04,
+  width: 5.5,
+  height: 3.0625,
+  normal: [0, 0, -1] as Vec3,
+}
+export const upstairsBar: Bounds = { x: 0, z: -12.2, width: 5.8, depth: 4.4 }
+export const upstairsBarCounterRail = 0.64
+export const upstairsBarDrinkCounter: Bounds = { x: upstairsBar.x, z: upstairsBar.z, width: 2.35, depth: 1.05 }
+export const upstairsBarDrinkWall = {
+  x: upstairsBarDrinkCounter.x,
+  y: characterFloor + outsideRooftop.height + 1.38,
+  z: upstairsBarDrinkCounter.z,
+  width: upstairsBarDrinkCounter.width * 0.92,
+  height: 0.76,
+  normal: [0, 0, -1] as Vec3,
+}
+export const upstairsBarStools: Bounds[] = [
+  -2.05,
+  -1.02,
+  0,
+  1.02,
+  2.05,
+].flatMap(offset => [
+  { x: upstairsBar.x + offset, z: upstairsBar.z - upstairsBar.depth / 2 - 0.62, width: 0.36, depth: 0.36 },
+  { x: upstairsBar.x + offset, z: upstairsBar.z + upstairsBar.depth / 2 + 0.62, width: 0.36, depth: 0.36 },
+]).concat([
+  { x: upstairsBar.x - upstairsBar.width / 2 - 0.62, z: upstairsBar.z - 1.25, width: 0.36, depth: 0.36 },
+  { x: upstairsBar.x - upstairsBar.width / 2 - 0.62, z: upstairsBar.z, width: 0.36, depth: 0.36 },
+  { x: upstairsBar.x - upstairsBar.width / 2 - 0.62, z: upstairsBar.z + 1.25, width: 0.36, depth: 0.36 },
+  { x: upstairsBar.x + upstairsBar.width / 2 + 0.62, z: upstairsBar.z - 1.25, width: 0.36, depth: 0.36 },
+  { x: upstairsBar.x + upstairsBar.width / 2 + 0.62, z: upstairsBar.z, width: 0.36, depth: 0.36 },
+  { x: upstairsBar.x + upstairsBar.width / 2 + 0.62, z: upstairsBar.z + 1.25, width: 0.36, depth: 0.36 },
+])
+export const upstairsCouches: Couch[] = [
+  { x: -4.5, z: roomBounds.back + 1.08, width: 3.05, depth: 0.82, color: [0.04, 0.42, 0.58], face: 'north' },
+  { x: 0, z: roomBounds.back + 1.08, width: 3.05, depth: 0.82, color: [0.48, 0.06, 0.46], face: 'north' },
+  { x: 4.5, z: roomBounds.back + 1.08, width: 3.05, depth: 0.82, color: [0.56, 0.34, 0.05], face: 'north' },
+  { x: roomBounds.left + 0.72, z: -20.75, width: 0.82, depth: 2.7, color: [0.55, 0.22, 0.08], face: 'east' },
+  { x: roomBounds.left + 0.72, z: -12.4, width: 0.82, depth: 3.0, color: [0.08, 0.5, 0.28], face: 'east' },
+  { x: roomBounds.left + 0.72, z: -8.85, width: 0.82, depth: 2.65, color: [0.06, 0.36, 0.58], face: 'east' },
+  { x: roomBounds.left + 0.72, z: -5.35, width: 0.82, depth: 2.9, color: [0.62, 0.08, 0.22], face: 'east' },
+  { x: roomBounds.right - 0.72, z: -18.1, width: 0.82, depth: 3.15, color: [0.1, 0.34, 0.62], face: 'west' },
+  { x: roomBounds.right - 0.72, z: -14.55, width: 0.82, depth: 2.65, color: [0.08, 0.5, 0.28], face: 'west' },
+  { x: roomBounds.right - 0.72, z: -11.05, width: 0.82, depth: 3.05, color: [0.5, 0.12, 0.55], face: 'west' },
+  { x: roomBounds.right - 0.72, z: -7.55, width: 0.82, depth: 2.65, color: [0.04, 0.42, 0.58], face: 'west' },
+  { x: roomBounds.right - 0.72, z: -4.2, width: 0.82, depth: 2.55, color: [0.55, 0.38, 0.08], face: 'west' },
+]
 export const insideSideLightZs = [-2, -6, -10, -14, -18, -22] as const
 const arcadeCabinetSize = { width: 0.88, depth: 0.86, height: 2.2 } as const
 export const insideArcade: Bounds & { height: number; turn: number } = {

@@ -1,7 +1,7 @@
 import { characterFloor } from './character-data.ts'
 import { clamp, lengthSq, lerpVec3, mix, smoothAngle } from './math.ts'
-import { backDoor, loftBounds, outsideBounds, outsideDjBooth, outsideRooftopLanding, outsideRooftopStairs,
-  outsideStage, outsideToilets, roomBounds, tent } from './scene-data.ts'
+import { backDoor, loftBounds, outsideBounds, outsideDjBooth, outsideRooftop, outsideRooftopLanding,
+  outsideRooftopStairs, outsideStage, outsideToilets, roomBounds, tent, upstairsWallHeight } from './scene-data.ts'
 import { collideBuildingWalls, isOutside, roomAt, walkHeight } from './scene.ts'
 import type { Vec3 } from './types.ts'
 
@@ -25,6 +25,7 @@ type CameraUpdateOptions = {
   face?: CameraFace
   loft?: boolean
   lookDown?: boolean
+  sideViewTurn?: number
 }
 
 type CameraBasis = {
@@ -224,6 +225,7 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
       const faceBasis = firstPerson && options.face ? cameraBasisFromFace(options.face) : cameraBasis(characterTurn,
         cameraUp)
       const followTurn = firstPerson ? cameraBasisTurn(faceBasis) : characterTurn
+      const sideViewTurn = options.sideViewTurn
 
       if (dragging && !dragMoved) {
         wasMoving = moving
@@ -236,6 +238,12 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
 
       if (!firstPerson && lookDown && !dragging) {
         pitch = mix(pitch, 0.9, 1 - Math.exp(-7 * delta))
+      }
+
+      if (!firstPerson && sideViewTurn !== undefined && !dragging && !holdingManualCamera) {
+        returning = false
+        turn = smoothAngle(turn, sideViewTurn, 5, delta)
+        pitch = mix(pitch, 0.05, 1 - Math.exp(-5 * delta))
       }
 
       if (holdingManualCamera && moving) {
@@ -251,7 +259,7 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
         returning = false
       }
 
-      if (!dragging && ((moving && input[2] >= 0) || returning)) {
+      if (sideViewTurn === undefined && !dragging && ((moving && input[2] >= 0) || returning)) {
         const turnSpeed = returning ? 5 : mix(0.8, 2.2, input[2])
         const targetPitch = firstPerson ? 0 : lookDown ? 0.9 : 0
 
@@ -341,7 +349,7 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
         : outside
         ? clamp(ideal[0], outsideBounds.left + 1, outsideBounds.right - 1)
         : clamp(ideal[0], roomBounds.left + 0.4, roomBounds.right - 0.4)
-      ideal[1] = clamp(ideal[1], characterFloor + 0.35, elevatedOutside ? characterPosition[1] + 3.2 : 4.3)
+      ideal[1] = clamp(ideal[1], characterFloor + 0.35, cameraMaxY(zone, characterPosition, elevatedOutside))
       ideal[2] = zone === 'loft'
         ? clamp(ideal[2], loftBounds.back + 0.65, loftBounds.front - 0.65)
         : zone === 'tent'
@@ -373,8 +381,17 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
 
       position[1] = Math.max(position[1],
         (loft ? characterFloor : walkHeight(position[0], characterPosition[1], position[2])) + 0.35)
+      position[1] = Math.min(position[1], cameraMaxY(zone, characterPosition, elevatedOutside))
     },
   }
+}
+
+function cameraMaxY(zone: ReturnType<typeof roomAt> | 'loft', characterPosition: Vec3, elevatedOutside: boolean) {
+  if (zone === 'upstairs') {
+    return characterFloor + outsideRooftop.height + upstairsWallHeight - 0.45
+  }
+
+  return elevatedOutside ? characterPosition[1] + 3.2 : 4.3
 }
 
 function cameraBasisFromFace(face: CameraFace): CameraBasis {
@@ -468,6 +485,11 @@ function clampCameraToZone(position: Vec3, zone: ReturnType<typeof roomAt> | 'lo
     return
   }
 
+  if (zone === 'upstairs') {
+    clampUpstairsCamera(position)
+    return
+  }
+
   if (inOutsideToilets(characterPosition)) {
     clampOutsideToiletCamera(position, characterPosition)
     return
@@ -485,6 +507,11 @@ function clampCameraToZone(position: Vec3, zone: ReturnType<typeof roomAt> | 'lo
   if (zone === 'tent') {
     clampTentCamera(position)
   }
+}
+
+function clampUpstairsCamera(position: Vec3) {
+  position[0] = clamp(position[0], roomBounds.left + 0.65, roomBounds.right - 0.65)
+  position[2] = clamp(position[2], roomBounds.back + 0.65, roomBounds.front - 0.65)
 }
 
 function shouldClampOutsideCameraToBuilding(position: Vec3) {

@@ -7,10 +7,13 @@ import {
   outsideFoodTruckTurn,
   outsideToiletDoor,
   outsideToilets,
+  outsideRooftop,
   roomBounds,
   tent,
   tentDoor,
   tentDoorAngle,
+  upstairsDoor,
+  upstairsWallHeight,
 } from './scene-data.ts'
 import type { GraffitiSplat, Vec3, Vertex } from './types.ts'
 
@@ -121,6 +124,11 @@ const foodTruckRight: Vec3 = [Math.cos(outsideFoodTruckTurn), 0, Math.sin(outsid
 const foodTruckForward: Vec3 = [-Math.sin(outsideFoodTruckTurn), 0, Math.cos(outsideFoodTruckTurn)]
 const foodTruckYMin = characterFloor
 const foodTruckYMax = characterFloor + outsideFoodTruckSize.height
+const upstairsWallYMin = characterFloor + outsideRooftop.height + 0.04
+const upstairsWallYMax = characterFloor + outsideRooftop.height + upstairsWallHeight - 0.1
+const upstairsDoorBack = upstairsDoor.z - upstairsDoor.width / 2
+const upstairsDoorFront = upstairsDoor.z + upstairsDoor.width / 2
+const upstairsDoorTop = characterFloor + outsideRooftop.height + upstairsDoor.height + 0.05
 
 const walls: GraffitiWall[] = [
   planeWall('z', roomBounds.front, roomBounds.left, roomBounds.right, wallYMin, wallYMax, [0, 0, 1], 'front'),
@@ -161,6 +169,18 @@ const walls: GraffitiWall[] = [
     cutouts: [],
     sides: 'both',
   },
+  planeWall('z', roomBounds.front + 0.06, roomBounds.left, roomBounds.right, upstairsWallYMin, upstairsWallYMax,
+    [0, 0, 1], 'front'),
+  planeWall('z', roomBounds.back - 0.06, roomBounds.left, roomBounds.right, upstairsWallYMin, upstairsWallYMax,
+    [0, 0, -1], 'front'),
+  planeWall('x', roomBounds.right + 0.06, roomBounds.back, roomBounds.front, upstairsWallYMin, upstairsWallYMax,
+    [1, 0, 0], 'front'),
+  planeWall('x', roomBounds.left - 0.06, roomBounds.back, upstairsDoorBack, upstairsWallYMin, upstairsWallYMax,
+    [-1, 0, 0], 'front'),
+  planeWall('x', roomBounds.left - 0.06, upstairsDoorFront, roomBounds.front, upstairsWallYMin, upstairsWallYMax,
+    [-1, 0, 0], 'front'),
+  planeWall('x', roomBounds.left - 0.06, upstairsDoorBack, upstairsDoorFront, upstairsDoorTop, upstairsWallYMax,
+    [-1, 0, 0], 'front'),
   ...foodTruckGraffitiWalls(),
 ]
 export const graffitiWallCount = walls.length
