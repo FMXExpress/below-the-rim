@@ -9,10 +9,6 @@ import { createDomWallProjection, domWallCorners } from './dom-wall.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import { createFoamSystem, writeFoamGeometry } from './foam.ts'
 import {
-  canRenderGraffitiTextureInWorker,
-  renderGraffitiTextureInWorker,
-} from './graffiti-loader.ts'
-import {
   addGraffitiWallGeometry,
   createGraffitiCanvas,
   foodTruckGraffitiTriangle,
@@ -2239,7 +2235,6 @@ let graffitiSyncSnapshot: GraffitiSnapshot | undefined
 let graffitiAppendIndex = 0
 let graffitiPaintFrame = 0
 let graffitiSyncing = false
-let graffitiWorkerAvailable = canRenderGraffitiTextureInWorker()
 let graffitiTextureRenderId = 0
 let graffitiTextureRenderPending = false
 let graffitiSnapshotMaxId = 0
@@ -4360,34 +4355,8 @@ function renderGraffitiTexture(splats: GraffitiSplat[]) {
   const id = ++graffitiTextureRenderId
 
   graffitiTextureRenderPending = true
-
-  if (!graffitiWorkerAvailable) {
-    paintGraffitiTextureReset(splats)
-    finishGraffitiTextureRender(id)
-    return
-  }
-
-  renderGraffitiTextureInWorker(splats)
-    .then(bitmap => {
-      if (id !== graffitiTextureRenderId) {
-        bitmap.close()
-        return
-      }
-
-      uploadGraffitiBitmap(bitmap)
-    })
-    .catch((error: unknown) => {
-      if (id !== graffitiTextureRenderId) {
-        return
-      }
-
-      console.error(error)
-      graffitiWorkerAvailable = false
-      paintGraffitiTextureReset(splats)
-    })
-    .finally(() => {
-      finishGraffitiTextureRender(id)
-    })
+  paintGraffitiTextureReset(splats)
+  finishGraffitiTextureRender(id)
 }
 
 function renderGraffitiTextureSnapshot(snapshot: GraffitiSnapshot, splats: GraffitiSplat[]) {
@@ -4514,14 +4483,6 @@ function paintGraffitiTextureAppendFrame() {
 function uploadGraffitiTexture() {
   gl.bindTexture(gl.TEXTURE_2D, graffitiTexture)
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, graffitiCanvas)
-}
-
-function uploadGraffitiBitmap(bitmap: ImageBitmap) {
-  graffitiContext.clearRect(0, 0, graffitiCanvas.width, graffitiCanvas.height)
-  graffitiContext.drawImage(bitmap, 0, 0)
-  bitmap.close()
-  paintTShirtLogo()
-  uploadGraffitiTexture()
 }
 
 function paintTShirtLogo() {

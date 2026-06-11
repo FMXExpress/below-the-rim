@@ -247,6 +247,7 @@ const adminPass = process.env.ADMIN_PASS ?? ''
 const bannedIps = await loadBannedIps()
 let graffitiSnapshot = loadGraffitiSnapshot()
 let graffitiSplats = loadGraffitiSplats()
+let graffitiSaveQueue = Promise.resolve()
 await packGraffitiTail()
 await trimGraffitiHistory()
 let nextGraffitiId = Math.max(graffitiSplats.at(-1)?.id ?? 0, graffitiSnapshot?.lastId ?? 0) + 1
@@ -3076,6 +3077,10 @@ function broadcastBeachBalls(space: SpaceState, balls = space.beachBalls) {
 }
 
 function validateGraffiti(splats: GraffitiSplat[]) {
+  if (splats.length > graffitiPacketSplats) {
+    throw new Error('Invalid graffiti packet')
+  }
+
   for (const splat of splats) {
     if (!Number.isInteger(splat.wall) || !Number.isInteger(splat.seed) || !Number.isInteger(splat.colorIndex)
       || !Number.isInteger(splat.radius) || !Number.isFinite(splat.x) || !Number.isFinite(splat.y)
@@ -3093,10 +3098,28 @@ function validateGraffiti(splats: GraffitiSplat[]) {
     }
   }
 
-  return splats.slice(0, 8)
+  return splats
 }
 
 async function saveGraffiti(splats: GraffitiSplat[]) {
+  let release = () => {}
+  const previous = graffitiSaveQueue
+
+  graffitiSaveQueue = new Promise<void>(resolve => {
+    release = resolve
+  })
+
+  await previous
+
+  try {
+    return await saveGraffitiNow(splats)
+  }
+  finally {
+    release()
+  }
+}
+
+async function saveGraffitiNow(splats: GraffitiSplat[]) {
   const saved: GraffitiSplat[] = []
   const insert = db.query(`
     INSERT INTO graffiti (id, wall, x, y, seed, color_index, radius)
@@ -3243,7 +3266,7 @@ async function writeGraffitiSnapshot(
   const snapshot: StoredGraffitiSnapshot = { lastId, path, splatCount }
 
   await mkdir(graffitiSnapshotDir, { recursive: true })
-  await Bun.write(graffitiSnapshotPath(temporary), canvas.toBuffer('image/webp', graffitiPackQuality))
+  await Bun.write(graffitiSnapshotPath(temporary), await canvas.encode('webp', graffitiPackQuality))
   await rename(graffitiSnapshotPath(temporary), graffitiSnapshotPath(path))
   db.query(`
     INSERT INTO graffiti_snapshot (id, last_id, splat_count, path, created_at)

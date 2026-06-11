@@ -248,10 +248,6 @@ export function createGraffitiCanvas() {
   return canvas
 }
 
-export function createGraffitiOffscreenCanvas() {
-  return new OffscreenCanvas(graffitiTextureSize, graffitiTextureSize)
-}
-
 export function paintingTextureBounds(index: number) {
   const [u0, v0, u1, v1] = wallTextureBounds(paintingAtlasIndex)
   const gap = paintingAtlasPadding / graffitiTextureSize
