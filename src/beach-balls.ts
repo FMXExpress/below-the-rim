@@ -17,6 +17,10 @@ const liftSpeed = 5.4
 const playerRadius = 0.42
 const playerHeight = 1.7
 const glow = 0.55
+const sleepHorizontalSpeedSq = 0.03 * 0.03
+const sleepVerticalSpeed = 0.12
+const sleepVelocitySq = sleepHorizontalSpeedSq + sleepVerticalSpeed * sleepVerticalSpeed
+const moveDirtyEpsilonSq = 0.000001
 const palette: Vec3[] = [
   [1, 0.02, 0.65],
   [0.15, 1, 0.05],
@@ -24,6 +28,7 @@ const palette: Vec3[] = [
 ]
 const nearLodDistanceSq = 10 * 10
 const midLodDistanceSq = 18 * 18
+const sleepingBalls = new WeakSet<BeachBall>()
 
 export function createBeachBalls(): BeachBall[] {
   return [
@@ -34,18 +39,42 @@ export function createBeachBalls(): BeachBall[] {
 }
 
 export function updateBeachBalls(balls: BeachBall[], delta: number, outsideTree: CircleBounds) {
+  let dirty = false
+
   for (const ball of balls) {
     const position = ball.position
     const velocity = ball.velocity
+
+    if (sleepingBalls.has(ball) && velocitySq(ball) <= sleepVelocitySq) {
+      continue
+    }
+
+    sleepingBalls.delete(ball)
+    const previousX = position[0]
+    const previousY = position[1]
+    const previousZ = position[2]
 
     velocity[1] -= gravity * delta
     position[0] += velocity[0] * delta
     position[1] += velocity[1] * delta
     position[2] += velocity[2] * delta
-    collideBallRoom(ball, outsideTree)
+    const grounded = collideBallRoom(ball, outsideTree)
+
     velocity[0] *= friction
     velocity[2] *= friction
+    if (grounded && velocity[0] * velocity[0] + velocity[2] * velocity[2] <= sleepHorizontalSpeedSq
+      && Math.abs(velocity[1]) <= sleepVerticalSpeed)
+    {
+      velocity[0] = 0
+      velocity[1] = 0
+      velocity[2] = 0
+      sleepingBalls.add(ball)
+    }
+    dirty = dirty || distanceSq(position[0] - previousX, position[1] - previousY, position[2] - previousZ)
+      > moveDirtyEpsilonSq
   }
+
+  return dirty
 }
 
 export function hitBeachBalls(balls: BeachBall[], player: Vec3) {
@@ -74,6 +103,7 @@ export function hitBeachBalls(balls: BeachBall[], player: Vec3) {
       ball.velocity[0] = x * pushSpeed
       ball.velocity[1] = Math.max(ball.velocity[1], liftSpeed)
       ball.velocity[2] = z * pushSpeed
+      sleepingBalls.delete(ball)
       hits.push(ball.id)
     }
   }
@@ -96,6 +126,16 @@ export function writeBeachBallGeometry(target: VertexWriter, balls: BeachBall[],
   }
 }
 
+export function beachBallGeometrySignature(balls: BeachBall[], camera: Vec3) {
+  let signature = ''
+
+  for (const ball of balls) {
+    signature += `${beachBallUnitSphereFor(ball, camera).length}:`
+  }
+
+  return signature
+}
+
 function sphereFloats(unit: Float32Array) {
   return unit.length / 3 * 11
 }
@@ -116,10 +156,21 @@ function beachBallUnitSphereFor(ball: BeachBall, camera: Vec3) {
   return beachBallUnitSphereLow
 }
 
+function velocitySq(ball: BeachBall) {
+  const velocity = ball.velocity
+
+  return velocity[0] * velocity[0] + velocity[1] * velocity[1] + velocity[2] * velocity[2]
+}
+
+function distanceSq(x: number, y: number, z: number) {
+  return x * x + y * y + z * z
+}
+
 function collideBallRoom(ball: BeachBall, outsideTree: CircleBounds) {
   const position = ball.position
   const previousX = position[0]
   const previousZ = position[2]
+  let grounded = false
 
   position[0] = clamp(position[0], outsideBounds.left + beachBallRadius, outsideBounds.right - beachBallRadius)
   position[2] = clamp(position[2], outsideBounds.back + beachBallRadius, outsideBounds.front - beachBallRadius)
@@ -137,7 +188,10 @@ function collideBallRoom(ball: BeachBall, outsideTree: CircleBounds) {
   if (position[1] < floor) {
     position[1] = floor
     ball.velocity[1] = Math.abs(ball.velocity[1]) * bounce
+    grounded = true
   }
+
+  return grounded
 }
 
 const beachBallUnitSphereHigh = createUnitSphere(12, 24)

@@ -164,11 +164,10 @@ const sunglassesB: Vec3 = [0, 0, 0]
 const sunglassesLens: Vec3 = [0.035, 0.018, 0.01]
 const sunglassesFrame: Vec3 = [0.07, 0.038, 0.018]
 const playerVisibility = { depth: 0, distanceSq: 0, visible: false }
-const farHairDistanceSq = 34 * 34
 const maxCachedBasePoses = 960
 const maxCachedBlendPoses = 1440
-const midPoseThrottleDistanceSq = 20 * 20
-const farPoseThrottleDistanceSq = 32 * 32
+const midPoseThrottleDistanceSq = 16 * 16
+const farPoseThrottleDistanceSq = 26 * 26
 const characterTurnBasis = createObjectTurnBasisCache<CharacterInput>()
 
 export function buildCharacterDrawData(options: BuildOptions) {
@@ -237,10 +236,11 @@ export function buildCharacterDrawData(options: BuildOptions) {
       const throttle = npcPoseThrottle(player, directClip, visibility.distanceSq)
       const npcPose = throttledNpcPose(npcPoseFrames, player, frame, throttle, directClip ? poseKey : blendKey)
       const placedPose = npcPose?.pose ?? poseCache(poses, poseIndex)
+      const npcDetail = visibility.distanceSq <= farPoseThrottleDistanceSq
 
       addRenderedCharacter(vertices, boxInstances, hairInstances, player, options, false, sampledBasePose,
         cachedPose ? npcBlendCache : undefined, placedPose, sampledTime, poseKey,
-        visibility.distanceSq <= farHairDistanceSq, npcPose && !npcPose.update ? npcPose.pose : undefined)
+        npcDetail, npcPose && !npcPose.update ? npcPose.pose : undefined, npcDetail)
       poseIndex++
     }
   }
@@ -258,11 +258,13 @@ export function buildCharacterDrawData(options: BuildOptions) {
 function npcPoseThrottle(player: Player, directClip: boolean, distanceSq: number) {
   const style = player.resolvedStyle ?? resolvePlayerStyle(player.style)
 
-  if (directClip || player.mode === 'wave' || player.mode === 'waveOut' || style.accessoryKind === 'cigarette') {
+  if (directClip || player.mode === 'wave' || player.mode === 'waveOut'
+    || (style.accessoryKind === 'cigarette' && distanceSq <= farPoseThrottleDistanceSq))
+  {
     return 1
   }
   if (distanceSq > farPoseThrottleDistanceSq) {
-    return 3
+    return 4
   }
   if (distanceSq > midPoseThrottleDistanceSq) {
     return 2
@@ -373,6 +375,7 @@ function addRenderedCharacter(
   cacheFrame = 0,
   renderHair = true,
   poseOverride?: Vec3[],
+  renderAccessory = true,
 ) {
   const pose = poseOverride
     ?? sampleCharacterPose(options.rig, time, player, characterPoseJoints, characterPoseJointSet, groundJointIndices,
@@ -382,7 +385,7 @@ function addRenderedCharacter(
   const turn = characterTurnBasis(player, player.turn)
   const hideHead = player.hideHead === true
 
-  if (style.accessoryKind === 'cigarette') {
+  if (renderAccessory && style.accessoryKind === 'cigarette') {
     raisePoseCigaretteArm(pose, turn, options.time)
   }
 
@@ -400,7 +403,7 @@ function addRenderedCharacter(
     addCharacterChest(target, boxInstances, pose, player, turn, style, options.light, localReflection)
   }
 
-  if (style.accessory) {
+  if (renderAccessory && style.accessory) {
     if (style.accessoryKind === 'glowstick') {
       addGlowsticks(target, boxInstances, pose, player, turn, style, options.light, localReflection)
     }
@@ -412,7 +415,7 @@ function addRenderedCharacter(
     }
   }
 
-  if (player.sunglasses && !hideHead) {
+  if (renderAccessory && player.sunglasses && !hideHead) {
     addSunglasses(target, boxInstances, pose, player, turn, options.light, localReflection)
   }
 
@@ -731,7 +734,13 @@ function addCigaretteAtHand(
 }
 
 function bodySampleTime(time: number, distanceSq: number) {
-  const fps = distanceSq > 32 * 32 ? 6 : distanceSq > 20 * 20 ? 10 : distanceSq > 10 * 10 ? 20 : 60
+  const fps = distanceSq > farPoseThrottleDistanceSq
+    ? 6
+    : distanceSq > midPoseThrottleDistanceSq
+    ? 10
+    : distanceSq > 10 * 10
+    ? 20
+    : 60
 
   return Math.round(time * fps) / fps
 }

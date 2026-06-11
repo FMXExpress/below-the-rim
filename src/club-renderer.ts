@@ -34,6 +34,12 @@ type RoomUniforms = {
   viewProjection: WebGLUniformLocation
 }
 
+type RoomDepthUniforms = {
+  doorCoverVisible: WebGLUniformLocation
+  renderZone: WebGLUniformLocation
+  viewProjection: WebGLUniformLocation
+}
+
 type LightUniforms = {
   renderZone: WebGLUniformLocation
   smokeMap: WebGLUniformLocation
@@ -61,6 +67,7 @@ type CharacterHairUniforms = {
 }
 
 const mainCameraMatrix = createCameraMatrix()
+const feedbackActiveThreshold = 0.001
 
 export function renderClubFrame(options: {
   arrays: {
@@ -135,6 +142,10 @@ export function renderClubFrame(options: {
   }
   dayCycle: DayCycle
   program: WebGLProgram
+  roomDepth: {
+    program: WebGLProgram
+    uniforms: RoomDepthUniforms
+  }
   roomUniforms: RoomUniforms
   skyline: boolean
   sky: boolean
@@ -207,20 +218,13 @@ export function renderClubFrame(options: {
 
   drawRoomDepth({
     array: options.arrays.room,
-    camera: options.camera,
     cameraMatrix: mainCameraMatrix,
     count: options.points.length / options.vertexSize,
     doorCoverVisible: options.doorCoverVisible,
-    graffitiTexture: options.graffitiTexture,
     gl,
-    height: options.height,
-    objectTexture: options.objectTexture,
-    outsideNight,
     renderZone: options.renderZone,
-    program: options.program,
-    treeShadowMap: options.treeShadowMap,
-    uniforms: options.roomUniforms,
-    width: options.width,
+    program: options.roomDepth.program,
+    uniforms: options.roomDepth.uniforms,
   })
   gl.enable(gl.BLEND)
   gl.depthMask(false)
@@ -245,13 +249,13 @@ export function renderClubFrame(options: {
   gl.depthMask(true)
   gl.disable(gl.BLEND)
 
-  gl.bindFramebuffer(gl.FRAMEBUFFER, options.feedback.next.frame)
-  gl.drawBuffers([gl.COLOR_ATTACHMENT0])
+  const feedbackActive = options.feedback.amount > feedbackActiveThreshold
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, feedbackActive ? options.feedback.next.frame : null)
+  gl.drawBuffers([feedbackActive ? gl.COLOR_ATTACHMENT0 : gl.BACK])
   gl.viewport(0, 0, options.width, options.height)
   gl.disable(gl.DEPTH_TEST)
   gl.disable(gl.BLEND)
-  gl.clearColor(options.sky ? 0.28 : 0.01, options.sky ? 0.55 : 0.01, options.sky ? 0.92 : 0.014, 1.0)
-  gl.clear(gl.COLOR_BUFFER_BIT)
   gl.useProgram(options.post.program)
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, options.target.color)
@@ -259,9 +263,11 @@ export function renderClubFrame(options: {
   gl.activeTexture(gl.TEXTURE1)
   gl.bindTexture(gl.TEXTURE_2D, options.target.bloom)
   gl.uniform1i(options.post.bloom, 1)
-  gl.activeTexture(gl.TEXTURE2)
-  gl.bindTexture(gl.TEXTURE_2D, options.feedback.current.color)
-  gl.uniform1i(options.post.feedback, 2)
+  if (feedbackActive) {
+    gl.activeTexture(gl.TEXTURE2)
+    gl.bindTexture(gl.TEXTURE_2D, options.feedback.current.color)
+    gl.uniform1i(options.post.feedback, 2)
+  }
   gl.uniform1f(options.post.feedbackAmount, options.feedback.amount)
   gl.uniform1f(options.post.time, options.time)
   gl.uniform1i(options.post.tripKind, options.feedback.tripKind)
@@ -282,6 +288,10 @@ export function renderClubFrame(options: {
   }
   gl.bindVertexArray(options.arrays.post)
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+  if (!feedbackActive) {
+    return
+  }
 
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, options.feedback.next.frame)
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null)

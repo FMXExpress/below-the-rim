@@ -66,6 +66,10 @@ export const treeSwing: TreeSwing = {
 export const treeSwingSeats = [treeSwing.seat]
 
 export function updateTreeSwing(delta: number, tree: CircleBounds, occupied: boolean, control = 0) {
+  const previousAnchorX = treeSwing.anchorLeft[0]
+  const previousAnchorZ = treeSwing.anchorLeft[2]
+  const previousAngle = treeSwing.angle
+  const previousVelocity = treeSwing.velocity
   const active = occupied ? 1 : 0
   const topX = tree.x + directionX * config.distance
   const topY = characterFloor + config.anchorHeight
@@ -131,6 +135,9 @@ export function updateTreeSwing(delta: number, tree: CircleBounds, occupied: boo
   treeSwing.seatRight[0] = boardX + sideX * seatOffset
   treeSwing.seatRight[1] = boardY
   treeSwing.seatRight[2] = boardZ + sideZ * seatOffset
+
+  return treeSwing.angle !== previousAngle || treeSwing.velocity !== previousVelocity
+    || treeSwing.anchorLeft[0] !== previousAnchorX || treeSwing.anchorLeft[2] !== previousAnchorZ
 }
 
 function treeSwingMotionDirection(restingDirection: number) {

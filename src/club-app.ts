@@ -1,4 +1,10 @@
-import { createBeachBalls, hitBeachBalls, updateBeachBalls, writeBeachBallGeometry } from './beach-balls.ts'
+import {
+  beachBallGeometrySignature,
+  createBeachBalls,
+  hitBeachBalls,
+  updateBeachBalls,
+  writeBeachBallGeometry,
+} from './beach-balls.ts'
 import { createBubbleSystem, writeBubbleGeometry } from './bubbles.ts'
 import { resetVertexWriter, vertexWriterData } from './character-geometry.ts'
 import { createCharacterStyleController, glowstickColors, resolveAccessoryKind } from './character-style.ts'
@@ -80,6 +86,7 @@ import {
   lightFragment,
   postFragment,
   postVertex,
+  roomDepthFragment,
   smokeFragment,
   smokeVertex,
   strobeVertex,
@@ -1621,6 +1628,7 @@ const adaptiveResolution = createAdaptiveResolution()
 const introEffectRenderer = createIntroEffect(introEffect)
 const mentionDing = new Audio('/ding.mp3')
 const feedbackMaxAmount = 0.91
+const feedbackActiveThreshold = 0.001
 const feedbackToiletRampSeconds = 60
 const feedbackSitResetSeconds = 3
 const tripKinds = [0, 1, 2] as const
@@ -1636,6 +1644,7 @@ let feedbackToiletStartAmount = 0
 let feedbackInToilets = false
 let feedbackSitSeconds = 0
 let feedbackSitReset = false
+let lastFeedbackActive = false
 let tripCycle = shuffledTripKinds()
 let tripCycleIndex = 0
 let buddhaLoaded = false
@@ -1852,6 +1861,7 @@ let smokePoints = mainSmokePoints
 const graffitiPoints = new Float32Array(graffitiWallVertices.flat())
 const emptyPoints = new Float32Array()
 const program = createProgram(gl, vertex, fragment)
+const roomDepthProgram = createProgram(gl, vertex, roomDepthFragment)
 const lightProgram = createProgram(gl, vertex, lightFragment)
 const strobeProgram = createProgram(gl, strobeVertex, lightFragment)
 const characterBoxProgram = createProgram(gl, characterBoxVertex, characterBoxFragment)
@@ -1879,6 +1889,9 @@ const treeShadowSampler = gl.getUniformLocation(program, 'treeShadowMap')
 const graffitiMap = gl.getUniformLocation(program, 'graffitiMap')
 const objectTextureMap = gl.getUniformLocation(program, 'objectTextureMap')
 const outsideNight = gl.getUniformLocation(program, 'outsideNight')
+const roomDepthViewProjection = gl.getUniformLocation(roomDepthProgram, 'viewProjection')
+const roomDepthRenderZone = gl.getUniformLocation(roomDepthProgram, 'renderZone')
+const roomDepthDoorCoverVisible = gl.getUniformLocation(roomDepthProgram, 'doorCoverVisible')
 const characterBoxViewProjection = gl.getUniformLocation(characterBoxProgram, 'viewProjection')
 const characterBoxRenderZone = gl.getUniformLocation(characterBoxProgram, 'renderZone')
 const characterBoxBloomPass = gl.getUniformLocation(characterBoxProgram, 'bloomPass')
@@ -1959,6 +1972,7 @@ const characterBoxInstanceStride = characterBoxInstanceSize * Float32Array.BYTES
 if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !bloomWrite || !characterPass || !doorCoverVisible
   || !treeShadowSampler
   || !graffitiMap || !objectTextureMap || !outsideNight || !graffitiTexture
+  || !roomDepthViewProjection || !roomDepthRenderZone || !roomDepthDoorCoverVisible
   || !characterBoxViewProjection
   || !characterBoxRenderZone || !characterBoxBloomPass || !lightTime || !lightSmokeMap || !lightRenderZone
   || !lightViewProjection
@@ -2178,9 +2192,12 @@ const beachBalls = createBeachBalls()
 let beachBallPoints: Float32Array<ArrayBufferLike> = new Float32Array()
 const beachBallWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
 const beachBallBufferCache: NumberBufferCache = { data: beachBallWriter.data }
+let beachBallGeometryDirty = true
+let beachBallGeometryKey = ''
 let treeSwingPoints: Float32Array<ArrayBufferLike> = new Float32Array()
 const treeSwingWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
 const treeSwingBufferCache: NumberBufferCache = { data: treeSwingWriter.data }
+let treeSwingGeometryDirty = true
 const beachBallAuthorityUntil = new Map<number, number>()
 const beachBallAuthorityDuration = 2000
 const bubbleSystem = createBubbleSystem()
@@ -2391,6 +2408,7 @@ function connectMultiplayer(spaceSlug?: string) {
         target.velocity[0] = ball.velocity[0]
         target.velocity[1] = ball.velocity[1]
         target.velocity[2] = ball.velocity[2]
+        beachBallGeometryDirty = true
       }
     },
     onGraffiti: packet => {
@@ -2938,6 +2956,8 @@ function resetLocalSpaceState() {
     target.velocity[2] = ball.velocity[2]
   }
   beachBallAuthorityUntil.clear()
+  beachBallGeometryDirty = true
+  treeSwingGeometryDirty = true
   updateBeachBallBuffer()
 }
 
@@ -3767,6 +3787,14 @@ function renderCurrentSceneFrame(options: {
       tripKind: postTripKind,
     },
     program,
+    roomDepth: {
+      program: roomDepthProgram,
+      uniforms: {
+        doorCoverVisible: roomDepthDoorCoverVisible!,
+        renderZone: roomDepthRenderZone!,
+        viewProjection: roomDepthViewProjection!,
+      },
+    },
     roomUniforms: {
       bloomPass: bloomPass!,
       bloomWrite: bloomWrite!,
@@ -3908,7 +3936,8 @@ const draw = (stamp: number) => {
   const inLoft = appSpace.kind === 'loft'
 
   if (!inLoft) {
-    updateTreeSwing(delta, outsideTree, occupiedSeats.has(treeSwing.seat.id), treeSwingControl())
+    treeSwingGeometryDirty = updateTreeSwing(delta, outsideTree, occupiedSeats.has(treeSwing.seat.id),
+      treeSwingControl()) || treeSwingGeometryDirty
   }
 
   localCharacter.update(delta, cameraController.turn, outsideTree, styleController.bottomMode, inLoft, occupiedSeats,
@@ -3943,8 +3972,14 @@ const draw = (stamp: number) => {
     feedbackSitSeconds = 0
     feedbackSitReset = false
   }
+  const feedbackActive = feedback.amount > feedbackActiveThreshold
+
+  if (feedbackActive && !lastFeedbackActive) {
+    clearFeedback()
+  }
+  lastFeedbackActive = feedbackActive
   if (!inLoft) {
-    updateBeachBalls(beachBalls, delta, outsideTree)
+    beachBallGeometryDirty = updateBeachBalls(beachBalls, delta, outsideTree) || beachBallGeometryDirty
   }
   localParticlePlayer.turn = localCharacter.turn
   localParticlePlayer.actionTurn = cameraController.turn
@@ -3967,6 +4002,7 @@ const draw = (stamp: number) => {
   for (const id of hits) {
     beachBallAuthorityUntil.set(id, stamp + beachBallAuthorityDuration)
   }
+  beachBallGeometryDirty = hits.length > 0 || beachBallGeometryDirty
   if (hits.length > 0) {
     const activeBalls = beachBalls.filter(ball => hits.includes(ball.id))
 
@@ -3991,7 +4027,12 @@ const draw = (stamp: number) => {
 
   if (!inLoft) {
     syncNpcPopulation(stamp)
-    updatePlayers(npcPlayers, delta, stamp * 0.001, outsideTree, occupiedSeats)
+    updatePlayers(npcPlayers, delta, stamp * 0.001, outsideTree, occupiedSeats, {
+      camera: cameraController.get(),
+      frame,
+      height: canvas.height,
+      width: canvas.width,
+    })
   }
   updateRemotePlayers(multiplayer.players.values(), delta, outsideTree)
   syncNicknameLabels()
@@ -4289,13 +4330,6 @@ function smokeMachineRandom(seed: number) {
   return (value >>> 0) / 4294967296
 }
 
-function updateBubbleBuffer() {
-  resetVertexWriter(bubbleWriter)
-  writeBubbleGeometry(bubbleWriter, bubbleSystem.bubbles)
-  bubblePoints = vertexWriterData(bubbleWriter)
-  uploadFloatBuffer(gl, bubbleBuffer, bubbleWriter.data, bubbleBufferCache, bubbleWriter.length)
-}
-
 function mainFloorAt(x: number, y: number, z: number) {
   return walkHeight(x, y, z)
 }
@@ -4324,18 +4358,44 @@ function treeSwingControl() {
   return 0
 }
 
+function updateDynamicGeometry(
+  active: boolean,
+  writer: VertexWriter,
+  buffer: WebGLBuffer,
+  cache: NumberBufferCache,
+  write: () => void,
+) {
+  if (!active) {
+    writer.length = 0
+    return emptyPoints
+  }
+
+  resetVertexWriter(writer)
+  write()
+  if (writer.length === 0) {
+    return emptyPoints
+  }
+
+  const points = vertexWriterData(writer)
+
+  uploadFloatBuffer(gl, buffer, writer.data, cache, writer.length)
+
+  return points
+}
+
+function updateBubbleBuffer() {
+  bubblePoints = updateDynamicGeometry(bubbleSystem.bubbles.length > 0, bubbleWriter, bubbleBuffer, bubbleBufferCache,
+    () => writeBubbleGeometry(bubbleWriter, bubbleSystem.bubbles))
+}
+
 function updateFoamBuffer() {
-  resetVertexWriter(foamWriter)
-  writeFoamGeometry(foamWriter, foamSystem.blobs)
-  foamPoints = vertexWriterData(foamWriter)
-  uploadFloatBuffer(gl, foamBuffer, foamWriter.data, foamBufferCache, foamWriter.length)
+  foamPoints = updateDynamicGeometry(foamSystem.blobs.length > 0, foamWriter, foamBuffer, foamBufferCache,
+    () => writeFoamGeometry(foamWriter, foamSystem.blobs))
 }
 
 function updateSmokeBuffer() {
-  resetVertexWriter(smokeWriter)
-  writeSmokeGeometry(smokeWriter, smokeSystem.puffs)
-  smokePuffPoints = vertexWriterData(smokeWriter)
-  uploadFloatBuffer(gl, smokePuffBuffer, smokeWriter.data, smokeBufferCache, smokeWriter.length)
+  smokePuffPoints = updateDynamicGeometry(smokeSystem.puffs.length > 0, smokeWriter, smokePuffBuffer,
+    smokeBufferCache, () => writeSmokeGeometry(smokeWriter, smokeSystem.puffs))
 }
 
 function updateBeachBallBuffer() {
@@ -4344,10 +4404,16 @@ function updateBeachBallBuffer() {
     return
   }
 
-  resetVertexWriter(beachBallWriter)
-  writeBeachBallGeometry(beachBallWriter, beachBalls, cameraController.position)
-  beachBallPoints = vertexWriterData(beachBallWriter)
-  uploadFloatBuffer(gl, beachBallBuffer, beachBallWriter.data, beachBallBufferCache, beachBallWriter.length)
+  const nextKey = beachBallGeometrySignature(beachBalls, cameraController.position)
+
+  if (!beachBallGeometryDirty && nextKey === beachBallGeometryKey) {
+    return
+  }
+
+  beachBallPoints = updateDynamicGeometry(beachBalls.length > 0, beachBallWriter, beachBallBuffer,
+    beachBallBufferCache, () => writeBeachBallGeometry(beachBallWriter, beachBalls, cameraController.position))
+  beachBallGeometryDirty = false
+  beachBallGeometryKey = nextKey
 }
 
 function updateTreeSwingBuffer() {
@@ -4356,10 +4422,13 @@ function updateTreeSwingBuffer() {
     return
   }
 
-  resetVertexWriter(treeSwingWriter)
-  writeTreeSwingGeometry(treeSwingWriter, addLocalReflection)
-  treeSwingPoints = vertexWriterData(treeSwingWriter)
-  uploadFloatBuffer(gl, treeSwingBuffer, treeSwingWriter.data, treeSwingBufferCache, treeSwingWriter.length)
+  if (!treeSwingGeometryDirty) {
+    return
+  }
+
+  treeSwingPoints = updateDynamicGeometry(true, treeSwingWriter, treeSwingBuffer, treeSwingBufferCache,
+    () => writeTreeSwingGeometry(treeSwingWriter, addLocalReflection))
+  treeSwingGeometryDirty = false
 }
 
 function scheduleGraffitiTexturePaint(splats: GraffitiSplat[]) {
@@ -4641,6 +4710,7 @@ function setNpcPlayerCount(count: number) {
   while (npcPlayers.length > count) {
     const player = npcPlayers.pop()!
 
+    player.npcUpdateDelta = 0
     if (player.seat) {
       occupiedSeats.delete(player.seat)
       player.seat = undefined
@@ -4649,7 +4719,10 @@ function setNpcPlayerCount(count: number) {
   }
 
   while (npcPlayers.length < count) {
-    npcPlayers.push(npcPlayerPool[npcPlayers.length]!)
+    const player = npcPlayerPool[npcPlayers.length]!
+
+    player.npcUpdateDelta = 0
+    npcPlayers.push(player)
   }
 }
 

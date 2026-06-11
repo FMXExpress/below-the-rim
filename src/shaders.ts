@@ -524,6 +524,81 @@ void main() {
 }
 `
 
+export const roomDepthFragment = `#version 300 es
+precision highp float;
+
+uniform int renderZone;
+uniform int doorCoverVisible;
+
+in float light;
+in float hazeAmount;
+in vec3 worldPosition;
+flat in float strobeId;
+
+out vec4 pixel;
+
+bool sceneVisible() {
+  if (strobeId > 9000.0 && doorCoverVisible == 0) {
+    return false;
+  }
+  if (renderZone == 0 && hazeAmount > 1.5) {
+    return false;
+  }
+
+  bool outsidePoint = worldPosition.x < -7.05 || worldPosition.x > 7.05 || worldPosition.z < -24.05 || worldPosition.z > 4.05;
+  bool rooftopPoint = worldPosition.x > ${rooftopLeft} && worldPosition.x < ${rooftopRight}
+    && worldPosition.z > ${rooftopBack} && worldPosition.z < ${rooftopFront} && worldPosition.y > ${rooftopBottom};
+  bool stairPoint = worldPosition.x > ${stairLeft} && worldPosition.x < ${stairRight}
+    && worldPosition.z > ${stairBack} && worldPosition.z < ${stairFront} && worldPosition.y > ${elevatedOutdoorBottom};
+  bool landingPoint = worldPosition.x > ${landingLeft} && worldPosition.x < ${landingRight}
+    && worldPosition.z > ${landingBack} && worldPosition.z < ${landingFront} && worldPosition.y > ${rooftopBottom};
+  bool elevatedOutdoorPoint = rooftopPoint || stairPoint || landingPoint;
+  bool upstairsPoint = worldPosition.x > ${upstairsLeft} && worldPosition.x < ${upstairsRight}
+    && worldPosition.z > ${upstairsBack} && worldPosition.z < ${upstairsFront}
+    && worldPosition.y > ${upstairsBottom} && worldPosition.y < ${upstairsTop};
+  vec2 tentOffset = worldPosition.xz - vec2(${tentX}, ${tentZ});
+  float tentDistance = length(tentOffset);
+  float tentRoofT = clamp((worldPosition.y - ${tentWallTopGlsl}) / ${tentRoofHeightGlsl}, 0.0, 1.0);
+  float tentRoofRadius = mix(${tentRadius}, 0.0, tentRoofT);
+  bool tentPoint = dot(tentOffset, tentOffset) < ${tentVisibleRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
+  bool tentInterior = dot(tentOffset, tentOffset) < ${tentInteriorRadiusSq} && worldPosition.y > -2.2 && worldPosition.y < 5.0;
+  bool tentRoofShell = worldPosition.y > ${tentRoofShellBottom} && worldPosition.y < ${tentRoofShellTop} && abs(tentDistance - tentRoofRadius) < 0.24;
+  bool shell = (
+    abs(worldPosition.z - 4.0) < 0.18
+    || abs(worldPosition.z + 24.0) < 0.18
+    || abs(worldPosition.x - 7.0) < 0.18
+    || abs(worldPosition.x + 7.0) < 0.18
+  ) && worldPosition.y > -2.15 && worldPosition.y < 5.15;
+  bool door = abs(worldPosition.z - 4.0) < 0.22
+    && worldPosition.x > -5.75 && worldPosition.x < -3.75
+    && worldPosition.y > -2.15 && worldPosition.y < 0.75;
+  bool graffiti = hazeAmount > 5.5;
+  bool doorCover = strobeId > 9000.0;
+  bool exteriorDoorCover = strobeId > 9001.5;
+
+  if (renderZone == 0) {
+    return (!outsidePoint && !elevatedOutdoorPoint) || door;
+  }
+  if (renderZone == 2) {
+    return tentPoint;
+  }
+  if (renderZone == 3) {
+    return upstairsPoint && !exteriorDoorCover;
+  }
+
+  return (outsidePoint && (!tentInterior || tentRoofShell || graffiti)) || (elevatedOutdoorPoint && !upstairsPoint)
+    || (shell && light < 0.12) || door || doorCover;
+}
+
+void main() {
+  if (!sceneVisible()) {
+    discard;
+  }
+
+  pixel = vec4(0.0);
+}
+`
+
 export const lightFragment = `#version 300 es
 precision highp float;
 
@@ -1217,7 +1292,11 @@ void main() {
 
   vec3 current = pow(color, vec3(0.9));
   vec2 feedbackUv = (uv - 0.5) * 0.992 + 0.5;
-  vec3 history = texture(feedback, feedbackUv).rgb * feedbackAmount * (1.0 - skyMask);
+  vec3 history = vec3(0.0);
+
+  if (feedbackAmount > 0.001) {
+    history = texture(feedback, feedbackUv).rgb * feedbackAmount * (1.0 - skyMask);
+  }
 
   vec3 tripped = max(current, history);
 

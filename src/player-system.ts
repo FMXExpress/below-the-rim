@@ -1,5 +1,6 @@
 import { characterFloor, hairPalette, jewelPalette, skinPalette } from './character-data.ts'
 import { resolvePlayerStyle } from './character-style.ts'
+import { characterView, characterVisibilityInto } from './character-visibility.ts'
 import { clamp, lengthSq, smoothAngle } from './math.ts'
 import { findPath } from './pathfinding.ts'
 import {
@@ -116,6 +117,19 @@ const destinationSeats = seats()
 const loungeDestinationSeats = destinationSeats.filter(seat => !seat.id.startsWith('stool:'))
 const stoolDestinationSeats = destinationSeats.filter(seat => seat.id.startsWith('stool:'))
 const playerTurnBasis = createObjectTurnBasisCache<Player>()
+const npcNearUpdateDistanceSq = 16 * 16
+const npcMidUpdateDistanceSq = 26 * 26
+const npcUpdateVisibility = { depth: 0, distanceSq: 0, visible: false }
+
+type PlayerUpdateView = {
+  camera: {
+    center: Vec3
+    eye: Vec3
+  }
+  frame: number
+  height: number
+  width: number
+}
 
 export function createPlayers(count: number, outsideTree: CircleBounds, occupiedSeats: Set<string>) {
   const next: Player[] = []
@@ -185,13 +199,25 @@ export function updatePlayers(
   time: number,
   outsideTree: CircleBounds,
   occupiedSeats: Set<string>,
+  updateView: PlayerUpdateView,
 ) {
+  const view = characterView(updateView.camera.eye, updateView.camera.center)
   const movement = {
     count: players.reduce((count, player) => count + (travelingPlayer(player, time) ? 1 : 0), 0),
     max: Math.max(npcConfig.movement.minimumTravelers, Math.floor(players.length * npcConfig.movement.travelerRatio)),
   }
 
   for (const player of players) {
+    const cadence = npcUpdateCadence(player, view, updateView.width, updateView.height)
+
+    player.npcUpdateDelta = (player.npcUpdateDelta ?? 0) + delta
+    if (cadence > 1 && (updateView.frame + player.seed) % cadence !== 0) {
+      continue
+    }
+
+    const updateDelta = player.npcUpdateDelta
+
+    player.npcUpdateDelta = 0
     const flowingDoor = doorFlow(player)
 
     if (flowingDoor) {
@@ -229,7 +255,7 @@ export function updatePlayers(
       player.travelLateralDirection = undefined
     }
     else if (!flowingDoor && updateRandomPause(player, time)) {
-      player.motionBlend += (0 - player.motionBlend) * (1 - Math.exp(-7 * delta))
+      player.motionBlend += (0 - player.motionBlend) * (1 - Math.exp(-7 * updateDelta))
       player.mode = player.motionBlend > 0.5 ? 'run' : 'stand'
       player.position[1] = walkHeight(player.position[0], player.position[1], player.position[2])
       continue
@@ -239,16 +265,16 @@ export function updatePlayers(
       player.nextDecision = player.leavingSeatUntil
     }
     else if (player.destination.kind === 'random') {
-      updateRandomPlayer(player, delta, time, outsideTree, occupiedSeats, movement)
+      updateRandomPlayer(player, updateDelta, time, outsideTree, occupiedSeats, movement)
     }
     else {
-      updateDestinationPlayer(player, delta, time, outsideTree, occupiedSeats, movement)
+      updateDestinationPlayer(player, updateDelta, time, outsideTree, occupiedSeats, movement)
     }
 
     const inputLengthSq = lengthSq(player.input)
     const moving = inputLengthSq > 0
 
-    player.motionBlend += ((moving ? 1 : 0) - player.motionBlend) * (1 - Math.exp(-7 * delta))
+    player.motionBlend += ((moving ? 1 : 0) - player.motionBlend) * (1 - Math.exp(-7 * updateDelta))
     player.mode = player.motionBlend > 0.5 ? 'run' : 'stand'
 
     if (moving) {
@@ -264,15 +290,15 @@ export function updatePlayers(
 
       const speed = Math.min(Math.sqrt(inputLengthSq), 1)
 
-      player.position[0] += directionX * delta * 2.55 * speed * player.travelSpeed
-      player.position[2] += directionZ * delta * 2.55 * speed * player.travelSpeed
+      player.position[0] += directionX * updateDelta * 2.55 * speed * player.travelSpeed
+      player.position[2] += directionZ * updateDelta * 2.55 * speed * player.travelSpeed
 
       collideRoom(player.position, outsideTree, isOutside(player.position), previousPosition)
       if ((!player.leavingSeatUntil || time >= player.leavingSeatUntil) && trySitPlayer(player, time, occupiedSeats)) {
         continue
       }
 
-      if (blockedForward(player, lastX, lastZ, directionX, directionZ, delta)) {
+      if (blockedForward(player, lastX, lastZ, directionX, directionZ, updateDelta)) {
         if (doorFlow(player)) {
           player.travelLateralUntil = undefined
           player.travelLateralDirection = undefined
@@ -284,11 +310,29 @@ export function updatePlayers(
         continue
       }
 
-      player.turn = smoothAngle(player.turn, Math.atan2(directionX, directionZ), 8, delta)
+      player.turn = smoothAngle(player.turn, Math.atan2(directionX, directionZ), 8, updateDelta)
     }
 
     player.position[1] = walkHeight(player.position[0], player.position[1], player.position[2])
   }
+}
+
+function npcUpdateCadence(
+  player: Player,
+  view: ReturnType<typeof characterView>,
+  width: number,
+  height: number,
+) {
+  const visibility = characterVisibilityInto(player, view, width, height, npcUpdateVisibility)
+
+  if (visibility.visible || visibility.distanceSq <= npcNearUpdateDistanceSq) {
+    return 1
+  }
+  if (visibility.distanceSq <= npcMidUpdateDistanceSq) {
+    return 2
+  }
+
+  return 4
 }
 
 export function takeNpcSeat(

@@ -6,50 +6,22 @@ type Camera = { eye: Vec3; center: Vec3 }
 
 export function drawRoomDepth(options: {
   array: WebGLVertexArrayObject
-  camera: Camera
   cameraMatrix: CameraMatrix
   count: number
   doorCoverVisible: boolean
-  graffitiTexture: WebGLTexture
   gl: WebGL2RenderingContext
-  height: number
-  objectTexture: WebGLTexture
-  outsideNight: number
   renderZone: number
   program: WebGLProgram
-  treeShadowMap: WebGLTexture
   uniforms: {
-    bloomPass: WebGLUniformLocation
-    bloomWrite: WebGLUniformLocation
-    cameraEye: WebGLUniformLocation
-    characterPass: WebGLUniformLocation
     doorCoverVisible: WebGLUniformLocation
-    graffitiMap: WebGLUniformLocation
-    objectTextureMap: WebGLUniformLocation
-    outsideNight: WebGLUniformLocation
     renderZone: WebGLUniformLocation
-    treeShadowSampler: WebGLUniformLocation
     viewProjection: WebGLUniformLocation
   }
-  width: number
 }) {
   options.gl.useProgram(options.program)
   options.gl.uniformMatrix4fv(options.uniforms.viewProjection, false, options.cameraMatrix.viewProjection)
-  options.gl.uniform3f(options.uniforms.cameraEye, options.camera.eye[0], options.camera.eye[1], options.camera.eye[2])
   options.gl.uniform1i(options.uniforms.renderZone, options.renderZone)
-  options.gl.uniform1i(options.uniforms.bloomPass, 0)
-  options.gl.uniform1i(options.uniforms.characterPass, 0)
   options.gl.uniform1i(options.uniforms.doorCoverVisible, options.doorCoverVisible ? 1 : 0)
-  options.gl.uniform1f(options.uniforms.outsideNight, options.outsideNight)
-  options.gl.activeTexture(options.gl.TEXTURE4)
-  options.gl.bindTexture(options.gl.TEXTURE_2D, options.treeShadowMap)
-  options.gl.uniform1i(options.uniforms.treeShadowSampler, 4)
-  options.gl.activeTexture(options.gl.TEXTURE5)
-  options.gl.bindTexture(options.gl.TEXTURE_2D, options.graffitiTexture)
-  options.gl.uniform1i(options.uniforms.graffitiMap, 5)
-  options.gl.activeTexture(options.gl.TEXTURE6)
-  options.gl.bindTexture(options.gl.TEXTURE_2D, options.objectTexture)
-  options.gl.uniform1i(options.uniforms.objectTextureMap, 6)
   options.gl.colorMask(false, false, false, false)
   options.gl.depthMask(true)
   options.gl.bindVertexArray(options.array)

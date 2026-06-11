@@ -199,6 +199,7 @@ export type Player = {
   idleClipIndex: number
   input: Vec3
   nextDecision: number
+  npcUpdateDelta?: number
   nextPauseDecision?: number
   nextTravelTargetAt?: number
   pauseUntil?: number
