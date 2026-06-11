@@ -1,3 +1,4 @@
+import { shaderFrame } from './animation-time.ts'
 import type { CameraMatrix } from './camera-matrix.ts'
 import { uploadFloatBuffer } from './character-gpu.ts'
 import { roomAt } from './scene.ts'
@@ -29,11 +30,13 @@ export function createStrobeDrawController(options: StrobeDrawOptions) {
   let reflectionFrame = -1
   let reflectionLights: StrobeReflectionLight[] = []
   let frame = 0
+  let flashFrame = 0
   let activeZone: VideoZone = 'inside'
 
   return {
     setFrame(nextFrame: number) {
       frame = nextFrame
+      flashFrame = shaderFrame(nextFrame)
     },
     updateInstances(time: number, zone: VideoZone) {
       let length = 0
@@ -81,7 +84,7 @@ export function createStrobeDrawController(options: StrobeDrawOptions) {
       }
 
       options.gl.useProgram(options.program)
-      options.gl.uniform1f(options.uniforms.time, nextFrame)
+      options.gl.uniform1f(options.uniforms.time, shaderFrame(nextFrame))
       options.gl.uniform1i(options.uniforms.renderZone, renderZone(roomAt(options.characterPosition)))
       options.gl.uniformMatrix4fv(options.uniforms.viewProjection, false, cameraMatrix.viewProjection)
       options.gl.activeTexture(options.gl.TEXTURE2)
@@ -115,7 +118,7 @@ export function createStrobeDrawController(options: StrobeDrawOptions) {
           continue
         }
 
-        const strobe = Math.floor(strobeRandom(light.id, frame) + 0.18)
+        const strobe = Math.floor(strobeRandom(light.id, flashFrame) + 0.18)
 
         if (strobe > 0) {
           const target = strobeTarget(light, frame / 60)

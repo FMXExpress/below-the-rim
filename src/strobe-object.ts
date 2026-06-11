@@ -1,3 +1,4 @@
+import { frameAtTime } from './animation-time.ts'
 import { characterFloor } from './character-data.ts'
 import { electricNavy } from './constants.ts'
 import { clamp, mix, smoothstep } from './math.ts'
@@ -131,7 +132,7 @@ export function createStrobeLights() {
 }
 
 export function strobeTarget(light: StrobeLight, time: number): Vec3 {
-  const frame = Math.floor(time * 60)
+  const frame = frameAtTime(time)
   let cached = strobeTargetCache.get(light)
 
   if (cached?.frame === frame) {

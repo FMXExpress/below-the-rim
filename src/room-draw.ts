@@ -1,3 +1,4 @@
+import { shaderFrame } from './animation-time.ts'
 import type { CameraMatrix } from './camera-matrix.ts'
 import type { Vec3 } from './types.ts'
 
@@ -104,7 +105,7 @@ export function useLightProgram(options: {
   width: number
 }) {
   options.gl.useProgram(options.program)
-  options.gl.uniform1f(options.uniforms.time, options.frame)
+  options.gl.uniform1f(options.uniforms.time, shaderFrame(options.frame))
   options.gl.uniform1i(options.uniforms.renderZone, options.renderZone)
   options.gl.uniformMatrix4fv(options.uniforms.viewProjection, false, options.cameraMatrix.viewProjection)
   options.gl.activeTexture(options.gl.TEXTURE2)

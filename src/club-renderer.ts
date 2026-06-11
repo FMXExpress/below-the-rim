@@ -1,3 +1,4 @@
+import { frameAtTime } from './animation-time.ts'
 import { createCameraMatrix, updateCameraMatrix } from './camera-matrix.ts'
 import type { CameraMatrix } from './camera-matrix.ts'
 import {
@@ -154,7 +155,7 @@ export function renderClubFrame(options: {
   width: number
 }) {
   const gl = options.gl
-  const frame = Math.floor(options.time * 60)
+  const frame = frameAtTime(options.time)
   const outsideNight = 1 - options.dayCycle.daylight
   updateCameraMatrix(mainCameraMatrix, options.camera.eye, options.camera.center, options.target.width,
     options.target.height, options.camera.up)

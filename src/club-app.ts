@@ -124,6 +124,7 @@ import {
 } from './webgl.ts'
 
 import { createAdaptiveResolution } from './adaptive-pixel-ratio.ts'
+import { frameAtStamp } from './animation-time.ts'
 import { createArcadeUi } from './arcade-ui.ts'
 import { createCameraController } from './camera-controller.ts'
 import { idleClipNames } from './character-assets.ts'
@@ -3499,7 +3500,7 @@ function renderPhotoFrame(stamp: number, videoPreview: VideoPreview | undefined,
   const sky = !inLoft && zone === 'outside' && usesSkyBackground(camera)
   const outdoorRender = outside || zone === 'upstairs'
 
-  strobeController.setFrame(Math.floor(stamp / 16.6667))
+  strobeController.setFrame(frameAtStamp(stamp))
   strobeController.updateInstances(stamp * 0.001, zone)
   updateBeachBallBuffer()
   updateTreeSwingBuffer()
@@ -3867,7 +3868,7 @@ const draw = (stamp: number) => {
   }
 
   const delta = lastStamp === 0 ? 0 : Math.min((stamp - lastStamp) / 1000, 0.05)
-  const frame = Math.floor(stamp / 16.6667)
+  const frame = frameAtStamp(stamp)
 
   strobeController.setFrame(frame)
   lastStamp = stamp

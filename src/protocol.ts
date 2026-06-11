@@ -32,7 +32,7 @@ export const messageMaxLength = 120
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 50
+export const protocolVersion = 51
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
