@@ -138,6 +138,10 @@ type YouTubeVideoMetadata = {
 
 type ChatHistoryEntry = MessagePacket
 
+type StoredChatHistory = {
+  entries: ChatHistoryEntry[]
+}
+
 type LoftRoom = {
   slug: string
   displaySlug: string
@@ -194,10 +198,12 @@ const analyticsAssets = new Map([
   ['/analytics/uPlot.min.css', join(uplotDir, 'uPlot.min.css')],
 ])
 const chatHistoryMax = 100
+const chatStorageKey = 'chat'
 const graffitiPacketSplats = 4000
 const defaultLoftVideoId = '0oB97YhEukw'
 const loftRentMs = 30 * dayMs
 const loftSlugPattern = /^[A-Za-z0-9_-]+$/
+const mainSpaceKey = 'main'
 const maxConnectionsPerIp = 4
 const maxClientSpeed = 8
 const maxClientStep = 1.2
@@ -252,7 +258,7 @@ await packGraffitiTail()
 await trimGraffitiHistory()
 let nextGraffitiId = Math.max(graffitiSplats.at(-1)?.id ?? 0, graffitiSnapshot?.lastId ?? 0) + 1
 const spaces = new Map<string, SpaceState>()
-const mainSpace = createSpace('main', 'main', roomCount)
+const mainSpace = createSpace(mainSpaceKey, 'main', roomCount)
 
 mainSpace.videoQueues = await loadVideoQueues(mainSpace)
 mainSpace.videoPlaylistOrders = await loadVideoPlaylists(mainSpace)
@@ -262,7 +268,7 @@ if (initializeVideoQueuesFromPlaylists(mainSpace, Date.now())) {
   await saveVideoQueues(mainSpace)
 }
 
-let nextId = 1
+let nextId = loadMaxChatHistoryId() + 1
 
 type MemoryAsset = {
   modified: Date
@@ -1863,20 +1869,17 @@ function addChatHistory(client: Client, entry: ChatHistoryEntry) {
 }
 
 function addSpaceChatHistory(space: SpaceState, entry: ChatHistoryEntry) {
-  const history = space.chatHistory
+  const history = trimChatHistory([...space.chatHistory, entry])
 
-  history.push(entry)
-  while (history.length > chatHistoryMax) {
-    history.shift()
-  }
+  saveChatHistory(space, history)
+  space.chatHistory = history
 }
 
 function removeChatHistory(space: SpaceState, id: number) {
-  for (let i = space.chatHistory.length - 1; i >= 0; i--) {
-    if (space.chatHistory[i]!.id === id) {
-      space.chatHistory.splice(i, 1)
-    }
-  }
+  const history = space.chatHistory.filter(entry => entry.id !== id)
+
+  saveChatHistory(space, history)
+  space.chatHistory = history
 }
 
 function setProfile(client: Client, profile: { insta: string; nick: string }) {
@@ -2117,7 +2120,7 @@ function createSpace(key: string, kind: SpaceState['kind'], count: number, slug?
     kind,
     roomCount: count,
     rooms: Array.from({ length: count }, () => new Set<Client>()),
-    chatHistory: [],
+    chatHistory: loadChatHistory(key),
     videoQueues: [],
     videoPlaylistOrders: [],
     videoPlaylistRequests: {},
@@ -2128,7 +2131,11 @@ function createSpace(key: string, kind: SpaceState['kind'], count: number, slug?
 }
 
 function spaceStorageKey(space: SpaceState, key: string) {
-  return space.key === mainSpace.key ? key : `${space.key}:${key}`
+  return spaceKeyStorageKey(space.key, key)
+}
+
+function spaceKeyStorageKey(spaceKey: string, key: string) {
+  return spaceKey === mainSpaceKey ? key : `${spaceKey}:${key}`
 }
 
 function clientSpace(client: Client) {
@@ -2203,7 +2210,7 @@ function websocketSpaceKey(url: URL, ip: string) {
   const raw = url.searchParams.get('space')
 
   if (!raw) {
-    return mainSpace.key
+    return mainSpaceKey
   }
 
   if (!loftSlugPattern.test(raw)) {
@@ -2268,8 +2275,12 @@ function deleteLoftRoom(slug: string) {
   db.transaction(() => {
     db.query('DELETE FROM loft_rooms WHERE slug = $slug').run({ slug })
     db.query('DELETE FROM loft_room_bans WHERE slug = $slug').run({ slug })
-    db.query('DELETE FROM kv WHERE key = $queues OR key = $playlists')
-      .run({ queues: `${key}:queues`, playlists: `${key}:playlists` })
+    db.query('DELETE FROM kv WHERE key = $queues OR key = $playlists OR key = $chat')
+      .run({
+        queues: spaceKeyStorageKey(key, 'queues'),
+        playlists: spaceKeyStorageKey(key, 'playlists'),
+        chat: spaceKeyStorageKey(key, chatStorageKey),
+      })
   })()
 
   if (space) {
@@ -2317,6 +2328,34 @@ function spacePlaylistSource(space: SpaceState, zone: VideoZone) {
 
 function spacePlaylistZones(space: SpaceState): VideoZone[] {
   return space.kind === 'loft' ? ['loft'] : ['inside', 'outside', 'upstairs', 'tent']
+}
+
+function loadChatHistory(spaceKey: string) {
+  const saved = loadJson<StoredChatHistory>(spaceKeyStorageKey(spaceKey, chatStorageKey))
+
+  return saved?.entries ?? []
+}
+
+function saveChatHistory(space: SpaceState, entries: ChatHistoryEntry[]) {
+  saveJson(spaceStorageKey(space, chatStorageKey), { entries } satisfies StoredChatHistory)
+}
+
+function trimChatHistory(entries: ChatHistoryEntry[]) {
+  return entries.slice(Math.max(0, entries.length - chatHistoryMax))
+}
+
+function loadMaxChatHistoryId() {
+  const rows = db.query<{ value: string }, { key: string; suffix: string }>(`
+    SELECT value
+    FROM kv
+    WHERE key = $key OR key LIKE $suffix
+  `).all({ key: chatStorageKey, suffix: `%:${chatStorageKey}` })
+
+  return rows.reduce((max, row) => {
+    const saved = JSON.parse(row.value) as StoredChatHistory
+
+    return Math.max(max, ...saved.entries.map(entry => entry.id))
+  }, 0)
 }
 
 function loadVideoQueues(space: SpaceState) {
