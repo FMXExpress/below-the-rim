@@ -1,3 +1,5 @@
+import type { InputLayout } from './input.ts'
+
 type HelpKey = {
   keys: string[]
   label: string
@@ -45,12 +47,6 @@ const actionRow: HelpKey[] = [
   { keys: ['b'], label: 'bounce' },
   { keys: ['n'], label: 'foam' },
 ]
-const alternativeActionRow: HelpKey[] = [
-  { keys: ['g'], label: 'sunglasses' },
-  { keys: ['t'], label: 'view' },
-  { keys: ['y'], label: 'breakdance' },
-]
-
 const moveRows: HelpKey[][] = [
   [{ keys: ['↑', 'i'], label: 'forward' }],
   [
@@ -68,13 +64,21 @@ const alternativeMoveRows: HelpKey[][] = [
     { keys: ['→', 'd'], label: 'right' },
   ],
 ]
+const azertyMoveRows: HelpKey[][] = [
+  [{ keys: ['↑', 'z'], label: 'forward' }],
+  [
+    { keys: ['←', 'q'], label: 'left' },
+    { keys: ['↓', 's'], label: 'back' },
+    { keys: ['→', 'd'], label: 'right' },
+  ],
+]
 
 export function createHelpUi() {
   const root = document.createElement('div')
   const left = document.createElement('div')
   const move = document.createElement('div')
   const actions = helpRow(actionRow)
-  const alternativeActions = helpRow(alternativeActionRow)
+  const alternativeActions = helpRow(alternativeActionRowForLayout('wasd'))
   const speak = helpBox({ keys: ['space'], label: 'speak' })
   const alternative = helpBox({ keys: ['tab'], label: 'alt inputs' })
   const toggle = helpBox({ keys: ['?', 'h'], label: 'help' })
@@ -114,11 +118,25 @@ export function createHelpUi() {
       return open
     },
     dismissVideoHint,
-    setAlternativeInput(value: boolean) {
-      renderCluster(left, value ? alternativeLeftRows : leftRows)
-      renderCluster(move, value ? alternativeMoveRows : moveRows)
+    setInputLayout(value: InputLayout) {
+      renderCluster(left, value === 'ijkl' ? leftRows : alternativeLeftRows)
+      renderCluster(move, moveRowsForLayout(value))
+      renderRow(alternativeActions, alternativeActionRowForLayout(value))
     },
   }
+}
+
+function alternativeActionRowForLayout(value: InputLayout): HelpKey[] {
+  return [
+    { keys: ['g'], label: 'sunglasses' },
+    { keys: ['t'], label: 'view' },
+    { keys: [value === 'ijkl' ? 'o' : 'f'], label: 'camera' },
+    { keys: ['y'], label: 'breakdance' },
+  ]
+}
+
+function moveRowsForLayout(value: InputLayout) {
+  return value === 'ijkl' ? moveRows : value === 'wasd' ? alternativeMoveRows : azertyMoveRows
 }
 
 function dismissVideoHint() {
@@ -127,6 +145,10 @@ function dismissVideoHint() {
 
 function renderCluster(cluster: HTMLElement, rows: HelpKey[][]) {
   cluster.replaceChildren(...rows.map(helpRow))
+}
+
+function renderRow(row: HTMLElement, items: HelpKey[]) {
+  row.replaceChildren(...items.map(helpBox))
 }
 
 function helpRow(items: HelpKey[]) {

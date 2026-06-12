@@ -29,7 +29,8 @@ import {
   paintTShirtLogoTexture,
   sprayWallPoint,
 } from './graffiti.ts'
-import { bindKeyboardInput, setAlternativeInput } from './input.ts'
+import { bindKeyboardInput, setInputLayout } from './input.ts'
+import type { InputLayout } from './input.ts'
 import { addLoftLightGeometry, addLoftRoom, addLoftSmoke, loftSpawn } from './loft-scene.ts'
 import { lengthSq, mix } from './math.ts'
 import { createMultiplayer, updateRemotePlayers } from './multiplayer.ts'
@@ -188,6 +189,7 @@ const {
   sunglassesOverlay,
   sunglassesButton,
   perspectiveButton,
+  cameraButton,
   breakdanceButton,
   waveButton,
   bubbleButton,
@@ -311,7 +313,7 @@ const remoteSeats = new Set<string>()
 const maxNpcPlayers = 400
 const npcPopulationInterval = 60_000
 let idleClipIndex = 0
-let alternativeInput = true
+let inputLayout: InputLayout = 'wasd'
 let onlineCountValue = 0
 let nextNpcPopulationSyncAt = npcPopulationInterval
 const localCharacter = createLocalCharacter(keys)
@@ -356,7 +358,7 @@ const djVideoUi = createDjVideoUi(djVideo, characterPosition, {
 })
 const photoWallUi = createPhotoWallUi(photoWall, {
   admin: () => ({ enabled: adminView, pass: adminPass }),
-  alternativeInput: () => alternativeInput,
+  inputLayout: () => inputLayout,
   onLike: photo => sendChatMessage('❤️', photo.timestamp),
   recoverFocus: () => canvas.focus(),
 })
@@ -481,6 +483,7 @@ function syncOnlineIndicator() {
   reactionButtons.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   sunglassesButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   perspectiveButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
+  cameraButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   breakdanceButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   waveButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
   bubbleButton.dataset.hidden = String(helpUi.root.dataset.open === 'true')
@@ -1429,10 +1432,10 @@ const idleClipState = {
     idleClipIndex = value
   },
 }
-function useAlternativeInput(value: boolean) {
-  alternativeInput = value
-  setAlternativeInput(value)
-  helpUi.setAlternativeInput(value)
+function useInputLayout(value: InputLayout) {
+  inputLayout = value
+  setInputLayout(value)
+  helpUi.setInputLayout(value)
 }
 
 function setSunglasses(value: boolean) {
@@ -1455,16 +1458,37 @@ function toggleSunglasses() {
   setSunglasses(!sunglasses)
 }
 
-function syncPerspectiveButton() {
-  perspectiveButton.dataset.active = String(cameraController.firstPerson)
-  perspectiveButton.setAttribute('aria-pressed', String(cameraController.firstPerson))
+function syncViewButton() {
+  const active = cameraController.firstPerson
+
+  perspectiveButton.dataset.active = String(active)
+  perspectiveButton.setAttribute('aria-pressed', String(active))
 }
 
-function togglePerspective() {
+function syncCameraButton() {
+  const active = cameraController.freeMouse
+
+  cameraButton.dataset.active = String(active)
+  cameraButton.setAttribute('aria-pressed', String(active))
+}
+
+function syncCameraControls() {
+  syncViewButton()
+  syncCameraButton()
+}
+
+function toggleView() {
   cameraController.togglePerspective(localCharacter.turn)
-  syncPerspectiveButton()
+  syncCameraControls()
   saveCurrentClubState(true)
 }
+
+function toggleCameraControl() {
+  cameraController.toggleFreeMouse()
+  syncCameraControls()
+}
+
+document.addEventListener('pointerlockchange', syncCameraControls)
 
 function palmTreeMeshColor(index: number): [number, number, number] {
   return index === 0 ? [0.42, 0.24, 0.1] : [0.02, 0.72 + (index % 3) * 0.08, 0.16]
@@ -1808,7 +1832,7 @@ function seededPlantRandom(seed: number, salt: number) {
   return value - Math.floor(value)
 }
 
-useAlternativeInput(alternativeInput)
+useInputLayout(inputLayout)
 const projectorViewport: Viewport = {
   clientHeight: canvas.clientHeight,
   clientWidth: canvas.clientWidth,
@@ -2313,10 +2337,10 @@ restoreClubState({
   idleClipIndex: idleClipState,
   key: saveKey,
   localCharacter,
-  setAlternativeInput: useAlternativeInput,
+  setInputLayout: useInputLayout,
   styleController,
 })
-syncPerspectiveButton()
+syncCameraControls()
 djVideoUi.setZoneFromPosition()
 djVideoUi.load()
 
@@ -3290,7 +3314,7 @@ function saveCurrentClubState(characterAssetsLoaded: boolean, room = currentRoom
     characterPosition,
     duckPosition,
     duckTurn,
-    alternativeInput,
+    inputLayout,
     hairController,
     idleClipIndex,
     instagram,
@@ -3325,9 +3349,10 @@ bindKeyboardInput({
   },
   startBreakdance: () => localCharacter.startBreakdance(),
   toggleSunglasses,
-  togglePerspective,
+  toggleCameraControl,
+  toggleView,
   openChatInput: () => openChatInput(),
-  setAlternativeInput: useAlternativeInput,
+  setInputLayout: useInputLayout,
   toggleHelp: () => {
     const open = helpUi.toggle()
     syncOnlineIndicator()
@@ -3580,7 +3605,12 @@ sunglassesButton.addEventListener('click', () => {
 })
 
 perspectiveButton.addEventListener('click', () => {
-  togglePerspective()
+  toggleView()
+  canvas.focus()
+})
+
+cameraButton.addEventListener('click', () => {
+  toggleCameraControl()
   canvas.focus()
 })
 
@@ -3632,6 +3662,14 @@ for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
 }
 
 window.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && cameraController.freeMouse) {
+    event.preventDefault()
+    cameraController.exitFreeMouse()
+    syncCameraControls()
+    canvas.focus()
+    return
+  }
+
   if (event.key === 'Escape' && chatUi.isOpen()) {
     event.preventDefault()
     chatUi.close()
