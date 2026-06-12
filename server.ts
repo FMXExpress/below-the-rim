@@ -335,6 +335,10 @@ const server = Bun.serve<SocketData>({
       return handleRoomApi(request, url)
     }
 
+    if (url.pathname === '/api/admin/bans') {
+      return await handleAdminBansApi(request)
+    }
+
     if (bannedIp(ip)) {
       return new Response('Forbidden', { status: 403 })
     }
@@ -3476,6 +3480,32 @@ async function loadBannedIps() {
 
 function saveBan(value: string) {
   db.query('INSERT OR IGNORE INTO bans (value) VALUES ($value)').run({ value })
+}
+
+function clearBans() {
+  const count = bannedIps.size
+
+  bannedIps.clear()
+  db.query('DELETE FROM bans').run()
+
+  return count
+}
+
+async function handleAdminBansApi(request: Request) {
+  if (request.method !== 'DELETE') {
+    return new Response('Method Not Allowed', {
+      status: 405,
+      headers: { allow: 'DELETE' },
+    })
+  }
+
+  const body = await request.json() as { pass?: string }
+
+  if (adminPass === '' || body.pass !== adminPass) {
+    return new Response('Forbidden', { status: 403 })
+  }
+
+  return jsonResponse({ ok: true, count: clearBans() })
 }
 
 async function applyAdminMessage(client: Client, packet: ReturnType<typeof decodeAdminMessage>) {

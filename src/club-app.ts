@@ -921,6 +921,7 @@ const adminBanIdSubmit = document.createElement('button')
 const adminMusicInput = document.createElement('input')
 const adminMusicSubmit = document.createElement('button')
 const adminRandomTrackSubmit = document.createElement('button')
+const adminClearBansSubmit = document.createElement('button')
 const loftMusicDialog = document.createElement('dialog')
 const loftMusicForm = document.createElement('form')
 const loftMusicUsername = document.createElement('input')
@@ -968,8 +969,11 @@ adminMusicSubmit.setAttribute('aria-label', 'set room music')
 adminRandomTrackSubmit.type = 'button'
 adminRandomTrackSubmit.textContent = '🔀'
 adminRandomTrackSubmit.setAttribute('aria-label', 'next track')
+adminClearBansSubmit.type = 'button'
+adminClearBansSubmit.textContent = '🧹'
+adminClearBansSubmit.setAttribute('aria-label', 'clear global bans')
 adminForm.append(adminUsername, adminInput, adminSubmit, adminBanIdInput, adminBanIdSubmit, adminMusicInput,
-  adminMusicSubmit, adminRandomTrackSubmit)
+  adminMusicSubmit, adminRandomTrackSubmit, adminClearBansSubmit)
 adminDialog.append(adminForm)
 loftMusicDialog.id = 'loft-music-dialog'
 loftMusicForm.method = 'dialog'
@@ -1059,6 +1063,12 @@ adminMusicSubmit.addEventListener('click', async () => {
   adminPass = adminInput.value
   setAdminView(adminPass.length > 0)
   await updateLoftMusic(adminPass, adminMusicInput.value)
+})
+
+adminClearBansSubmit.addEventListener('click', async () => {
+  adminPass = adminInput.value
+  setAdminView(adminPass.length > 0)
+  await clearGlobalBans(adminPass)
 })
 
 loftMusicCancel.addEventListener('click', () => {
@@ -3039,6 +3049,18 @@ async function deleteLoftRoom(slug: string, pass: string) {
 
   if (!response.ok) {
     throw new Error(`Room delete failed ${response.status}`)
+  }
+}
+
+async function clearGlobalBans(pass: string) {
+  const response = await fetch('/api/admin/bans', {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ pass }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Clear global bans failed ${response.status}`)
   }
 }
 
