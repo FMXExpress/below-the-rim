@@ -1472,20 +1472,23 @@ function syncCameraButton() {
   cameraButton.setAttribute('aria-pressed', String(active))
 }
 
-function toggleView() {
-  cameraController.togglePerspective(localCharacter.turn)
+function syncCameraControls() {
   syncViewButton()
   syncCameraButton()
+}
+
+function toggleView() {
+  cameraController.togglePerspective(localCharacter.turn)
+  syncCameraControls()
   saveCurrentClubState(true)
 }
 
 function toggleCameraControl() {
   cameraController.toggleFreeMouse()
-  syncCameraButton()
-  syncViewButton()
+  syncCameraControls()
 }
 
-document.addEventListener('pointerlockchange', syncCameraButton)
+document.addEventListener('pointerlockchange', syncCameraControls)
 
 function palmTreeMeshColor(index: number): [number, number, number] {
   return index === 0 ? [0.42, 0.24, 0.1] : [0.02, 0.72 + (index % 3) * 0.08, 0.16]
@@ -2337,8 +2340,7 @@ restoreClubState({
   setInputLayout: useInputLayout,
   styleController,
 })
-syncViewButton()
-syncCameraButton()
+syncCameraControls()
 djVideoUi.setZoneFromPosition()
 djVideoUi.load()
 
@@ -3663,8 +3665,7 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape' && cameraController.freeMouse) {
     event.preventDefault()
     cameraController.exitFreeMouse()
-    syncViewButton()
-    syncCameraButton()
+    syncCameraControls()
     canvas.focus()
     return
   }

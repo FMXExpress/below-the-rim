@@ -135,7 +135,9 @@ export function bindKeyboardInput(options: {
       return
     }
 
-    if (key === 'f') {
+    const cameraKey = inputLayout === 'ijkl' ? ';' : 'f'
+
+    if (key === cameraKey) {
       if (options.keys.has(key)) {
         return
       }

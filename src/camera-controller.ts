@@ -88,7 +88,6 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
   }
 
   function enterFreeMouse() {
-    firstPerson = false
     dragging = false
     dragMoved = false
     dragTouchId = -1
@@ -102,6 +101,7 @@ export function createCameraController(canvas: HTMLCanvasElement, characterPosit
   function exitFreeMouse() {
     if (document.pointerLockElement === canvas) {
       document.exitPointerLock()
+      setFreeMouse(false)
       return
     }
 
