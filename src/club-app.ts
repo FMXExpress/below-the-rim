@@ -640,7 +640,7 @@ function addChatLogMessage(packet: MessagePacket) {
     ) {
       entries.push(entry)
       renderChatLogRow(last)
-      chatLog.scrollTop = chatLog.scrollHeight
+      scrollChatLogToBottom()
 
       return color
     }
@@ -653,7 +653,7 @@ function addChatLogMessage(packet: MessagePacket) {
     if (entries?.[0]?.photoTimestamp === packet.photoTimestamp) {
       entries.push(entry)
       renderChatLogRow(row)
-      chatLog.scrollTop = chatLog.scrollHeight
+      scrollChatLogToBottom()
 
       return color
     }
@@ -689,7 +689,7 @@ function addChatLogMessage(packet: MessagePacket) {
   chatLogRows.set(row, [entry])
   renderChatLogRow(row)
   chatLog.append(row)
-  chatLog.scrollTop = chatLog.scrollHeight
+  scrollChatLogToBottom()
 
   return color
 }
@@ -3545,10 +3545,11 @@ function sendChatMessage(message: string, photoTimestamp = 0) {
   }
 }
 
-function scrollChatLogToBottom() {
-  requestAnimationFrame(() => {
-    chatLog.scrollTop = chatLog.scrollHeight
-  })
+function scrollChatLogToBottom(frames = 4) {
+  chatLog.scrollTop = chatLog.scrollHeight
+  if (frames > 0) {
+    requestAnimationFrame(() => scrollChatLogToBottom(frames - 1))
+  }
 }
 
 function openChatInput(focus = true) {
