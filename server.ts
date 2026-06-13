@@ -339,7 +339,7 @@ const server = Bun.serve<SocketData>({
       return handleAnalyticsPage(request)
     }
 
-    if (url.pathname === '/gallery' || url.pathname === '/gallery/') {
+    if (url.pathname === '/gallery' || url.pathname === '/gallery/' || url.pathname.startsWith('/gallery/')) {
       return handleGalleryPage(request)
     }
 
@@ -962,6 +962,16 @@ async function handlePhotoApi(request: Request, url: URL, ip: string) {
 
   const timestamp = photoApiTimestamp(url.pathname)
 
+  if (request.method === 'GET' && timestamp !== undefined && url.pathname === `/api/photos/${timestamp}`) {
+    const photo = photoRow(timestamp)
+
+    if (!photo) {
+      return new Response('Not Found', { status: 404 })
+    }
+
+    return jsonResponse(photoPayload(photo, ip))
+  }
+
   if (request.method === 'POST' && timestamp !== undefined && url.pathname === `/api/photos/${timestamp}/likes`) {
     if (!photoExists(timestamp)) {
       return new Response('Not Found', { status: 404 })
@@ -1068,6 +1078,17 @@ function photoPayload(photo: { createdAt: number; timestamp: number }, ip: strin
     thumbnailUrl: photoThumbnailUrl(photo.timestamp),
     url: photoUrl(photo.timestamp),
   }
+}
+
+function photoRow(timestamp: number) {
+  return db.query<{
+    createdAt: number
+    timestamp: number
+  }, { timestamp: number }>(`
+    SELECT timestamp, created_at AS createdAt
+    FROM photos
+    WHERE timestamp = $timestamp
+  `).get({ timestamp })
 }
 
 function photoLikePayload(timestamp: number, ip: string) {

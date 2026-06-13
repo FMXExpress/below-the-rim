@@ -137,16 +137,24 @@ export function galleryHtml() {
       }
 
       .photo {
-        appearance: none;
         aspect-ratio: 1;
         background: #111;
         border: 1px solid #27272a;
         border-radius: 6px;
-        cursor: zoom-in;
         display: block;
         overflow: hidden;
-        padding: 0;
         position: relative;
+        width: 100%;
+      }
+
+      .photo-open {
+        appearance: none;
+        background: transparent;
+        border: 0;
+        cursor: zoom-in;
+        display: block;
+        height: 100%;
+        padding: 0;
         width: 100%;
       }
 
@@ -264,16 +272,18 @@ export function galleryHtml() {
         background: rgb(255 255 255 / 0.92);
         border: 1px solid rgb(0 0 0 / 0.18);
         border-radius: 999px;
-        bottom: 14px;
         color: #111;
         cursor: pointer;
+        display: grid;
+        flex: 0 0 auto;
         font: inherit;
         font-size: 24px;
         font-weight: 760;
         height: 38px;
+        place-items: center;
+        position: relative;
         line-height: 1;
         padding: 0;
-        position: absolute;
         width: 38px;
       }
 
@@ -282,32 +292,44 @@ export function galleryHtml() {
         opacity: 0.25;
       }
 
-      #previous,
-      .viewer-previous {
-        left: calc(50% - 52px);
+      .viewer-controls {
+        bottom: 14px;
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        left: 50%;
+        max-width: calc(100% - 24px);
+        position: absolute;
         transform: translateX(-50%);
+      }
+
+      #share,
+      .viewer-share {
+        font-size: 18px;
+      }
+
+      #share[data-copied="true"]::after {
+        background: rgb(12 12 14 / 0.92);
+        border: 1px solid rgb(255 255 255 / 0.16);
+        border-radius: 6px;
+        color: white;
+        content: "Link copied!";
+        font: 900 12px/1 "Iansui", ui-sans-serif, system-ui, sans-serif;
+        padding: 7px 9px;
+        position: absolute;
+        left: 50%;
+        top: -42px;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        z-index: 2;
       }
 
       #like,
       .viewer-like {
         font-size: 17px;
-        left: calc(50% + 52px);
         min-width: 52px;
         padding: 0 12px;
-        transform: translateX(-50%);
         width: auto;
-      }
-
-      #next,
-      .viewer-next {
-        left: calc(50% + 104px);
-        transform: translateX(-50%);
-      }
-
-      #close,
-      .viewer-close {
-        left: 50%;
-        transform: translateX(-50%);
       }
 
       #close::before,
@@ -378,10 +400,13 @@ export function galleryHtml() {
       <div id="viewer-stage">
         <div id="viewer-polaroid">
           <img class="viewer-image" id="viewer-image" alt="photo">
-          <button class="viewer-control viewer-previous" id="previous" type="button" aria-label="previous photo">👈</button>
-          <button class="viewer-control viewer-like" id="like" type="button" aria-label="like photo"></button>
-          <button class="viewer-control viewer-next" id="next" type="button" aria-label="next photo">👉</button>
-          <button class="viewer-control viewer-close" id="close" type="button" aria-label="close photo"></button>
+          <div class="viewer-controls">
+            <button class="viewer-control viewer-previous" id="previous" type="button" aria-label="previous photo">👈</button>
+            <button class="viewer-control viewer-close" id="close" type="button" aria-label="close photo"></button>
+            <button class="viewer-control viewer-share" id="share" type="button" aria-label="share photo">↗</button>
+            <button class="viewer-control viewer-like" id="like" type="button" aria-label="like photo"></button>
+            <button class="viewer-control viewer-next" id="next" type="button" aria-label="next photo">👉</button>
+          </div>
         </div>
       </div>
     </dialog>
@@ -395,6 +420,7 @@ export function galleryHtml() {
       const previous = document.querySelector('#previous')
       const next = document.querySelector('#next')
       const like = document.querySelector('#like')
+      const share = document.querySelector('#share')
       const close = document.querySelector('#close')
       const photos = []
       const elements = new Map()
@@ -415,6 +441,7 @@ export function galleryHtml() {
       let viewedPhoto
 
       observer.observe(status)
+      openPermalinkPhoto().catch(e => fail(e))
       close.addEventListener('click', () => closeViewer())
       previous.addEventListener('click', () => moveViewer(-1).catch(e => fail(e)))
       next.addEventListener('click', () => moveViewer(1).catch(e => fail(e)))
@@ -424,6 +451,13 @@ export function galleryHtml() {
         }
 
         likePhoto(viewedPhoto).catch(e => fail(e))
+      })
+      share.addEventListener('click', () => {
+        if (!viewedPhoto) {
+          throw new Error('Missing viewed photo')
+        }
+
+        sharePhoto(viewedPhoto, share).catch(e => fail(e))
       })
       viewer.addEventListener('cancel', event => {
         event.preventDefault()
@@ -503,8 +537,7 @@ export function galleryHtml() {
         offset = page.offset + page.photos.length
         total = page.total
         for (const photo of page.photos) {
-          photos.push(photo)
-          grid.append(photoElement(photo))
+          upsertPhoto(photo)
         }
 
         renderStatus(offset < total ? 'Loading more' : (total ? '' : 'No photos yet'))
@@ -513,12 +546,14 @@ export function galleryHtml() {
       }
 
       function photoElement(photo) {
+        const item = document.createElement('div')
         const button = document.createElement('button')
         const image = document.createElement('img')
         const badge = document.createElement('span')
         const date = new Date(photo.createdAt).toLocaleString()
 
-        button.className = 'photo'
+        item.className = 'photo'
+        button.className = 'photo-open'
         button.type = 'button'
         button.setAttribute('aria-label', 'open photo from ' + date)
         badge.className = 'photo-like'
@@ -528,11 +563,47 @@ export function galleryHtml() {
         image.src = photo.thumbnailUrl
         image.onerror = () => console.error(new Error('Gallery thumbnail failed ' + photo.thumbnailUrl))
         button.addEventListener('click', () => openViewer(photo))
-        button.append(image, badge)
-        elements.set(photo.timestamp, { badge, button })
+        button.append(image)
+        item.append(button, badge)
+        elements.set(photo.timestamp, { badge, button: item })
         syncPhotoElement(photo)
 
-        return button
+        return item
+      }
+
+      async function openPermalinkPhoto() {
+        const timestamp = permalinkTimestamp()
+
+        if (!timestamp) {
+          return
+        }
+
+        const photo = await fetchPhoto(timestamp)
+
+        upsertPhoto(photo)
+        await openViewer(photo)
+      }
+
+      function upsertPhoto(photo) {
+        const existing = photos.findIndex(item => item.timestamp === photo.timestamp)
+
+        if (existing >= 0) {
+          photos[existing] = photo
+          syncPhotoElement(photo)
+          return
+        }
+
+        photos.push(photo)
+        photos.sort((a, b) => b.createdAt === a.createdAt ? b.timestamp - a.timestamp : b.createdAt - a.createdAt)
+        renderPhotos()
+      }
+
+      function renderPhotos() {
+        grid.replaceChildren()
+        elements.clear()
+        for (const photo of photos) {
+          grid.append(photoElement(photo))
+        }
       }
 
       async function openViewer(photo) {
@@ -588,6 +659,7 @@ export function galleryHtml() {
         viewerImage.alt = date
         viewerPolaroid.style.setProperty('--viewer-tilt', tilt + 'deg')
         viewedPhoto = photo
+        clearCopied(share)
         syncLikeButton(like, photo)
         if (syncNav) {
           syncViewerNav()
@@ -704,6 +776,41 @@ export function galleryHtml() {
         updatePhotoLike(photo, await response.json())
       }
 
+      async function sharePhoto(photo, button) {
+        const url = photoPermalink(photo)
+
+        if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+          await navigator.share({ title: 'hallucinate Gallery', url })
+          return
+        }
+
+        await navigator.clipboard.writeText(url)
+        showCopied(button)
+      }
+
+      function showCopied(button) {
+        button.dataset.copied = 'true'
+        clearTimeout(Number(button.dataset.copiedTimeout || 0))
+        button.dataset.copiedTimeout = String(setTimeout(() => {
+          clearCopied(button)
+        }, 1400))
+      }
+
+      function clearCopied(button) {
+        delete button.dataset.copied
+        delete button.dataset.copiedTimeout
+      }
+
+      function photoPermalink(photo) {
+        return location.origin + '/gallery/' + photo.timestamp
+      }
+
+      function permalinkTimestamp() {
+        const match = /^\\/gallery\\/(\\d+)$/.exec(location.pathname)
+
+        return match ? Number(match[1]) : 0
+      }
+
       function updatePhotoLike(photo, like) {
         const index = photoIndex(photo)
         const nextPhoto = { ...photos[index], liked: like.liked, likes: like.likes }
@@ -810,6 +917,16 @@ export function galleryHtml() {
 
         if (!response.ok) {
           throw new Error('Gallery photos failed ' + response.status)
+        }
+
+        return await response.json()
+      }
+
+      async function fetchPhoto(timestamp) {
+        const response = await fetch('/api/photos/' + timestamp, { cache: 'no-store' })
+
+        if (!response.ok) {
+          throw new Error('Gallery photo failed ' + response.status)
         }
 
         return await response.json()
