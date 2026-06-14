@@ -13,6 +13,8 @@ import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, insideSid
   tentPole, tentVideoAngle, tentVideoWall, type TShirtStand, upstairsBar, upstairsBarCounterRail,
   upstairsBarDrinkCounter, upstairsBarStools, upstairsCouches, upstairsDjBooth, upstairsDjSpeakers, upstairsDoor,
   upstairsVideoWall, upstairsWallHeight } from './scene-data.ts'
+import { bridgeChasmHalfWidth, bridgeFarBackZ, bridgeFarFrontZ, bridgeMistBottomY, bridgeRimZ, farIslandLeftX,
+  farIslandRightX } from './scene-data.ts'
 import { strobeTarget } from './strobe-object.ts'
 import type { Bounds, StrobeLight, Vec3, Vertex, VideoZone } from './types.ts'
 
@@ -170,8 +172,8 @@ function addBartenderBar(target: Vertex[]) {
 function addOutside(target: Vertex[]) {
   const floor = -1.95
 
-  addGrassQuad(target, [landscapeBounds.left, floor, landscapeBounds.front], [landscapeBounds.right, floor,
-    landscapeBounds.front], [landscapeBounds.right, floor, roomBounds.front], [landscapeBounds.left, floor,
+  addGrassQuad(target, [landscapeBounds.left, floor, bridgeRimZ], [landscapeBounds.right, floor,
+    bridgeRimZ], [landscapeBounds.right, floor, roomBounds.front], [landscapeBounds.left, floor,
     roomBounds.front])
   addGrassQuad(target, [roomBounds.left, floor, roomBounds.front], [landscapeBounds.left, floor, roomBounds.front], [
     landscapeBounds.left,
@@ -195,6 +197,94 @@ function addOutside(target: Vertex[]) {
   addOutsideStage(target, floor)
   addDjBoothAt(target, outsideDjBooth, outsideDjSpeakers, -1, electricNavy, 3.2)
   addTent(target, floor)
+  addBelowTheRim(target, floor)
+}
+
+// The festival grounds end at a cliff rim; beyond it the ground falls into mist
+// and a far island floats across the chasm, waiting for a bridge.
+function addBelowTheRim(target: Vertex[], floor: number) {
+  const rockTop: Vec3 = [0.07, 0.075, 0.092]
+  const rockMist: Vec3 = [0.46, 0.52, 0.64]
+  const mist: Vec3 = [0.62, 0.68, 0.82]
+  const left = -bridgeChasmHalfWidth
+  const right = bridgeChasmHalfWidth
+
+  addCliffFace(target, left, right, bridgeRimZ, 'z', floor, bridgeMistBottomY, rockTop, rockMist)
+  addFarIsland(target, floor, rockTop, rockMist)
+  addChasmMist(target, left, right, mist)
+}
+
+function addFarIsland(target: Vertex[], floor: number, rockTop: Vec3, rockMist: Vec3) {
+  const left = farIslandLeftX
+  const right = farIslandRightX
+  const back = bridgeFarBackZ
+  const front = bridgeFarFrontZ
+
+  addGrassQuad(target, [left, floor, front], [right, floor, front], [right, floor, back], [left, floor, back])
+  addCliffFace(target, left, right, back, 'z', floor, bridgeMistBottomY, rockTop, rockMist)
+  addCliffFace(target, left, right, front, 'z', floor, bridgeMistBottomY, rockTop, rockMist)
+  addCliffFace(target, back, front, left, 'x', floor, bridgeMistBottomY, rockTop, rockMist)
+  addCliffFace(target, back, front, right, 'x', floor, bridgeMistBottomY, rockTop, rockMist)
+
+  const beaconX = (left + right) / 2
+  const beaconZ = (back + front) / 2
+
+  addBox(target, beaconX, floor + 2, beaconZ, 0.5, 4, 0.5, [0.04, 0.7, 0.95], 3.4)
+  addBox(target, beaconX, floor + 4.25, beaconZ, 1, 0.5, 1, [1, 0.2, 0.7], 3.4)
+}
+
+// A cliff drawn as stacked horizontal bands so the rock colour fades into the mist
+// toward the bottom. `axis` is the fixed axis of the face plane.
+function addCliffFace(
+  target: Vertex[],
+  spanStart: number,
+  spanEnd: number,
+  fixed: number,
+  axis: 'x' | 'z',
+  topY: number,
+  bottomY: number,
+  topColor: Vec3,
+  bottomColor: Vec3,
+) {
+  const bands = 10
+
+  for (let i = 0; i < bands; i++) {
+    const yTop = topY + (bottomY - topY) * (i / bands)
+    const yBottom = topY + (bottomY - topY) * ((i + 1) / bands)
+    const t = (i + 0.5) / bands
+    const color: Vec3 = [
+      topColor[0] + (bottomColor[0] - topColor[0]) * t,
+      topColor[1] + (bottomColor[1] - topColor[1]) * t,
+      topColor[2] + (bottomColor[2] - topColor[2]) * t,
+    ]
+
+    if (axis === 'z') {
+      addQuad(target, [spanStart, yBottom, fixed], [spanEnd, yBottom, fixed], [spanEnd, yTop, fixed],
+        [spanStart, yTop, fixed], color, 0)
+    }
+    else {
+      addQuad(target, [fixed, yBottom, spanStart], [fixed, yBottom, spanEnd], [fixed, yTop, spanEnd],
+        [fixed, yTop, spanStart], color, 0)
+    }
+  }
+}
+
+// Translucent horizontal sheets stacked down the chasm read as a sea of fog the
+// cliffs sink into. Negative strobe is the engine's per-vertex alpha channel.
+function addChasmMist(target: Vertex[], left: number, right: number, mist: Vec3) {
+  const back = bridgeRimZ - 1
+  const front = bridgeFarFrontZ + 6
+  const layers = [
+    { y: characterFloor - 1.2, alpha: 0.16 },
+    { y: characterFloor - 3, alpha: 0.26 },
+    { y: characterFloor - 5.5, alpha: 0.4 },
+    { y: characterFloor - 8.5, alpha: 0.58 },
+  ]
+
+  for (const layer of layers) {
+    addQuad(target, [left, layer.y, front], [right, layer.y, front], [right, layer.y, back], [left, layer.y, back],
+      mist, 0.22, -layer.alpha)
+  }
 }
 
 function addOutsideLake(target: Vertex[]) {

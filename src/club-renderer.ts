@@ -76,6 +76,8 @@ export function renderClubFrame(options: {
     light: WebGLVertexArrayObject
     post: WebGLVertexArrayObject
     beachBalls: WebGLVertexArrayObject
+    bridge: WebGLVertexArrayObject
+    bridgeEnemies: WebGLVertexArrayObject
     bubbles: WebGLVertexArrayObject
     foam: WebGLVertexArrayObject
     smokePuff: WebGLVertexArrayObject
@@ -115,6 +117,8 @@ export function renderClubFrame(options: {
   doorCoverVisible: boolean
   points: Float32Array
   beachBallPoints: Float32Array
+  bridgePoints: Float32Array
+  bridgeEnemyPoints: Float32Array
   bubblePoints: Float32Array
   foamPoints: Float32Array
   smokePuffPoints: Float32Array
@@ -201,6 +205,8 @@ export function renderClubFrame(options: {
   gl.enable(gl.POLYGON_OFFSET_FILL)
   gl.polygonOffset(1, 1)
   gl.drawArrays(gl.TRIANGLES, 0, options.points.length / options.vertexSize)
+  drawBridge(options)
+  drawBridgeEnemies(options)
   drawTreeSwing(options)
   gl.uniform1i(options.roomUniforms.bloomWrite, 0)
   drawBeachBalls(options)
@@ -356,6 +362,24 @@ function drawBeachBalls(options: Parameters<typeof renderClubFrame>[0]) {
 
   options.gl.bindVertexArray(options.arrays.beachBalls)
   options.gl.drawArrays(options.gl.TRIANGLES, 0, options.beachBallPoints.length / options.vertexSize)
+}
+
+function drawBridge(options: Parameters<typeof renderClubFrame>[0]) {
+  if (options.bridgePoints.length === 0) {
+    return
+  }
+
+  options.gl.bindVertexArray(options.arrays.bridge)
+  options.gl.drawArrays(options.gl.TRIANGLES, 0, options.bridgePoints.length / options.vertexSize)
+}
+
+function drawBridgeEnemies(options: Parameters<typeof renderClubFrame>[0]) {
+  if (options.bridgeEnemyPoints.length === 0) {
+    return
+  }
+
+  options.gl.bindVertexArray(options.arrays.bridgeEnemies)
+  options.gl.drawArrays(options.gl.TRIANGLES, 0, options.bridgeEnemyPoints.length / options.vertexSize)
 }
 
 function drawTreeSwing(options: Parameters<typeof renderClubFrame>[0]) {

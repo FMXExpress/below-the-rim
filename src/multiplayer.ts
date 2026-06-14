@@ -7,8 +7,11 @@ import {
   ACTIONS,
   angleToProtocol,
   BEACH_BALLS,
+  BRIDGE_STATE,
+  type BridgeStatePacket,
   type ClientMessagePacket,
   decodeBeachBalls,
+  decodeBridgeState,
   decodeDuckPosition,
   decodeGraffiti,
   decodeKeys,
@@ -25,6 +28,7 @@ import {
   decodeVideoSync,
   encodeAdminMessage,
   encodeBeachBalls,
+  encodeBridgePlace,
   encodeClientActions,
   encodeDuckPosition,
   encodeClientMessage,
@@ -105,6 +109,7 @@ export function createMultiplayer(options: {
   onVideoSync: (packet: VideoSyncPacket) => void
   onBeachBalls: (balls: BeachBall[]) => void
   onDuckPosition: (pose: DuckPose) => void
+  onBridgeState: (state: BridgeStatePacket) => void
   onGraffiti: (packet: GraffitiPacket) => void
 }) {
   const players = new Map<number, Player>()
@@ -276,6 +281,11 @@ export function createMultiplayer(options: {
 
     if (type === DUCK_POSITION) {
       options.onDuckPosition(decodeDuckPosition(view))
+      return
+    }
+
+    if (type === BRIDGE_STATE) {
+      options.onBridgeState(decodeBridgeState(view))
       return
     }
 
@@ -481,6 +491,9 @@ export function createMultiplayer(options: {
     },
     sendDuckPosition(pose: DuckPose) {
       send(encodeDuckPosition(pose))
+    },
+    sendPlaceBridgePlank() {
+      send(encodeBridgePlace())
     },
     sendGraffiti(splats: GraffitiSplat[]) {
       send(encodeGraffiti({ splats }))
