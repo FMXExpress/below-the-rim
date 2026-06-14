@@ -30,3 +30,55 @@ AssemblyScript code requires all variables to be explicitly typed and all casts 
 In AssemblyScript Map get operations required a .has() check first.
 You should run code to test things using `bun -e`.
 You should typecheck with `bunx tsc --noEmit`.
+
+## Build, run & deploy
+
+The "never run the dev server / never run builds" rules above apply to routine
+code-editing sessions. The commands in this section are for a human or an agent
+explicitly tasked with building, running, or deploying the app.
+
+Runtime: Bun is the package manager, dev runner, and production server. No
+Node/npm required.
+
+Install dependencies:
+
+    bun install
+
+Typecheck only (no build):
+
+    bunx tsc --noEmit
+
+Local development (runs the Vite client and the Bun server together; the client
+proxies `/api`, `/analytics`, `/gallery`, `/graffiti`, `/photos` to the server
+on port 3001):
+
+    bun run dev
+
+Production build and run (a single Bun process serves the built client, the HTTP
+API, the multiplayer WebSocket, and the SQLite store, all on `PORT`, default
+3001):
+
+    bun install
+    bun run build      # `tsc` typecheck + `vite build` -> dist/
+    bun run start      # `bun server.ts`; open http://localhost:3001
+
+Persistent state lives in `data/club.sqlite` (gitignored): chat history,
+graffiti, and the synced duck/bridge state. Never delete it between deploys, and
+back it up.
+
+Deploy: pushing to `main` triggers `.github/workflows/deploy.yaml`, which over
+SSH (1) rsyncs the repo to `REMOTE_PATH` excluding `node_modules/`, `data/`,
+`.env`, and `storage/`, (2) `systemctl stop hallucinate`, (3) `bun install &&
+bun run build`, then (4) `systemctl start hallucinate`. Feature branches do not
+deploy — merge to `main` (or run the workflow via `workflow_dispatch` once
+`main` has the code).
+
+The deploy workflow needs these GitHub Actions secrets: `SSH_PRIVATE_KEY`,
+`SSH_HOST`, `SSH_USER`, `SSH_PORT`, `REMOTE_PATH`. The server host needs Bun on
+`PATH`, a `hallucinate` systemd unit that runs `bun server.ts`, passwordless
+`sudo` for `systemctl`, a persistent `data/` directory, and a reverse proxy
+terminating TLS in front of `PORT`.
+
+Whenever a client/server message format changes, bump `protocolVersion` in
+`src/protocol.ts`; on deploy the server rejects mismatched clients and they
+auto-reload onto the new build.
