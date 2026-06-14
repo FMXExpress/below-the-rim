@@ -92,6 +92,7 @@ import {
   inPolygon,
   nearBridgeRim,
   nearInsideArcade,
+  nearTree,
   onOutsideDuckPlatform,
   resolveDuckPosition,
   roomAt,
@@ -385,6 +386,31 @@ let arcadeReady = true
 const arcadeUi = createArcadeUi({
   onClose: exitArcadeMode,
 })
+const bridgeWoodMax = 30
+const bridgeChopCooldown = 450
+let bridgeWood = 0
+let bridgeChopReadyAt = 0
+const bridgeWoodLabel = document.createElement('div')
+bridgeWoodLabel.id = 'bridge-wood'
+bridgeWoodLabel.dataset.visible = 'false'
+const bridgeChopButton = document.createElement('button')
+bridgeChopButton.id = 'bridge-chop'
+bridgeChopButton.type = 'button'
+bridgeChopButton.textContent = 'Chop wood'
+bridgeChopButton.dataset.visible = 'false'
+bridgeChopButton.addEventListener('pointerdown', event => {
+  event.preventDefault()
+  event.stopPropagation()
+
+  const now = performance.now()
+
+  if (now < bridgeChopReadyAt) {
+    return
+  }
+
+  bridgeChopReadyAt = now + bridgeChopCooldown
+  bridgeWood = Math.min(bridgeWood + 1, bridgeWoodMax)
+})
 const bridgeBuildButton = document.createElement('button')
 bridgeBuildButton.id = 'bridge-build'
 bridgeBuildButton.type = 'button'
@@ -393,9 +419,15 @@ bridgeBuildButton.dataset.visible = 'false'
 bridgeBuildButton.addEventListener('pointerdown', event => {
   event.preventDefault()
   event.stopPropagation()
+
+  if (bridgeWood <= 0) {
+    return
+  }
+
+  bridgeWood--
   multiplayer.sendPlaceBridgePlank()
 })
-document.body.append(bridgeBuildButton)
+document.body.append(bridgeWoodLabel, bridgeChopButton, bridgeBuildButton)
 const reactionSlotEmojis = loadReactionSlotEmojis()
 const introFruitEmojis = [
   '🍎',
@@ -4461,7 +4493,7 @@ const draw = (stamp: number) => {
   }
   chatUi.update(projector, stamp)
   updateAdminIdLabels(projector)
-  updateBridgePrompt(inLoft)
+  updateBridgeUi(inLoft)
 
   const moving = lengthSq(localCharacter.input) > 0
 
@@ -4771,10 +4803,16 @@ function updateBridgeEnemyBuffer() {
     bridgeEnemyBufferCache, () => writeBridgeEnemiesGeometry(bridgeEnemyWriter, bridgeEnemies.enemies, frontZ))
 }
 
-function updateBridgePrompt(inLoft: boolean) {
-  const show = introHidden && !inLoft && bridgePlanks() < maxBridgePlanks && nearBridgeRim(characterPosition)
+function updateBridgeUi(inLoft: boolean) {
+  const active = introHidden && !inLoft
+  const atTree = active && nearTree(characterPosition)
+  const atRim = active && bridgePlanks() < maxBridgePlanks && nearBridgeRim(characterPosition)
 
-  bridgeBuildButton.dataset.visible = show ? 'true' : 'false'
+  bridgeChopButton.dataset.visible = atTree ? 'true' : 'false'
+  bridgeBuildButton.dataset.visible = atRim ? 'true' : 'false'
+  bridgeBuildButton.textContent = bridgeWood > 0 ? 'Lay plank' : 'Chop wood first'
+  bridgeWoodLabel.dataset.visible = active && (atTree || atRim || bridgeWood > 0) ? 'true' : 'false'
+  bridgeWoodLabel.textContent = `Wood: ${bridgeWood}`
 }
 
 function updateBeachBallBuffer() {

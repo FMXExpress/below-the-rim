@@ -70,6 +70,7 @@ import {
   bridgeHalfWidth,
   bridgePlankDepth,
   bridgeRimZ,
+  outsideTreeStart,
 } from './scene-data.ts'
 import { bridgePlanks } from './bridge-state.ts'
 
@@ -1116,6 +1117,13 @@ export function nearBridgeRim(position: Vec3) {
   return Math.abs(position[0] - bridgeCenterX) <= bridgeHalfWidth + 0.8
     && position[2] >= bridgeRimZ - 2
     && position[2] <= Math.min(bridgeBuiltFrontZ(), bridgeFarBackZ) + 0.9
+}
+
+export function nearTree(position: Vec3) {
+  const dx = position[0] - outsideTreeStart.x
+  const dz = position[2] - outsideTreeStart.z
+
+  return dx * dx + dz * dz < (outsideTreeStart.radius + 2.2) ** 2
 }
 
 function paddedBounds(bounds: Bounds, padding = 0.28): PaddedBounds {

@@ -246,7 +246,7 @@ function addCliffFace(
   topColor: Vec3,
   bottomColor: Vec3,
 ) {
-  const bands = 10
+  const bands = 14
 
   for (let i = 0; i < bands; i++) {
     const yTop = topY + (bottomY - topY) * (i / bands)
@@ -275,10 +275,12 @@ function addChasmMist(target: Vertex[], left: number, right: number, mist: Vec3)
   const back = bridgeRimZ - 1
   const front = bridgeFarFrontZ + 6
   const layers = [
-    { y: characterFloor - 1.2, alpha: 0.16 },
-    { y: characterFloor - 3, alpha: 0.26 },
-    { y: characterFloor - 5.5, alpha: 0.4 },
-    { y: characterFloor - 8.5, alpha: 0.58 },
+    { y: characterFloor - 1.4, alpha: 0.14 },
+    { y: characterFloor - 4, alpha: 0.22 },
+    { y: characterFloor - 7.5, alpha: 0.32 },
+    { y: characterFloor - 12, alpha: 0.44 },
+    { y: characterFloor - 17, alpha: 0.56 },
+    { y: characterFloor - 23, alpha: 0.7 },
   ]
 
   for (const layer of layers) {

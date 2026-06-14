@@ -681,6 +681,46 @@ body[data-arcade-open="true"] #merch-cards {
   display: none;
 }
 
+#bridge-chop {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 6;
+  transform: translateX(-50%);
+  padding: 14px 28px;
+  border: 1px solid rgb(150 210 120 / 0.6);
+  border-radius: 999px;
+  background: rgb(10 18 8 / 0.78);
+  color: rgb(225 245 210);
+  font: 700 16px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: none;
+  box-shadow: 0 0 22px rgb(120 220 80 / 0.4);
+}
+
+#bridge-wood {
+  position: fixed;
+  left: 50%;
+  bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  z-index: 6;
+  transform: translateX(-50%);
+  padding: 7px 16px;
+  border: 1px solid rgb(200 160 90 / 0.55);
+  border-radius: 999px;
+  background: rgb(20 14 6 / 0.78);
+  color: rgb(240 215 160);
+  font: 700 14px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
+#bridge-chop[data-visible="false"],
+#bridge-wood[data-visible="false"] {
+  display: none;
+}
+
 .merch-card {
   display: block;
   width: min(212px, calc((100dvw - 48px) / 2));

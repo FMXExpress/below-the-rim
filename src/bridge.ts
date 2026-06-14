@@ -6,19 +6,19 @@ import {
   bridgeDeckY,
   bridgeHalfWidth,
   bridgeMilestone,
-  bridgeMistBottomY,
   bridgePlankDepth,
   bridgeRimZ,
   maxBridgePlanks,
 } from './scene-data.ts'
 import type { Vec3, Vertex } from './types.ts'
 
-const woodColor: Vec3 = [0.34, 0.21, 0.09]
-const ironColor: Vec3 = [0.46, 0.5, 0.57]
-const ironDark: Vec3 = [0.3, 0.33, 0.4]
+const woodColor: Vec3 = [0.36, 0.22, 0.1]
+const woodDark: Vec3 = [0.24, 0.14, 0.06]
+const woodPost: Vec3 = [0.28, 0.17, 0.07]
 const ropeColor: Vec3 = [0.5, 0.42, 0.24]
 const enemyBody: Vec3 = [0.05, 0.04, 0.07]
 const enemyEye: Vec3 = [1, 0.16, 0.72]
+const enemyClimbDepth = 5
 const boxVertexCount = 36
 const boxFloats = boxVertexCount * 11
 
@@ -28,17 +28,16 @@ export function buildBridgeVertices(planks: number, locked: number): Vertex[] {
 
   for (let i = 0; i < planks; i++) {
     const z = bridgeRimZ + (i + 0.5) * bridgePlankDepth
-    const locking = i < locked
-    const deck = locking ? ironColor : woodColor
+    const deck = i < locked ? woodDark : woodColor
 
-    addBox(target, bridgeCenterX, bridgeDeckY, z, halfWidth * 2, 0.12, bridgePlankDepth * 0.86, deck, locking ? 0.22 : 0)
+    addBox(target, bridgeCenterX, bridgeDeckY, z, halfWidth * 2, 0.12, bridgePlankDepth * 0.86, deck, 0)
     addBox(target, bridgeCenterX - halfWidth, bridgeDeckY + 0.42, z, 0.08, 0.08, bridgePlankDepth, ropeColor, 0)
     addBox(target, bridgeCenterX + halfWidth, bridgeDeckY + 0.42, z, 0.08, 0.08, bridgePlankDepth, ropeColor, 0)
   }
 
   for (const z of postSeams(planks)) {
-    addBox(target, bridgeCenterX - halfWidth, bridgeDeckY + 0.5, z, 0.12, 1, 0.12, ironColor, 0.3)
-    addBox(target, bridgeCenterX + halfWidth, bridgeDeckY + 0.5, z, 0.12, 1, 0.12, ironDark, 0.3)
+    addBox(target, bridgeCenterX - halfWidth, bridgeDeckY + 0.5, z, 0.12, 1, 0.12, woodPost, 0)
+    addBox(target, bridgeCenterX + halfWidth, bridgeDeckY + 0.5, z, 0.12, 1, 0.12, woodPost, 0)
   }
 
   return target
@@ -105,10 +104,12 @@ export function createBridgeEnemies() {
 export function writeBridgeEnemiesGeometry(target: VertexWriter, enemies: BridgeEnemy[], frontZ: number) {
   reserveFloats(target, enemies.length * boxFloats * 2)
 
+  const climbBottom = bridgeDeckY - enemyClimbDepth
+
   for (const enemy of enemies) {
     const z = frontZ - 0.25 + enemy.offset
     const x = bridgeCenterX + enemy.side * (bridgeHalfWidth + 0.12)
-    const y = bridgeMistBottomY + (bridgeDeckY - bridgeMistBottomY) * enemy.rise
+    const y = climbBottom + (bridgeDeckY - climbBottom) * enemy.rise
     const shake = enemy.rise >= 1 ? Math.sin(enemy.gnaw) * 0.05 : 0
 
     writeBox(target, x, y + 0.3 + shake, z, 0.34, 0.5, 0.34, enemyBody, 0)

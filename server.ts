@@ -2653,33 +2653,42 @@ async function youtubeVideoMetadata(id: string) {
 }
 
 async function fetchYouTubeVideoMetadata(id: string): Promise<YouTubeVideoMetadata> {
-  const response = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`, {
-    headers: youtubeHeaders(),
-  })
+  try {
+    const response = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`, {
+      headers: youtubeHeaders(),
+    })
 
-  if (!response.ok) {
-    throw new Error(`YouTube metadata request failed ${id}: ${response.status}`)
-  }
-
-  const text = await response.text()
-  const data = extractEmbeddedJson(text, 'ytInitialPlayerResponse') as {
-    videoDetails?: {
-      lengthSeconds?: unknown
-      title?: unknown
+    if (!response.ok) {
+      throw new Error(`YouTube metadata request failed ${id}: ${response.status}`)
     }
-  }
-  const title = data.videoDetails?.title
-  const duration = Number(data.videoDetails?.lengthSeconds)
 
-  if (typeof title !== 'string') {
-    throw new Error(`Missing YouTube title ${id}`)
-  }
+    const text = await response.text()
+    const data = extractEmbeddedJson(text, 'ytInitialPlayerResponse') as {
+      videoDetails?: {
+        lengthSeconds?: unknown
+        title?: unknown
+      }
+    }
+    const title = data.videoDetails?.title
+    const duration = Number(data.videoDetails?.lengthSeconds)
 
-  if (!Number.isFinite(duration) || duration <= 0) {
-    throw new Error(`Missing YouTube duration ${id}`)
-  }
+    if (typeof title !== 'string') {
+      throw new Error(`Missing YouTube title ${id}`)
+    }
 
-  return { duration, title }
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error(`Missing YouTube duration ${id}`)
+    }
+
+    return { duration, title }
+  }
+  catch (e) {
+    // YouTube actively blocks programmatic scraping; fall back instead of
+    // crashing startup so the rave (and the bridge game) still comes up.
+    console.warn(`YouTube metadata unavailable for ${id}, using fallback:`, e instanceof Error ? e.message : e)
+
+    return { duration: 180, title: `Video ${id}` }
+  }
 }
 
 async function syncVideoPlaylistsFromSources(space: SpaceState, now: number) {
