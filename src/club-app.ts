@@ -24,6 +24,8 @@ import {
 import type { DuckPose } from './duck-position.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import { createFoamSystem, writeFoamGeometry } from './foam.ts'
+import { buildBridgeVertices, createBridgeEnemies, writeBridgeEnemiesGeometry } from './bridge.ts'
+import { bridgeLocked, bridgePlanks, setBridgeState } from './bridge-state.ts'
 import {
   addGraffitiWallGeometry,
   createGraffitiCanvas,
@@ -79,12 +81,16 @@ import {
   tentDoorAngle,
   upstairsBarDrinkWall,
   upstairsDoor,
+  bridgePlankDepth,
+  bridgeRimZ,
+  maxBridgePlanks,
 } from './scene-data.ts'
 import {
   isOutside,
   inLake,
   inLakeShore,
   inPolygon,
+  nearBridgeRim,
   nearInsideArcade,
   onOutsideDuckPlatform,
   resolveDuckPosition,
@@ -379,6 +385,17 @@ let arcadeReady = true
 const arcadeUi = createArcadeUi({
   onClose: exitArcadeMode,
 })
+const bridgeBuildButton = document.createElement('button')
+bridgeBuildButton.id = 'bridge-build'
+bridgeBuildButton.type = 'button'
+bridgeBuildButton.textContent = 'Lay plank'
+bridgeBuildButton.dataset.visible = 'false'
+bridgeBuildButton.addEventListener('pointerdown', event => {
+  event.preventDefault()
+  event.stopPropagation()
+  multiplayer.sendPlaceBridgePlank()
+})
+document.body.append(bridgeBuildButton)
 const reactionSlotEmojis = loadReactionSlotEmojis()
 const introFruitEmojis = [
   '🍎',
@@ -2188,6 +2205,10 @@ const postArray = gl.createVertexArray()
 const postBuffer = gl.createBuffer()
 const beachBallArray = gl.createVertexArray()
 const beachBallBuffer = gl.createBuffer()
+const bridgeArray = gl.createVertexArray()
+const bridgeBuffer = gl.createBuffer()
+const bridgeEnemyArray = gl.createVertexArray()
+const bridgeEnemyBuffer = gl.createBuffer()
 const treeSwingArray = gl.createVertexArray()
 const treeSwingBuffer = gl.createBuffer()
 const bubbleArray = gl.createVertexArray()
@@ -2229,7 +2250,8 @@ if (!viewProjection || !cameraEye || !renderZone || !bloomPass || !bloomWrite ||
   || !buffer || !lightArray || !lightBuffer || !strobeArray || !strobeGeometryBuffer || !strobeInstanceBuffer
   || !smokeArray || !smokeBuffer || !characterArray || !characterBuffer
   || !characterBoxArray || !characterBoxGeometryBuffer || !characterBoxInstanceBuffer || !postArray || !postBuffer
-  || !beachBallArray || !beachBallBuffer || !treeSwingArray || !treeSwingBuffer || !bubbleArray || !bubbleBuffer
+  || !beachBallArray || !beachBallBuffer || !bridgeArray || !bridgeBuffer || !bridgeEnemyArray || !bridgeEnemyBuffer
+  || !treeSwingArray || !treeSwingBuffer || !bubbleArray || !bubbleBuffer
   || !foamArray || !foamBuffer
   || !smokePuffArray || !smokePuffBuffer || !graffitiArray || !graffitiBuffer)
 {
@@ -2324,6 +2346,8 @@ setupCharacterBoxArray({
 })
 setupPostArray({ array: postArray, buffer: postBuffer, gl })
 setupVertexArray({ array: beachBallArray, buffer: beachBallBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
+setupVertexArray({ array: bridgeArray, buffer: bridgeBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
+setupVertexArray({ array: bridgeEnemyArray, buffer: bridgeEnemyBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 setupVertexArray({ array: treeSwingArray, buffer: treeSwingBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 setupVertexArray({ array: bubbleArray, buffer: bubbleBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
 setupVertexArray({ array: foamArray, buffer: foamBuffer, data: 0, gl, stride, usage: gl.DYNAMIC_DRAW })
@@ -2460,6 +2484,12 @@ const beachBallWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
 const beachBallBufferCache: NumberBufferCache = { data: beachBallWriter.data }
 let beachBallGeometryDirty = true
 let beachBallGeometryKey = ''
+let bridgePoints: Float32Array<ArrayBufferLike> = new Float32Array()
+let bridgeDirty = true
+const bridgeEnemies = createBridgeEnemies()
+let bridgeEnemyPoints: Float32Array<ArrayBufferLike> = new Float32Array()
+const bridgeEnemyWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
+const bridgeEnemyBufferCache: NumberBufferCache = { data: bridgeEnemyWriter.data }
 let treeSwingPoints: Float32Array<ArrayBufferLike> = new Float32Array()
 const treeSwingWriter: VertexWriter = { data: new Float32Array(0), length: 0 }
 const treeSwingBufferCache: NumberBufferCache = { data: treeSwingWriter.data }
@@ -2683,6 +2713,10 @@ function connectMultiplayer(spaceSlug?: string) {
       }
 
       applyDuckPose(pose, false, false)
+    },
+    onBridgeState: state => {
+      setBridgeState(state.planks, state.locked)
+      bridgeDirty = true
     },
     onGraffiti: packet => {
       if (packet.reset) {
@@ -4020,6 +4054,8 @@ function renderCurrentSceneFrame(options: {
       light: lightArray,
       post: postArray,
       beachBalls: beachBallArray,
+      bridge: bridgeArray,
+      bridgeEnemies: bridgeEnemyArray,
       bubbles: bubbleArray,
       foam: foamArray,
       smokePuff: smokePuffArray,
@@ -4060,6 +4096,8 @@ function renderCurrentSceneFrame(options: {
     renderZone: renderZoneIndex(options.zone),
     points,
     beachBallPoints,
+    bridgePoints: options.inLoft ? emptyPoints : bridgePoints,
+    bridgeEnemyPoints: options.inLoft ? emptyPoints : bridgeEnemyPoints,
     bubblePoints,
     foamPoints,
     smokePuffPoints,
@@ -4302,6 +4340,7 @@ const draw = (stamp: number) => {
   bubbleSystem.update(delta)
   foamSystem.update(delta, inLoft ? loftFloorAt : mainFloorAt)
   smokeSystem.update(delta)
+  bridgeEnemies.update(delta, bridgePlanks(), bridgeLocked())
   const hits = inLoft ? [] : hitBeachBalls(beachBalls, characterPosition)
   !inLoft && pushDuckByCharacter(stamp)
 
@@ -4422,6 +4461,7 @@ const draw = (stamp: number) => {
   }
   chatUi.update(projector, stamp)
   updateAdminIdLabels(projector)
+  updateBridgePrompt(inLoft)
 
   const moving = lengthSq(localCharacter.input) > 0
 
@@ -4445,6 +4485,8 @@ const draw = (stamp: number) => {
   updateBubbleBuffer()
   updateFoamBuffer()
   updateSmokeBuffer()
+  updateBridgeBuffer()
+  updateBridgeEnemyBuffer()
   if (!introHidden) {
     updateIntro()
   }
@@ -4703,6 +4745,36 @@ function updateFoamBuffer() {
 function updateSmokeBuffer() {
   smokePuffPoints = updateDynamicGeometry(smokeSystem.puffs.length > 0, smokeWriter, smokePuffBuffer,
     smokeBufferCache, () => writeSmokeGeometry(smokeWriter, smokeSystem.puffs))
+}
+
+function updateBridgeBuffer() {
+  if (!bridgeDirty) {
+    return
+  }
+
+  bridgeDirty = false
+  const planks = bridgePlanks()
+
+  if (planks === 0) {
+    bridgePoints = emptyPoints
+    return
+  }
+
+  bridgePoints = new Float32Array(buildBridgeVertices(planks, bridgeLocked()).flat())
+  uploadFloatBuffer(gl, bridgeBuffer, bridgePoints)
+}
+
+function updateBridgeEnemyBuffer() {
+  const frontZ = bridgeRimZ + bridgePlanks() * bridgePlankDepth
+
+  bridgeEnemyPoints = updateDynamicGeometry(bridgeEnemies.enemies.length > 0, bridgeEnemyWriter, bridgeEnemyBuffer,
+    bridgeEnemyBufferCache, () => writeBridgeEnemiesGeometry(bridgeEnemyWriter, bridgeEnemies.enemies, frontZ))
+}
+
+function updateBridgePrompt(inLoft: boolean) {
+  const show = introHidden && !inLoft && bridgePlanks() < maxBridgePlanks && nearBridgeRim(characterPosition)
+
+  bridgeBuildButton.dataset.visible = show ? 'true' : 'false'
 }
 
 function updateBeachBallBuffer() {

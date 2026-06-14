@@ -24,6 +24,7 @@ import {
   ACTIONS,
   ADMIN,
   BEACH_BALLS,
+  BRIDGE_PLACE,
   C_ENTER,
   C_HEARTBEAT,
   C_MOTION,
@@ -39,6 +40,7 @@ import {
   decodeRoomChange,
   decodeVideoPlaylist,
   encodeBeachBalls,
+  encodeBridgeState,
   encodeDuckPosition,
   encodeGraffiti,
   encodeLeave,
@@ -79,6 +81,16 @@ import {
 import { defaultDuckPosition, defaultDuckTurn, onDuckPlatform, validateDuckPosition } from './src/duck-position.ts'
 import type { DuckPose } from './src/duck-position.ts'
 import { outsideBounds, outsideRooftop, outsideTreeStart, roomBounds, upstairsWallHeight, videoPlaylists } from './src/scene-data.ts'
+import {
+  bridgeAttackIntervalMs,
+  bridgeCenterX,
+  bridgeDefendRadius,
+  bridgeHalfWidth,
+  bridgeMilestone,
+  bridgePlankDepth,
+  bridgeRimZ,
+  maxBridgePlanks,
+} from './src/scene-data.ts'
 import { resolveDuckPosition, roomAt, seatAt } from './src/scene.ts'
 import type { GraffitiSplat, Vec3, VideoZone } from './src/types.ts'
 
@@ -165,6 +177,8 @@ type SpaceState = {
   duckPosition: Vec3
   duckSavedAt: number
   duckTurn: number
+  bridgePlanks: number
+  bridgeLocked: number
   slug?: string
   musicKind?: 'playlist' | 'video'
   musicSource?: string
@@ -441,6 +455,7 @@ const server = Bun.serve<SocketData>({
       sendChatHistory(client)
       sendVideoSync(client).catch((e: unknown) => console.error(e))
       sendBeachBalls(client)
+      sendBridgeState(client)
       if (socket.data.initialState) {
         sendGraffiti(client)
       }
@@ -562,6 +577,12 @@ const server = Bun.serve<SocketData>({
           return
         }
 
+        if (type === BRIDGE_PLACE) {
+          touchInteraction(client)
+          placeBridgePlank(clientSpace(client))
+          return
+        }
+
         if (type === GRAFFITI) {
           if (client.spaceKey !== mainSpace.key) {
             return
@@ -619,6 +640,7 @@ setInterval(() => {
 }, videoScheduleSyncInterval)
 setInterval(logStats, minuteMs)
 setInterval(recordOnlineAnalytics, onlineAnalyticsSampleInterval)
+setInterval(tickBridgeAttacks, bridgeAttackIntervalMs)
 
 function clientIp(request: Request) {
   return request.headers.get('cf-connecting-ip')
@@ -1952,6 +1974,64 @@ function broadcastDuckPosition(space: SpaceState) {
   }
 }
 
+function sendBridgeState(client: Client) {
+  const space = clientSpace(client)
+
+  client.socket.send(encodeBridgeState({ planks: space.bridgePlanks, locked: space.bridgeLocked }))
+}
+
+function broadcastBridgeState(space: SpaceState) {
+  const data = encodeBridgeState({ planks: space.bridgePlanks, locked: space.bridgeLocked })
+
+  for (const client of spaceClients(space)) {
+    client.socket.send(data)
+  }
+}
+
+function placeBridgePlank(space: SpaceState) {
+  if (space.bridgePlanks >= maxBridgePlanks) {
+    return
+  }
+
+  space.bridgePlanks++
+  space.bridgeLocked = lockedForPlanks(space.bridgePlanks)
+  saveBridgeState(space)
+  broadcastBridgeState(space)
+}
+
+// The cliff-dwellers tear down the newest unlocked plank, unless a player is
+// standing at the bridge front to defend it.
+function tearBridgePlank(space: SpaceState) {
+  if (space.bridgePlanks <= space.bridgeLocked || bridgeDefended(space)) {
+    return
+  }
+
+  space.bridgePlanks--
+  saveBridgeState(space)
+  broadcastBridgeState(space)
+}
+
+function bridgeDefended(space: SpaceState) {
+  const frontZ = bridgeRimZ + space.bridgePlanks * bridgePlankDepth
+
+  for (const client of spaceClients(space)) {
+    const x = protocolToScene(client.pose.x)
+    const z = protocolToScene(client.pose.y)
+
+    if (Math.abs(x - bridgeCenterX) <= bridgeHalfWidth + 1 && Math.abs(z - frontZ) <= bridgeDefendRadius) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function tickBridgeAttacks() {
+  for (const space of spaces.values()) {
+    tearBridgePlank(space)
+  }
+}
+
 function sendProfiles(client: Client) {
   for (const next of spaceClients(clientSpace(client))) {
     if (next.nickname) {
@@ -2198,8 +2278,24 @@ function createSpace(key: string, kind: SpaceState['kind'], count: number, slug?
     beachBallAuthorities: balls.map(() => ({ client: 0, until: 0 })),
     duckSavedAt: 0,
     ...loadDuckPose(key),
+    ...loadBridgeState(key),
     slug,
   }
+}
+
+function loadBridgeState(spaceKey: string): { bridgePlanks: number; bridgeLocked: number } {
+  const saved = loadJson<{ planks: number; locked: number }>(spaceKeyStorageKey(spaceKey, 'bridge'))
+  const planks = Math.max(0, Math.min(maxBridgePlanks, Math.round(saved?.planks ?? 0)))
+
+  return { bridgePlanks: planks, bridgeLocked: lockedForPlanks(planks) }
+}
+
+function lockedForPlanks(planks: number) {
+  return planks >= maxBridgePlanks ? maxBridgePlanks : Math.floor(planks / bridgeMilestone) * bridgeMilestone
+}
+
+function saveBridgeState(space: SpaceState) {
+  saveJson(spaceStorageKey(space, 'bridge'), { planks: space.bridgePlanks, locked: space.bridgeLocked })
 }
 
 function loadDuckPose(spaceKey: string): { duckPosition: Vec3; duckTurn: number } {
@@ -3589,9 +3685,13 @@ function resetAdminObjects(space: SpaceState) {
   space.beachBallAuthorities = balls.map(() => ({ client: 0, until: 0 }))
   space.duckPosition = [...defaultDuckPosition]
   space.duckTurn = defaultDuckTurn
+  space.bridgePlanks = 0
+  space.bridgeLocked = 0
   saveDuckPosition(space)
+  saveBridgeState(space)
   broadcastBeachBalls(space)
   broadcastDuckPosition(space)
+  broadcastBridgeState(space)
 }
 
 async function advanceAdminVideoTrack(space: SpaceState, zone: VideoZone) {

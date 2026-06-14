@@ -444,5 +444,25 @@ export const outsideTShirtStands: TShirtStand[] = [
     turn: foodTruckTShirtStandTurn,
   },
 ]
-export const outsideBounds = { left: -24, right: 40, back: -32, front: 38 }
+// Below the Rim — the festival grounds are the home island. Past the front edge
+// the ground ends at a cliff rim, drops into mist, and a far island waits across
+// the chasm. Players extend the bridge northward (+z) from the rim at x = 0.
+export const bridgeRimZ = 40
+export const bridgePlankDepth = 1
+export const maxBridgePlanks = 16
+export const bridgeFarBackZ = bridgeRimZ + maxBridgePlanks * bridgePlankDepth
+export const bridgeFarFrontZ = bridgeFarBackZ + 18
+export const bridgeCenterX = 0
+export const bridgeHalfWidth = 2
+export const bridgeMilestone = 4
+export const bridgeChasmHalfWidth = 72
+export const farIslandLeftX = -24
+export const farIslandRightX = 40
+export const bridgeDeckY = characterFloor + 0.06
+export const bridgeMistTopY = characterFloor - 0.35
+export const bridgeMistBottomY = characterFloor - 12
+export const bridgeAttackIntervalMs = 7000
+export const bridgeDefendRadius = 3.6
+
+export const outsideBounds = { left: -24, right: 40, back: -32, front: bridgeFarFrontZ }
 export const landscapeBounds = { left: -72, right: 72, back: -84, front: 88 }

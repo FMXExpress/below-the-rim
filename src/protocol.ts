@@ -25,6 +25,8 @@ export const ACTIONS = 21
 export const VIDEO_PROGRESS_REQUEST = 22
 export const C_ENTER = 23
 export const DUCK_POSITION = 24
+export const BRIDGE_STATE = 25
+export const BRIDGE_PLACE = 26
 
 export const ACTION_BUBBLING = 1
 export const ACTION_FOAMING = 2
@@ -34,7 +36,7 @@ export const messageMaxLength = 120
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 54
+export const protocolVersion = 55
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -87,6 +89,11 @@ export type MessagePacket = ProfilePacket & {
 
 export type OnlinePacket = {
   count: number
+}
+
+export type BridgeStatePacket = {
+  planks: number
+  locked: number
 }
 
 export type VideoSyncEntry = {
@@ -286,6 +293,35 @@ export function decodeOnline(view: DataView): OnlinePacket {
   return {
     count: view.getUint16(1),
   }
+}
+
+export function encodeBridgeState(packet: BridgeStatePacket) {
+  const data = new ArrayBuffer(5)
+  const view = new DataView(data)
+
+  view.setUint8(0, BRIDGE_STATE)
+  view.setUint16(1, packet.planks)
+  view.setUint16(3, packet.locked)
+
+  return data
+}
+
+export function decodeBridgeState(view: DataView): BridgeStatePacket {
+  expectSize(view, 5)
+
+  return {
+    planks: view.getUint16(1),
+    locked: view.getUint16(3),
+  }
+}
+
+export function encodeBridgePlace() {
+  const data = new ArrayBuffer(1)
+  const view = new DataView(data)
+
+  view.setUint8(0, BRIDGE_PLACE)
+
+  return data
 }
 
 export function encodeVideoSync(packet: VideoSyncPacket) {

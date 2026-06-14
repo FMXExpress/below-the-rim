@@ -64,6 +64,14 @@ import type { Bounds, CircleBounds, Vec3, VideoZone } from './types.ts'
 import { characterFloor } from './character-data.ts'
 import { duckBoundsAt, duckPlatformTop, duckPosition, onDuckPlatform } from './duck-position.ts'
 import { clamp } from './math.ts'
+import {
+  bridgeCenterX,
+  bridgeFarBackZ,
+  bridgeHalfWidth,
+  bridgePlankDepth,
+  bridgeRimZ,
+} from './scene-data.ts'
+import { bridgePlanks } from './bridge-state.ts'
 
 export type Seat = {
   cameraTarget?: Vec3
@@ -325,6 +333,7 @@ function collideRoomWithDuck(
   if (outsideZone) {
     position[0] = clamp(position[0], outsideBounds.left, outsideBounds.right)
     position[2] = clamp(position[2], outsideBounds.back, outsideBounds.front)
+    collideChasm(position)
     collideOutsideRooftopPath(position, previous)
     if (onOutsideRooftopPath(position)) {
       if (duckCollides) {
@@ -646,6 +655,7 @@ function isWalkableWithDuck(
       && x <= outsideBounds.right - clearance
       && z >= outsideBounds.back + clearance
       && z <= outsideBounds.front - clearance
+      && !chasmBlocks(x, z, clearance)
       && !inBuildingWall(x, z, 0.45 + clearance, clearance)
       && !inOutsideRooftopStairWall(point, clearance)
       && !inTentWall(x, z, 0.35, clearance)
@@ -1067,6 +1077,45 @@ export function collideBuildingWalls(position: Vec3, padding: number) {
       position[2] = front
     }
   }
+}
+
+function bridgeBuiltFrontZ() {
+  return bridgeRimZ + bridgePlanks() * bridgePlankDepth
+}
+
+function onBuiltBridge(x: number, z: number, clearance = 0) {
+  return Math.abs(x - bridgeCenterX) <= bridgeHalfWidth - clearance
+    && z >= bridgeRimZ
+    && z <= bridgeBuiltFrontZ() + 0.001
+}
+
+function inChasm(z: number) {
+  return z > bridgeRimZ && z < bridgeFarBackZ
+}
+
+function chasmBlocks(x: number, z: number, clearance = 0) {
+  return inChasm(z) && !onBuiltBridge(x, z, clearance)
+}
+
+// The chasm is solid except along the bridge corridor up to the built tip, so the
+// player can cross only as far as the bridge currently reaches.
+function collideChasm(position: Vec3) {
+  if (!inChasm(position[2]) || onBuiltBridge(position[0], position[2])) {
+    return
+  }
+
+  if (Math.abs(position[0] - bridgeCenterX) <= bridgeHalfWidth) {
+    position[2] = Math.min(position[2], bridgeBuiltFrontZ())
+    return
+  }
+
+  position[2] = bridgeRimZ
+}
+
+export function nearBridgeRim(position: Vec3) {
+  return Math.abs(position[0] - bridgeCenterX) <= bridgeHalfWidth + 0.8
+    && position[2] >= bridgeRimZ - 2
+    && position[2] <= Math.min(bridgeBuiltFrontZ(), bridgeFarBackZ) + 0.9
 }
 
 function paddedBounds(bounds: Bounds, padding = 0.28): PaddedBounds {

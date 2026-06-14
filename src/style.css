@@ -658,6 +658,29 @@ body[data-arcade-open="true"] #merch-cards {
   text-shadow: 0 0 10px rgb(0 220 255 / 0.72);
 }
 
+#bridge-build {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 6;
+  transform: translateX(-50%);
+  padding: 14px 28px;
+  border: 1px solid rgb(120 220 255 / 0.6);
+  border-radius: 999px;
+  background: rgb(8 12 20 / 0.78);
+  color: rgb(220 245 255);
+  font: 700 16px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: none;
+  box-shadow: 0 0 22px rgb(40 200 255 / 0.45);
+}
+
+#bridge-build[data-visible="false"] {
+  display: none;
+}
+
 .merch-card {
   display: block;
   width: min(212px, calc((100dvw - 48px) / 2));
