@@ -4,7 +4,7 @@ export function galleryHtml() {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Hallucinate Gallery</title>
+    <title>Below The Rim Gallery</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Black+And+White+Picture&family=Iansui&display=block" rel="stylesheet">
@@ -385,8 +385,8 @@ export function galleryHtml() {
   <body>
     <main>
       <header>
-        <h1 id="logo" aria-label="hallucinate Gallery">
-          <span id="logo-title">hallucinate</span>
+        <h1 id="logo" aria-label="Below The Rim Gallery">
+          <span id="logo-title">Below The Rim</span>
           <span id="logo-subtext">Gallery</span>
         </h1>
       </header>
@@ -793,7 +793,7 @@ export function galleryHtml() {
         const url = photoPermalink(photo)
 
         if (navigator.share && matchMedia('(pointer: coarse)').matches) {
-          await navigator.share({ title: 'hallucinate Gallery', url })
+          await navigator.share({ title: 'Below The Rim Gallery', url })
           return
         }
 

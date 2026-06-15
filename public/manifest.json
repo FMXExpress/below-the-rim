@@ -1,7 +1,7 @@
 {
-  "name": "Hallucinate",
-  "short_name": "Hallucinate",
-  "description": "Massively Multiplayer Online Rave",
+  "name": "Below The Rim",
+  "short_name": "Below The Rim",
+  "description": "Build the bridge. Cross the chasm.",
   "id": "/",
   "start_url": "/",
   "display": "standalone",

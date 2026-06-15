@@ -182,7 +182,7 @@ export function analyticsHtml(ranges: AnalyticsRange[]) {
     <main>
       <header>
         <div>
-          <h1>Hallucinate Analytics</h1>
+          <h1>Below The Rim Analytics</h1>
           <p>Visitors count</p>
         </div>
         <nav aria-label="Time range">${buttons}

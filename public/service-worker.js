@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hallucinate-v8'
+const CACHE_NAME = 'below-the-rim-v9'
 const urlsToCache = [
   '/',
   '/index.html',
