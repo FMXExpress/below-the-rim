@@ -83,13 +83,7 @@ import type { DuckPose } from './src/duck-position.ts'
 import { outsideBounds, outsideRooftop, outsideTreeStart, roomBounds, upstairsWallHeight, videoPlaylists } from './src/scene-data.ts'
 import {
   bridgeAttackIntervalMs,
-  bridgeCenterX,
-  bridgeDefendRadius,
-  bridgeHalfWidth,
   bridgeMilestone,
-  bridgePlankDepth,
-  bridgeRimZ,
-  islandStride,
   maxBridgeLevels,
   maxBridgePlanks,
 } from './src/scene-data.ts'
@@ -2015,31 +2009,17 @@ function placeBridgePlank(space: SpaceState) {
   broadcastBridgeState(space)
 }
 
-// The cliff-dwellers tear down the newest unlocked plank of the current chasm,
-// unless a player is standing at the bridge front to defend it.
+// The cliff-dwellers steadily eat the newest unlocked plank of the current chasm.
+// Milestone-locked spans can't be eaten, so the bridge recedes only to the last
+// milestone — build past it to make progress stick.
 function tearBridgePlank(space: SpaceState) {
-  if (space.bridgeLevel >= maxBridgeLevels || space.bridgePlanks <= space.bridgeLocked || bridgeDefended(space)) {
+  if (space.bridgeLevel >= maxBridgeLevels || space.bridgePlanks <= space.bridgeLocked) {
     return
   }
 
   space.bridgePlanks--
   saveBridgeState(space)
   broadcastBridgeState(space)
-}
-
-function bridgeDefended(space: SpaceState) {
-  const frontZ = bridgeRimZ + space.bridgeLevel * islandStride + space.bridgePlanks * bridgePlankDepth
-
-  for (const client of spaceClients(space)) {
-    const x = protocolToScene(client.pose.x)
-    const z = protocolToScene(client.pose.y)
-
-    if (Math.abs(x - bridgeCenterX) <= bridgeHalfWidth + 1 && Math.abs(z - frontZ) <= bridgeDefendRadius) {
-      return true
-    }
-  }
-
-  return false
 }
 
 function tickBridgeAttacks() {

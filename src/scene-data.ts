@@ -463,7 +463,7 @@ export const bridgeMistTopY = characterFloor - 0.35
 export const bridgeMistBottomY = characterFloor - 28
 export const bridgeAbyssY = characterFloor - 60
 export const bridgeFallY = characterFloor - 16
-export const bridgeAttackIntervalMs = 7000
+export const bridgeAttackIntervalMs = 3500
 export const bridgeDefendRadius = 3.6
 
 // The game is a chain of islands: each chasm crossed wins an island and a new

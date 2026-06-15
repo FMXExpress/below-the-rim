@@ -139,8 +139,8 @@ export function createBridgeEnemies() {
   const enemies: BridgeEnemy[] = []
 
   function update(delta: number, level: number, planks: number, locked: number) {
-    const building = level < maxBridgeLevels && planks < maxBridgePlanks
-    const wanted = building ? Math.min(1 + Math.max(0, planks - locked), 4) : 0
+    const vulnerable = level < maxBridgeLevels && planks < maxBridgePlanks && planks > locked
+    const wanted = vulnerable ? Math.min(planks - locked, 4) : 0
 
     while (enemies.length < wanted) {
       enemies.push({
