@@ -66,12 +66,16 @@ import { duckBoundsAt, duckPlatformTop, duckPosition, onDuckPlatform } from './d
 import { clamp } from './math.ts'
 import {
   bridgeCenterX,
-  bridgeFarBackZ,
+  bridgeChasmWidth,
   bridgeHalfWidth,
   bridgePlankDepth,
   bridgeRimZ,
+  islandStride,
+  maxBridgeLevels,
+  outsideTreeStart,
+  worldFrontZ,
 } from './scene-data.ts'
-import { bridgePlanks } from './bridge-state.ts'
+import { bridgeLevel, bridgePlanks } from './bridge-state.ts'
 
 export type Seat = {
   cameraTarget?: Vec3
@@ -1079,43 +1083,92 @@ export function collideBuildingWalls(position: Vec3, padding: number) {
   }
 }
 
-function bridgeBuiltFrontZ() {
-  return bridgeRimZ + bridgePlanks() * bridgePlankDepth
+function chasmStride(z: number) {
+  return Math.floor((z - bridgeRimZ) / islandStride)
 }
 
-function onBuiltBridge(x: number, z: number, clearance = 0) {
-  return Math.abs(x - bridgeCenterX) <= bridgeHalfWidth - clearance
-    && z >= bridgeRimZ
-    && z <= bridgeBuiltFrontZ() + 0.001
+function chasmBuiltLength(stride: number) {
+  const level = bridgeLevel()
+
+  if (stride < level) {
+    return bridgeChasmWidth
+  }
+  if (stride === level) {
+    return bridgePlanks() * bridgePlankDepth
+  }
+
+  return 0
 }
 
 function inChasm(z: number) {
-  return z > bridgeRimZ && z < bridgeFarBackZ
+  if (z <= bridgeRimZ || z >= worldFrontZ) {
+    return false
+  }
+
+  const stride = chasmStride(z)
+
+  return stride >= 0 && stride < maxBridgeLevels
+    && z - (bridgeRimZ + stride * islandStride) < bridgeChasmWidth
+}
+
+function onBuiltBridge(x: number, z: number, clearance = 0) {
+  if (Math.abs(x - bridgeCenterX) > bridgeHalfWidth - clearance || z < bridgeRimZ) {
+    return false
+  }
+
+  const stride = chasmStride(z)
+
+  if (stride < 0 || stride >= maxBridgeLevels) {
+    return false
+  }
+
+  const local = z - (bridgeRimZ + stride * islandStride)
+
+  return local >= 0 && local <= chasmBuiltLength(stride) + 0.001
 }
 
 function chasmBlocks(x: number, z: number, clearance = 0) {
   return inChasm(z) && !onBuiltBridge(x, z, clearance)
 }
 
-// The chasm is solid except along the bridge corridor up to the built tip, so the
-// player can cross only as far as the bridge currently reaches.
+// Each chasm is solid except along its built bridge corridor up to the working
+// tip, so the player can cross only as far as that bridge currently reaches.
 function collideChasm(position: Vec3) {
   if (!inChasm(position[2]) || onBuiltBridge(position[0], position[2])) {
     return
   }
 
+  const stride = chasmStride(position[2])
+  const rim = bridgeRimZ + stride * islandStride
+
   if (Math.abs(position[0] - bridgeCenterX) <= bridgeHalfWidth) {
-    position[2] = Math.min(position[2], bridgeBuiltFrontZ())
+    position[2] = Math.min(position[2], rim + chasmBuiltLength(stride))
     return
   }
 
-  position[2] = bridgeRimZ
+  position[2] = rim
 }
 
 export function nearBridgeRim(position: Vec3) {
+  const level = bridgeLevel()
+
+  if (level >= maxBridgeLevels) {
+    return false
+  }
+
+  const rim = bridgeRimZ + level * islandStride
+  const builtFront = rim + bridgePlanks() * bridgePlankDepth
+
   return Math.abs(position[0] - bridgeCenterX) <= bridgeHalfWidth + 0.8
-    && position[2] >= bridgeRimZ - 2
-    && position[2] <= Math.min(bridgeBuiltFrontZ(), bridgeFarBackZ) + 0.9
+    && position[2] >= rim - 2
+    && position[2] <= Math.min(builtFront, rim + bridgeChasmWidth) + 0.9
+}
+
+export function nearTree(position: Vec3) {
+  const dx = position[0] - outsideTreeStart.x
+  const dz = position[2] - outsideTreeStart.z
+
+  return dx * dx + dz * dz < (outsideTreeStart.radius + 2.2) ** 2
 }
 
 function paddedBounds(bounds: Bounds, padding = 0.28): PaddedBounds {

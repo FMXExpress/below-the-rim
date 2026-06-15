@@ -36,7 +36,7 @@ export const messageMaxLength = 120
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 55
+export const protocolVersion = 56
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -92,6 +92,7 @@ export type OnlinePacket = {
 }
 
 export type BridgeStatePacket = {
+  level: number
   planks: number
   locked: number
 }
@@ -296,22 +297,24 @@ export function decodeOnline(view: DataView): OnlinePacket {
 }
 
 export function encodeBridgeState(packet: BridgeStatePacket) {
-  const data = new ArrayBuffer(5)
+  const data = new ArrayBuffer(7)
   const view = new DataView(data)
 
   view.setUint8(0, BRIDGE_STATE)
-  view.setUint16(1, packet.planks)
-  view.setUint16(3, packet.locked)
+  view.setUint16(1, packet.level)
+  view.setUint16(3, packet.planks)
+  view.setUint16(5, packet.locked)
 
   return data
 }
 
 export function decodeBridgeState(view: DataView): BridgeStatePacket {
-  expectSize(view, 5)
+  expectSize(view, 7)
 
   return {
-    planks: view.getUint16(1),
-    locked: view.getUint16(3),
+    level: view.getUint16(1),
+    planks: view.getUint16(3),
+    locked: view.getUint16(5),
   }
 }
 

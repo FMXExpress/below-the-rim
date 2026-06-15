@@ -24,8 +24,8 @@ import {
 import type { DuckPose } from './duck-position.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import { createFoamSystem, writeFoamGeometry } from './foam.ts'
-import { buildBridgeVertices, createBridgeEnemies, writeBridgeEnemiesGeometry } from './bridge.ts'
-import { bridgeLocked, bridgePlanks, setBridgeState } from './bridge-state.ts'
+import { buildBridgeWorldVertices, createBridgeEnemies, writeBridgeEnemiesGeometry } from './bridge.ts'
+import { bridgeLevel, bridgeLocked, bridgePlanks, setBridgeState } from './bridge-state.ts'
 import {
   addGraffitiWallGeometry,
   createGraffitiCanvas,
@@ -83,6 +83,7 @@ import {
   upstairsDoor,
   bridgePlankDepth,
   bridgeRimZ,
+  islandStride,
   maxBridgePlanks,
 } from './scene-data.ts'
 import {
@@ -92,6 +93,7 @@ import {
   inPolygon,
   nearBridgeRim,
   nearInsideArcade,
+  nearTree,
   onOutsideDuckPlatform,
   resolveDuckPosition,
   roomAt,
@@ -385,6 +387,31 @@ let arcadeReady = true
 const arcadeUi = createArcadeUi({
   onClose: exitArcadeMode,
 })
+const bridgeWoodMax = 30
+const bridgeChopCooldown = 450
+let bridgeWood = 0
+let bridgeChopReadyAt = 0
+const bridgeWoodLabel = document.createElement('div')
+bridgeWoodLabel.id = 'bridge-wood'
+bridgeWoodLabel.dataset.visible = 'false'
+const bridgeChopButton = document.createElement('button')
+bridgeChopButton.id = 'bridge-chop'
+bridgeChopButton.type = 'button'
+bridgeChopButton.textContent = 'Chop wood'
+bridgeChopButton.dataset.visible = 'false'
+bridgeChopButton.addEventListener('pointerdown', event => {
+  event.preventDefault()
+  event.stopPropagation()
+
+  const now = performance.now()
+
+  if (now < bridgeChopReadyAt) {
+    return
+  }
+
+  bridgeChopReadyAt = now + bridgeChopCooldown
+  bridgeWood = Math.min(bridgeWood + 1, bridgeWoodMax)
+})
 const bridgeBuildButton = document.createElement('button')
 bridgeBuildButton.id = 'bridge-build'
 bridgeBuildButton.type = 'button'
@@ -393,9 +420,15 @@ bridgeBuildButton.dataset.visible = 'false'
 bridgeBuildButton.addEventListener('pointerdown', event => {
   event.preventDefault()
   event.stopPropagation()
+
+  if (bridgeWood <= 0) {
+    return
+  }
+
+  bridgeWood--
   multiplayer.sendPlaceBridgePlank()
 })
-document.body.append(bridgeBuildButton)
+document.body.append(bridgeWoodLabel, bridgeChopButton, bridgeBuildButton)
 const reactionSlotEmojis = loadReactionSlotEmojis()
 const introFruitEmojis = [
   '🍎',
@@ -2715,7 +2748,7 @@ function connectMultiplayer(spaceSlug?: string) {
       applyDuckPose(pose, false, false)
     },
     onBridgeState: state => {
-      setBridgeState(state.planks, state.locked)
+      setBridgeState(state.level, state.planks, state.locked)
       bridgeDirty = true
     },
     onGraffiti: packet => {
@@ -4461,7 +4494,7 @@ const draw = (stamp: number) => {
   }
   chatUi.update(projector, stamp)
   updateAdminIdLabels(projector)
-  updateBridgePrompt(inLoft)
+  updateBridgeUi(inLoft)
 
   const moving = lengthSq(localCharacter.input) > 0
 
@@ -4753,28 +4786,34 @@ function updateBridgeBuffer() {
   }
 
   bridgeDirty = false
-  const planks = bridgePlanks()
+  const verts = buildBridgeWorldVertices(bridgeLevel(), bridgePlanks(), bridgeLocked())
 
-  if (planks === 0) {
+  if (verts.length === 0) {
     bridgePoints = emptyPoints
     return
   }
 
-  bridgePoints = new Float32Array(buildBridgeVertices(planks, bridgeLocked()).flat())
+  bridgePoints = new Float32Array(verts.flat())
   uploadFloatBuffer(gl, bridgeBuffer, bridgePoints)
 }
 
 function updateBridgeEnemyBuffer() {
-  const frontZ = bridgeRimZ + bridgePlanks() * bridgePlankDepth
+  const frontZ = bridgeRimZ + bridgeLevel() * islandStride + bridgePlanks() * bridgePlankDepth
 
   bridgeEnemyPoints = updateDynamicGeometry(bridgeEnemies.enemies.length > 0, bridgeEnemyWriter, bridgeEnemyBuffer,
     bridgeEnemyBufferCache, () => writeBridgeEnemiesGeometry(bridgeEnemyWriter, bridgeEnemies.enemies, frontZ))
 }
 
-function updateBridgePrompt(inLoft: boolean) {
-  const show = introHidden && !inLoft && bridgePlanks() < maxBridgePlanks && nearBridgeRim(characterPosition)
+function updateBridgeUi(inLoft: boolean) {
+  const active = introHidden && !inLoft
+  const atTree = active && nearTree(characterPosition)
+  const atRim = active && bridgePlanks() < maxBridgePlanks && nearBridgeRim(characterPosition)
 
-  bridgeBuildButton.dataset.visible = show ? 'true' : 'false'
+  bridgeChopButton.dataset.visible = atTree ? 'true' : 'false'
+  bridgeBuildButton.dataset.visible = atRim ? 'true' : 'false'
+  bridgeBuildButton.textContent = bridgeWood > 0 ? 'Lay plank' : 'Chop wood first'
+  bridgeWoodLabel.dataset.visible = active && (atTree || atRim || bridgeWood > 0) ? 'true' : 'false'
+  bridgeWoodLabel.textContent = `Wood: ${bridgeWood}`
 }
 
 function updateBeachBallBuffer() {

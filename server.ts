@@ -89,6 +89,8 @@ import {
   bridgeMilestone,
   bridgePlankDepth,
   bridgeRimZ,
+  islandStride,
+  maxBridgeLevels,
   maxBridgePlanks,
 } from './src/scene-data.ts'
 import { resolveDuckPosition, roomAt, seatAt } from './src/scene.ts'
@@ -177,6 +179,7 @@ type SpaceState = {
   duckPosition: Vec3
   duckSavedAt: number
   duckTurn: number
+  bridgeLevel: number
   bridgePlanks: number
   bridgeLocked: number
   slug?: string
@@ -1977,32 +1980,45 @@ function broadcastDuckPosition(space: SpaceState) {
 function sendBridgeState(client: Client) {
   const space = clientSpace(client)
 
-  client.socket.send(encodeBridgeState({ planks: space.bridgePlanks, locked: space.bridgeLocked }))
+  client.socket.send(encodeBridgeState(bridgeStatePacket(space)))
 }
 
 function broadcastBridgeState(space: SpaceState) {
-  const data = encodeBridgeState({ planks: space.bridgePlanks, locked: space.bridgeLocked })
+  const data = encodeBridgeState(bridgeStatePacket(space))
 
   for (const client of spaceClients(space)) {
     client.socket.send(data)
   }
 }
 
+function bridgeStatePacket(space: SpaceState) {
+  return { level: space.bridgeLevel, planks: space.bridgePlanks, locked: space.bridgeLocked }
+}
+
+// Each plank advances the current chasm; finishing it wins that island and opens
+// the next chasm to bridge from there.
 function placeBridgePlank(space: SpaceState) {
-  if (space.bridgePlanks >= maxBridgePlanks) {
+  if (space.bridgeLevel >= maxBridgeLevels) {
     return
   }
 
   space.bridgePlanks++
-  space.bridgeLocked = lockedForPlanks(space.bridgePlanks)
+  if (space.bridgePlanks >= maxBridgePlanks) {
+    space.bridgeLevel++
+    space.bridgePlanks = 0
+    space.bridgeLocked = 0
+  }
+  else {
+    space.bridgeLocked = lockedForPlanks(space.bridgePlanks)
+  }
   saveBridgeState(space)
   broadcastBridgeState(space)
 }
 
-// The cliff-dwellers tear down the newest unlocked plank, unless a player is
-// standing at the bridge front to defend it.
+// The cliff-dwellers tear down the newest unlocked plank of the current chasm,
+// unless a player is standing at the bridge front to defend it.
 function tearBridgePlank(space: SpaceState) {
-  if (space.bridgePlanks <= space.bridgeLocked || bridgeDefended(space)) {
+  if (space.bridgeLevel >= maxBridgeLevels || space.bridgePlanks <= space.bridgeLocked || bridgeDefended(space)) {
     return
   }
 
@@ -2012,7 +2028,7 @@ function tearBridgePlank(space: SpaceState) {
 }
 
 function bridgeDefended(space: SpaceState) {
-  const frontZ = bridgeRimZ + space.bridgePlanks * bridgePlankDepth
+  const frontZ = bridgeRimZ + space.bridgeLevel * islandStride + space.bridgePlanks * bridgePlankDepth
 
   for (const client of spaceClients(space)) {
     const x = protocolToScene(client.pose.x)
@@ -2283,11 +2299,12 @@ function createSpace(key: string, kind: SpaceState['kind'], count: number, slug?
   }
 }
 
-function loadBridgeState(spaceKey: string): { bridgePlanks: number; bridgeLocked: number } {
-  const saved = loadJson<{ planks: number; locked: number }>(spaceKeyStorageKey(spaceKey, 'bridge'))
-  const planks = Math.max(0, Math.min(maxBridgePlanks, Math.round(saved?.planks ?? 0)))
+function loadBridgeState(spaceKey: string): { bridgeLevel: number; bridgePlanks: number; bridgeLocked: number } {
+  const saved = loadJson<{ level?: number; planks: number; locked: number }>(spaceKeyStorageKey(spaceKey, 'bridge'))
+  const level = Math.max(0, Math.min(maxBridgeLevels, Math.round(saved?.level ?? 0)))
+  const planks = level >= maxBridgeLevels ? 0 : Math.max(0, Math.min(maxBridgePlanks, Math.round(saved?.planks ?? 0)))
 
-  return { bridgePlanks: planks, bridgeLocked: lockedForPlanks(planks) }
+  return { bridgeLevel: level, bridgePlanks: planks, bridgeLocked: lockedForPlanks(planks) }
 }
 
 function lockedForPlanks(planks: number) {
@@ -2295,7 +2312,8 @@ function lockedForPlanks(planks: number) {
 }
 
 function saveBridgeState(space: SpaceState) {
-  saveJson(spaceStorageKey(space, 'bridge'), { planks: space.bridgePlanks, locked: space.bridgeLocked })
+  saveJson(spaceStorageKey(space, 'bridge'),
+    { level: space.bridgeLevel, planks: space.bridgePlanks, locked: space.bridgeLocked })
 }
 
 function loadDuckPose(spaceKey: string): { duckPosition: Vec3; duckTurn: number } {
@@ -2653,33 +2671,42 @@ async function youtubeVideoMetadata(id: string) {
 }
 
 async function fetchYouTubeVideoMetadata(id: string): Promise<YouTubeVideoMetadata> {
-  const response = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`, {
-    headers: youtubeHeaders(),
-  })
+  try {
+    const response = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`, {
+      headers: youtubeHeaders(),
+    })
 
-  if (!response.ok) {
-    throw new Error(`YouTube metadata request failed ${id}: ${response.status}`)
-  }
-
-  const text = await response.text()
-  const data = extractEmbeddedJson(text, 'ytInitialPlayerResponse') as {
-    videoDetails?: {
-      lengthSeconds?: unknown
-      title?: unknown
+    if (!response.ok) {
+      throw new Error(`YouTube metadata request failed ${id}: ${response.status}`)
     }
-  }
-  const title = data.videoDetails?.title
-  const duration = Number(data.videoDetails?.lengthSeconds)
 
-  if (typeof title !== 'string') {
-    throw new Error(`Missing YouTube title ${id}`)
-  }
+    const text = await response.text()
+    const data = extractEmbeddedJson(text, 'ytInitialPlayerResponse') as {
+      videoDetails?: {
+        lengthSeconds?: unknown
+        title?: unknown
+      }
+    }
+    const title = data.videoDetails?.title
+    const duration = Number(data.videoDetails?.lengthSeconds)
 
-  if (!Number.isFinite(duration) || duration <= 0) {
-    throw new Error(`Missing YouTube duration ${id}`)
-  }
+    if (typeof title !== 'string') {
+      throw new Error(`Missing YouTube title ${id}`)
+    }
 
-  return { duration, title }
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error(`Missing YouTube duration ${id}`)
+    }
+
+    return { duration, title }
+  }
+  catch (e) {
+    // YouTube actively blocks programmatic scraping; fall back instead of
+    // crashing startup so the rave (and the bridge game) still comes up.
+    console.warn(`YouTube metadata unavailable for ${id}, using fallback:`, e instanceof Error ? e.message : e)
+
+    return { duration: 180, title: `Video ${id}` }
+  }
 }
 
 async function syncVideoPlaylistsFromSources(space: SpaceState, now: number) {
@@ -3685,6 +3712,7 @@ function resetAdminObjects(space: SpaceState) {
   space.beachBallAuthorities = balls.map(() => ({ client: 0, until: 0 }))
   space.duckPosition = [...defaultDuckPosition]
   space.duckTurn = defaultDuckTurn
+  space.bridgeLevel = 0
   space.bridgePlanks = 0
   space.bridgeLocked = 0
   saveDuckPosition(space)
