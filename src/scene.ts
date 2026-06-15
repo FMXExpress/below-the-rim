@@ -1171,6 +1171,17 @@ export function nearTree(position: Vec3) {
   return dx * dx + dz * dz < (outsideTreeStart.radius + 2.2) ** 2
 }
 
+// Where decorative scatter (plants, rocks, trees) may stand: solid island ground
+// only, never over a chasm/bridge or off the end of the chain, and clear of the
+// central bridge lane.
+export function onScatterLand(x: number, z: number) {
+  if (z >= worldFrontZ - 0.5 || inChasm(z)) {
+    return false
+  }
+
+  return !(z >= bridgeRimZ - 3 && Math.abs(x - bridgeCenterX) <= bridgeHalfWidth + 0.7)
+}
+
 function paddedBounds(bounds: Bounds, padding = 0.28): PaddedBounds {
   return {
     back: bounds.z - bounds.depth / 2 - padding,

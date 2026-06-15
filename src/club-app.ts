@@ -95,6 +95,7 @@ import {
   nearInsideArcade,
   nearTree,
   onOutsideDuckPlatform,
+  onScatterLand,
   resolveDuckPosition,
   roomAt,
   seatAt,
@@ -1612,7 +1613,7 @@ function outsidePlantPlacements() {
     const x = mix(outsideBounds.left + inset, outsideBounds.right - inset, seededPlantRandom(i, 1))
     const z = mix(outsideBounds.back + inset, outsideBounds.front - inset, seededPlantRandom(i, 2))
 
-    if (inOutsidePlantClearance(x, z)) {
+    if (!onScatterLand(x, z) || inOutsidePlantClearance(x, z)) {
       continue
     }
 
@@ -1625,6 +1626,34 @@ function outsidePlantPlacements() {
   }
 
   return placements
+}
+
+function scatteredTreePlacements() {
+  const placements: Array<{ height: number; position: [number, number, number]; turn: number }> = []
+  const inset = 2.6
+
+  for (let i = 0; i < 90 && placements.length < 18; i++) {
+    const x = mix(outsideBounds.left + inset, outsideBounds.right - inset, seededTreeRandom(i, 1))
+    const z = mix(outsideBounds.back + inset, outsideBounds.front - inset, seededTreeRandom(i, 2))
+
+    if (!onScatterLand(x, z) || inOutsidePlantClearance(x, z)) {
+      continue
+    }
+
+    placements.push({
+      height: mix(4.6, 7.2, seededTreeRandom(i, 3)),
+      position: [x, characterFloor, z],
+      turn: seededTreeRandom(i, 4) * Math.PI * 2,
+    })
+  }
+
+  return placements
+}
+
+function seededTreeRandom(seed: number, salt: number) {
+  const value = Math.sin(seed * 157.3 + salt * 113.7) * 75319.2461
+
+  return value - Math.floor(value)
 }
 
 type OutsideStaticPropPlacement = {
@@ -1832,7 +1861,7 @@ function outsideStaticPropPlacements() {
       side === 2 ? z - edgeJitter : side === 3 ? z + edgeJitter : z,
     ]
 
-    if (inRockClearance(position[0], position[2])) {
+    if (inRockClearance(position[0], position[2]) || !onScatterLand(position[0], position[2])) {
       continue
     }
 
@@ -5328,6 +5357,23 @@ function loadMainWorldOnce() {
           sourceUp: 'y',
           turn: plant.turn,
         })), addOutsidePlantTriangle)
+          .then(() => {
+            refreshRoomBuffer()
+          })
+          .catch((error: unknown) => {
+            console.error(error)
+            throw error
+          }),
+        loadStaticFbxObjects(vertices, scatteredTreePlacements().map(tree => ({
+          color: palmTreeMeshColor,
+          height: tree.height,
+          lightBounds: { x: tree.position[0], z: tree.position[2], radius: 0.85 },
+          nodeTransforms: true,
+          path: '/packed/palmtree.json',
+          position: tree.position,
+          sourceUp: 'y',
+          turn: tree.turn,
+        })), addSunLitTriangle)
           .then(() => {
             refreshRoomBuffer()
           })
