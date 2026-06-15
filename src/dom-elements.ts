@@ -169,8 +169,8 @@ function createDomElements() {
   introTrack.id = 'intro-track'
   introBar.id = 'intro-bar'
   introProgress.id = 'intro-progress'
-  introLogoTitle.textContent = 'hallucinate'
-  introLogoSubtext.textContent = 'Massively Multiplayer Online Rave'
+  introLogoTitle.textContent = 'Below The Rim'
+  introLogoSubtext.textContent = 'Build the bridge. Cross the chasm.'
   introNicknameField.setAttribute('aria-label', 'Nickname')
   introNicknameIcon.src = '/user.svg'
   introNicknameIcon.alt = ''
@@ -189,7 +189,7 @@ function createDomElements() {
   introInstagramInput.setAttribute('enterkeyhint', 'done')
   introStart.type = 'button'
   introStart.textContent = 'enter'
-  introGithub.href = 'https://github.com/stagas/hallucinate'
+  introGithub.href = 'https://github.com/FMXExpress/below-the-rim/'
   introGithub.target = '_blank'
   introGithub.rel = 'noopener noreferrer'
   introGithub.setAttribute('aria-label', 'GitHub')
