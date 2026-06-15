@@ -4,8 +4,9 @@ import {
   normalizeInto,
   smoothAngle,
 } from './math.ts'
-import { outsideRooftop, upstairsWallHeight } from './scene-data.ts'
+import { bridgeFallY, outsideRooftop, upstairsWallHeight } from './scene-data.ts'
 import {
+  bridgeRespawnPosition,
   collideLoftRoom,
   collideRoom,
   inLake,
@@ -34,7 +35,7 @@ const lakeIdleHeightOffset = -0.62
 const lakeMovingHeightOffset = -0.14
 const lakeHeightBlend = 5.5
 
-export function createLocalCharacter(keys: Set<string>) {
+export function createLocalCharacter(keys: Set<string>, onFall: () => void) {
   const position: Vec3 = [-2.2, -1.95, -6.8]
   const input: Vec3 = [0, 0, 0]
   const forward: Vec3 = [0, 0, 0]
@@ -496,6 +497,17 @@ export function createLocalCharacter(keys: Set<string>) {
       }
       else {
         collideRoom(position, outsideTree, isOutside(position), previousPosition, collisionOptions)
+      }
+
+      if (!loft && position[1] < bridgeFallY) {
+        const respawn = bridgeRespawnPosition()
+
+        position[0] = respawn[0]
+        position[1] = respawn[1]
+        position[2] = respawn[2]
+        velocityY = 0
+        jumpTime = 0
+        onFall()
       }
     },
   }

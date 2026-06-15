@@ -65,10 +65,12 @@ import { characterFloor } from './character-data.ts'
 import { duckBoundsAt, duckPlatformTop, duckPosition, onDuckPlatform } from './duck-position.ts'
 import { clamp } from './math.ts'
 import {
+  bridgeAbyssY,
   bridgeCenterX,
   bridgeChasmWidth,
   bridgeHalfWidth,
   bridgePlankDepth,
+  bridgeRimForLevel,
   bridgeRimZ,
   islandStride,
   maxBridgeLevels,
@@ -199,6 +201,10 @@ const outsideRooftopLandingTransitionPadding = outsideRooftopLanding.x + outside
 const emptySeats = new Set<string>()
 
 export function walkHeight(x: number, y: number, z: number) {
+  if (overChasmVoid(x, z)) {
+    return bridgeAbyssY
+  }
+
   return walkHeightWithDuck(x, y, z, true)
 }
 
@@ -337,7 +343,6 @@ function collideRoomWithDuck(
   if (outsideZone) {
     position[0] = clamp(position[0], outsideBounds.left, outsideBounds.right)
     position[2] = clamp(position[2], outsideBounds.back, outsideBounds.front)
-    collideChasm(position)
     collideOutsideRooftopPath(position, previous)
     if (onOutsideRooftopPath(position)) {
       if (duckCollides) {
@@ -1131,22 +1136,16 @@ function chasmBlocks(x: number, z: number, clearance = 0) {
   return inChasm(z) && !onBuiltBridge(x, z, clearance)
 }
 
-// Each chasm is solid except along its built bridge corridor up to the working
-// tip, so the player can cross only as far as that bridge currently reaches.
-function collideChasm(position: Vec3) {
-  if (!inChasm(position[2]) || onBuiltBridge(position[0], position[2])) {
-    return
-  }
+// Open chasm air: in a chasm but not on a built plank. Walking onto it makes the
+// player fall (walkHeight drops to the abyss) rather than being blocked.
+export function overChasmVoid(x: number, z: number) {
+  return inChasm(z) && !onBuiltBridge(x, z)
+}
 
-  const stride = chasmStride(position[2])
-  const rim = bridgeRimZ + stride * islandStride
-
-  if (Math.abs(position[0] - bridgeCenterX) <= bridgeHalfWidth) {
-    position[2] = Math.min(position[2], rim + chasmBuiltLength(stride))
-    return
-  }
-
-  position[2] = rim
+// Where a fallen player reappears: back at the launch end of the chasm they were
+// crossing.
+export function bridgeRespawnPosition(): Vec3 {
+  return [bridgeCenterX, characterFloor, bridgeRimForLevel(bridgeLevel()) - 3]
 }
 
 export function nearBridgeRim(position: Vec3) {
@@ -1169,6 +1168,17 @@ export function nearTree(position: Vec3) {
   const dz = position[2] - outsideTreeStart.z
 
   return dx * dx + dz * dz < (outsideTreeStart.radius + 2.2) ** 2
+}
+
+// Where decorative scatter (plants, rocks, trees) may stand: solid island ground
+// only, never over a chasm/bridge or off the end of the chain, and clear of the
+// central bridge lane.
+export function onScatterLand(x: number, z: number) {
+  if (z >= worldFrontZ - 0.5 || inChasm(z)) {
+    return false
+  }
+
+  return !(z >= bridgeRimZ - 3 && Math.abs(x - bridgeCenterX) <= bridgeHalfWidth + 0.7)
 }
 
 function paddedBounds(bounds: Bounds, padding = 0.28): PaddedBounds {
