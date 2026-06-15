@@ -336,7 +336,9 @@ let idleClipIndex = 0
 let inputLayout: InputLayout = 'wasd'
 let onlineCountValue = 0
 let nextNpcPopulationSyncAt = npcPopulationInterval
-const localCharacter = createLocalCharacter(keys)
+const localCharacter = createLocalCharacter(keys, () => {
+  bridgeWood = 0
+})
 const characterPosition = localCharacter.position
 const hairController = createCharacterHairController()
 const styleController = createCharacterStyleController()
@@ -1618,7 +1620,7 @@ function outsidePlantPlacements() {
     }
 
     placements.push({
-      height: mix(0.34, 0.78, seededPlantRandom(i, 3)),
+      height: mix(0.34, 0.78, seededPlantRandom(i, 3)) * mix(1, 4, seededPlantRandom(i, 6)),
       meshIndex: meshIndices[Math.floor(seededPlantRandom(i, 4) * meshIndices.length)]!,
       position: [x, characterFloor, z],
       turn: seededPlantRandom(i, 5) * Math.PI * 2,
@@ -1867,7 +1869,7 @@ function outsideStaticPropPlacements() {
 
     placements.push({
       color: [0.29, 0.27, 0.24],
-      height: mix(0.28, 0.9, seededRockRandom(i, 5)),
+      height: mix(0.28, 0.9, seededRockRandom(i, 5)) * mix(1, 4, seededRockRandom(i, 8)),
       meshIndex: Math.floor(seededRockRandom(i, 6) * 24),
       path: '/packed/rocks.json',
       position,

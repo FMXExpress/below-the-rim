@@ -35,7 +35,7 @@ const lakeIdleHeightOffset = -0.62
 const lakeMovingHeightOffset = -0.14
 const lakeHeightBlend = 5.5
 
-export function createLocalCharacter(keys: Set<string>) {
+export function createLocalCharacter(keys: Set<string>, onFall: () => void) {
   const position: Vec3 = [-2.2, -1.95, -6.8]
   const input: Vec3 = [0, 0, 0]
   const forward: Vec3 = [0, 0, 0]
@@ -507,6 +507,7 @@ export function createLocalCharacter(keys: Set<string>) {
         position[2] = respawn[2]
         velocityY = 0
         jumpTime = 0
+        onFall()
       }
     },
   }
