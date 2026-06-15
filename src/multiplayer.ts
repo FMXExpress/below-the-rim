@@ -28,6 +28,7 @@ import {
   decodeVideoSync,
   encodeAdminMessage,
   encodeBeachBalls,
+  encodeBridgeDefend,
   encodeBridgePlace,
   encodeClientActions,
   encodeDuckPosition,
@@ -494,6 +495,9 @@ export function createMultiplayer(options: {
     },
     sendPlaceBridgePlank() {
       send(encodeBridgePlace())
+    },
+    sendBridgeDefend() {
+      send(encodeBridgeDefend())
     },
     sendGraffiti(splats: GraffitiSplat[]) {
       send(encodeGraffiti({ splats }))

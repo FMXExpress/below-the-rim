@@ -24,7 +24,7 @@ import {
 import type { DuckPose } from './duck-position.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import { createFoamSystem, writeFoamGeometry } from './foam.ts'
-import { buildBridgeWorldVertices, createBridgeEnemies, writeBridgeEnemiesGeometry } from './bridge.ts'
+import { type BridgeEnemy, buildBridgeWorldVertices, createBridgeEnemies, enemyWorldPosition, writeBridgeEnemiesGeometry } from './bridge.ts'
 import { bridgeLevel, bridgeLocked, bridgePlanks, setBridgeState } from './bridge-state.ts'
 import {
   addGraffitiWallGeometry,
@@ -46,7 +46,7 @@ import { lengthSq, mix } from './math.ts'
 import { createMultiplayer, updateRemotePlayers } from './multiplayer.ts'
 import { createPlayers, takeNpcSeat, updatePlayers } from './player-system.ts'
 import type { ProjectedPoint, Viewport, WallProjector } from './projection.ts'
-import { createWallProjector, projectWallPointInto, projectWallPointWithMinDepthInto } from './projection.ts'
+import { createWallProjector, projectVisiblePointInto, projectWallPointInto, projectWallPointWithMinDepthInto } from './projection.ts'
 import { ACTION_BUBBLING, ACTION_FOAMING, instagramMaxLength } from './protocol.ts'
 import type { GraffitiSnapshot, MessagePacket } from './protocol.ts'
 import { emojiReactionFromMessage, pickerEmojis, reactionEmojis } from './reactions.ts'
@@ -3523,6 +3523,68 @@ document.addEventListener('pointerdown', event => {
 }, { capture: true })
 
 canvas.addEventListener('contextmenu', event => event.preventDefault())
+
+const bridgePickPoint: ProjectedPoint = { x: 0, y: 0 }
+const bridgePickRadius = 48
+
+canvas.addEventListener('pointerdown', event => {
+  if (appSpace.kind === 'loft' || !introHidden) {
+    return
+  }
+
+  if (event.pointerType === 'mouse' && event.button !== 0) {
+    return
+  }
+
+  const enemy = pickBridgeEnemy(event.clientX, event.clientY)
+
+  if (!enemy) {
+    return
+  }
+
+  bridgeEnemies.knockOff(enemy)
+  multiplayer.sendBridgeDefend()
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}, { capture: true })
+
+function pickBridgeEnemy(clientX: number, clientY: number) {
+  const climbers = bridgeEnemies.enemies
+
+  if (climbers.length === 0) {
+    return
+  }
+
+  const rect = canvas.getBoundingClientRect()
+  const pointerX = clientX - rect.left
+  const pointerY = clientY - rect.top
+  const frontZ = bridgeRimZ + bridgeLevel() * islandStride + bridgePlanks() * bridgePlankDepth
+  let nearest: BridgeEnemy | undefined
+  let nearestDistance = bridgePickRadius * bridgePickRadius
+
+  for (const enemy of climbers) {
+    if (enemy.falling) {
+      continue
+    }
+
+    const screen = projectVisiblePointInto(enemyWorldPosition(enemy, frontZ), wallProjector, bridgePickPoint)
+
+    if (!screen) {
+      continue
+    }
+
+    const dx = screen.x - pointerX
+    const dy = screen.y - pointerY
+    const distance = dx * dx + dy * dy
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearest = enemy
+    }
+  }
+
+  return nearest
+}
 
 canvas.addEventListener('pointerdown', event => {
   if (appSpace.kind === 'loft') {

@@ -24,6 +24,7 @@ import {
   ACTIONS,
   ADMIN,
   BEACH_BALLS,
+  BRIDGE_DEFEND,
   BRIDGE_PLACE,
   C_ENTER,
   C_HEARTBEAT,
@@ -83,6 +84,7 @@ import type { DuckPose } from './src/duck-position.ts'
 import { outsideBounds, outsideRooftop, outsideTreeStart, roomBounds, upstairsWallHeight, videoPlaylists } from './src/scene-data.ts'
 import {
   bridgeAttackIntervalMs,
+  bridgeDefendDelayMs,
   bridgeMilestone,
   maxBridgeLevels,
   maxBridgePlanks,
@@ -176,6 +178,7 @@ type SpaceState = {
   bridgeLevel: number
   bridgePlanks: number
   bridgeLocked: number
+  bridgeTearReadyAt: number
   slug?: string
   musicKind?: 'playlist' | 'video'
   musicSource?: string
@@ -580,6 +583,12 @@ const server = Bun.serve<SocketData>({
           return
         }
 
+        if (type === BRIDGE_DEFEND) {
+          touchInteraction(client)
+          defendBridge(clientSpace(client))
+          return
+        }
+
         if (type === GRAFFITI) {
           if (client.spaceKey !== mainSpace.key) {
             return
@@ -637,7 +646,7 @@ setInterval(() => {
 }, videoScheduleSyncInterval)
 setInterval(logStats, minuteMs)
 setInterval(recordOnlineAnalytics, onlineAnalyticsSampleInterval)
-setInterval(tickBridgeAttacks, bridgeAttackIntervalMs)
+setInterval(tickBridgeAttacks, 1000)
 
 function clientIp(request: Request) {
   return request.headers.get('cf-connecting-ip')
@@ -2023,9 +2032,25 @@ function tearBridgePlank(space: SpaceState) {
 }
 
 function tickBridgeAttacks() {
+  const now = Date.now()
+
   for (const space of spaces.values()) {
-    tearBridgePlank(space)
+    const vulnerable = space.bridgeLevel < maxBridgeLevels && space.bridgePlanks > space.bridgeLocked
+
+    if (!vulnerable) {
+      space.bridgeTearReadyAt = now + bridgeAttackIntervalMs
+      continue
+    }
+    if (now >= space.bridgeTearReadyAt) {
+      space.bridgeTearReadyAt = now + bridgeAttackIntervalMs
+      tearBridgePlank(space)
+    }
   }
+}
+
+// Knocking a climber off the rope holds off the next bite of the bridge.
+function defendBridge(space: SpaceState) {
+  space.bridgeTearReadyAt = Math.max(space.bridgeTearReadyAt, Date.now() + bridgeDefendDelayMs)
 }
 
 function sendProfiles(client: Client) {
@@ -2273,6 +2298,7 @@ function createSpace(key: string, kind: SpaceState['kind'], count: number, slug?
     beachBalls: balls,
     beachBallAuthorities: balls.map(() => ({ client: 0, until: 0 })),
     duckSavedAt: 0,
+    bridgeTearReadyAt: 0,
     ...loadDuckPose(key),
     ...loadBridgeState(key),
     slug,
