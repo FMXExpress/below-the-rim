@@ -27,6 +27,7 @@ export const C_ENTER = 23
 export const DUCK_POSITION = 24
 export const BRIDGE_STATE = 25
 export const BRIDGE_PLACE = 26
+export const BRIDGE_DEFEND = 27
 
 export const ACTION_BUBBLING = 1
 export const ACTION_FOAMING = 2
@@ -36,7 +37,7 @@ export const messageMaxLength = 120
 export const instagramMaxLength = 30
 export const nicknameMaxLength = 32
 export const positionScale = 100
-export const protocolVersion = 56
+export const protocolVersion = 57
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -323,6 +324,15 @@ export function encodeBridgePlace() {
   const view = new DataView(data)
 
   view.setUint8(0, BRIDGE_PLACE)
+
+  return data
+}
+
+export function encodeBridgeDefend() {
+  const data = new ArrayBuffer(1)
+  const view = new DataView(data)
+
+  view.setUint8(0, BRIDGE_DEFEND)
 
   return data
 }

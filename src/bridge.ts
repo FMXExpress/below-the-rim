@@ -130,53 +130,79 @@ export type BridgeEnemy = {
   rise: number
   speed: number
   gnaw: number
+  falling: boolean
 }
 
-// Cliff-dwellers climb out of the mist at the working tip whenever there are
-// unlocked planks to tear down. They are decoration driven by the shared state;
-// the actual teardown is decided by the server (and shown when the count drops).
+// Cliff-dwellers climb the ropes at the working tip whenever there are unlocked
+// planks to eat. A knocked-off climber falls back into the mist, and replacements
+// trickle in, so clicking them holds the bridge.
 export function createBridgeEnemies() {
   const enemies: BridgeEnemy[] = []
+  let spawnTimer = 0
 
   function update(delta: number, level: number, planks: number, locked: number) {
     const vulnerable = level < maxBridgeLevels && planks < maxBridgePlanks && planks > locked
     const wanted = vulnerable ? Math.min(planks - locked, 4) : 0
 
-    while (enemies.length < wanted) {
-      enemies.push({
-        side: enemies.length % 2 === 0 ? -1 : 1,
-        offset: (Math.random() - 0.5) * bridgePlankDepth,
-        rise: 0,
-        speed: 0.45 + Math.random() * 0.4,
-        gnaw: Math.random() * Math.PI * 2,
-      })
-    }
-    while (enemies.length > wanted) {
-      enemies.pop()
+    for (const enemy of enemies) {
+      if (!vulnerable) {
+        enemy.falling = true
+      }
+      if (enemy.falling) {
+        enemy.rise -= delta * 1.8
+      }
+      else {
+        enemy.rise = Math.min(1, enemy.rise + enemy.speed * delta)
+        enemy.gnaw += delta * 9
+      }
     }
 
-    for (const enemy of enemies) {
-      enemy.rise = Math.min(1, enemy.rise + enemy.speed * delta)
-      enemy.gnaw += delta * 9
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      if (enemies[i]!.falling && enemies[i]!.rise <= -0.3) {
+        enemies.splice(i, 1)
+      }
+    }
+
+    spawnTimer -= delta
+    const climbing = enemies.reduce((count, enemy) => count + (enemy.falling ? 0 : 1), 0)
+
+    if (vulnerable && climbing < wanted && spawnTimer <= 0) {
+      enemies.push({
+        side: climbing % 2 === 0 ? -1 : 1,
+        offset: (Math.random() - 0.5) * bridgePlankDepth,
+        rise: 0,
+        speed: 0.5 + Math.random() * 0.4,
+        gnaw: Math.random() * Math.PI * 2,
+        falling: false,
+      })
+      spawnTimer = 0.7
     }
   }
 
-  return { enemies, update }
+  function knockOff(enemy: BridgeEnemy) {
+    enemy.falling = true
+    spawnTimer = Math.max(spawnTimer, 1.4)
+  }
+
+  return { enemies, update, knockOff }
+}
+
+export function enemyWorldPosition(enemy: BridgeEnemy, frontZ: number): Vec3 {
+  const climbBottom = bridgeDeckY - enemyClimbDepth
+  const y = climbBottom + (bridgeDeckY - climbBottom) * enemy.rise
+
+  return [bridgeCenterX + enemy.side * bridgeHalfWidth, y + 0.4, frontZ + enemy.offset]
 }
 
 export function writeBridgeEnemiesGeometry(target: VertexWriter, enemies: BridgeEnemy[], frontZ: number) {
   reserveFloats(target, enemies.length * boxFloats * 2)
 
-  const climbBottom = bridgeDeckY - enemyClimbDepth
-
   for (const enemy of enemies) {
-    const z = frontZ + enemy.offset
-    const x = bridgeCenterX + enemy.side * bridgeHalfWidth
-    const y = climbBottom + (bridgeDeckY - climbBottom) * enemy.rise
-    const shake = enemy.rise >= 1 ? Math.sin(enemy.gnaw) * 0.06 : 0
+    const pos = enemyWorldPosition(enemy, frontZ)
+    const shake = !enemy.falling && enemy.rise >= 1 ? Math.sin(enemy.gnaw) * 0.06 : 0
 
-    writeBox(target, x, y + 0.4 + shake, z, 0.46, 0.7, 0.42, enemyBody, 0)
-    writeBox(target, x - enemy.side * 0.14, y + 0.64 + shake, z, 0.22, 0.12, 0.26, enemyEye, 3)
+    writeBox(target, pos[0], pos[1] + shake, pos[2], 0.46, 0.7, 0.42, enemyBody, 0)
+    writeBox(target, pos[0] - enemy.side * 0.14, pos[1] + 0.24 + shake, pos[2], 0.22, 0.12, 0.26, enemyEye, 3)
   }
 }
 
