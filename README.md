@@ -1,6 +1,11 @@
-# Hallucinate
+# Below The Rim
 
-Massively Multiplayer Online Rave.
+Build a bridge across the misty chasm to the next island — and win it — before the
+cliff-dwellers climb up out of the chasm and tear it down. Gather wood, lay planks,
+defend the span, and island-hop across the chain. Runs in the browser.
+
+Built on the engine from [Hallucinate](https://github.com/stagas/hallucinate) — the
+original massively multiplayer online rave (WebGL + Bun) that this game grew out of.
 
 <img width="2152" height="1027" alt="screenshot" src="https://github.com/user-attachments/assets/2275e5a5-da62-4f60-aec7-0936242c09ad" />
 
