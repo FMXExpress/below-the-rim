@@ -1,13 +1,19 @@
+import { characterFloor } from './character-data.ts'
 import { reserveFloats } from './character-geometry.ts'
 import type { VertexWriter } from './character-geometry.ts'
 import { addBox } from './geometry.ts'
 import {
   bridgeCenterX,
+  bridgeChasmWidth,
   bridgeDeckY,
   bridgeHalfWidth,
   bridgeMilestone,
   bridgePlankDepth,
   bridgeRimZ,
+  farIslandLeftX,
+  farIslandRightX,
+  islandStride,
+  maxBridgeLevels,
   maxBridgePlanks,
 } from './scene-data.ts'
 import type { Vec3, Vertex } from './types.ts'
@@ -16,18 +22,48 @@ const woodColor: Vec3 = [0.36, 0.22, 0.1]
 const woodDark: Vec3 = [0.24, 0.14, 0.06]
 const woodPost: Vec3 = [0.28, 0.17, 0.07]
 const ropeColor: Vec3 = [0.5, 0.42, 0.24]
+const beaconWon: Vec3 = [1, 0.78, 0.12]
+const beaconWonCrown: Vec3 = [1, 0.95, 0.5]
+const beaconActive: Vec3 = [0.1, 0.85, 1]
+const beaconActiveCrown: Vec3 = [1, 0.2, 0.7]
+const beaconFuture: Vec3 = [0.12, 0.22, 0.4]
 const enemyBody: Vec3 = [0.05, 0.04, 0.07]
 const enemyEye: Vec3 = [1, 0.16, 0.72]
 const enemyClimbDepth = 5
 const boxVertexCount = 36
 const boxFloats = boxVertexCount * 11
 
-export function buildBridgeVertices(planks: number, locked: number): Vertex[] {
+// Render every chasm's bridge for the chain: conquered chasms (stride < level)
+// are full spans, the current chasm is built to `planks`, and each island carries
+// a beacon whose colour marks won / current goal / not-yet-reached.
+export function buildBridgeWorldVertices(level: number, planks: number, locked: number): Vertex[] {
   const target: Vertex[] = []
+
+  for (let stride = 0; stride < maxBridgeLevels; stride++) {
+    const rim = bridgeRimZ + stride * islandStride
+    const spanPlanks = stride < level ? maxBridgePlanks : stride === level ? planks : 0
+    const spanLocked = stride < level ? maxBridgePlanks : stride === level ? locked : 0
+
+    addBridgeSpan(target, rim, spanPlanks, spanLocked)
+  }
+
+  for (let stride = 0; stride < maxBridgeLevels; stride++) {
+    const islandBack = bridgeRimZ + stride * islandStride + bridgeChasmWidth
+    const islandFront = bridgeRimZ + (stride + 1) * islandStride
+    const cx = (farIslandLeftX + farIslandRightX) / 2
+    const cz = (islandBack + islandFront) / 2
+
+    addBeacon(target, cx, cz, stride < level ? 'won' : stride === level ? 'active' : 'future')
+  }
+
+  return target
+}
+
+function addBridgeSpan(target: Vertex[], rim: number, planks: number, locked: number) {
   const halfWidth = bridgeHalfWidth
 
   for (let i = 0; i < planks; i++) {
-    const z = bridgeRimZ + (i + 0.5) * bridgePlankDepth
+    const z = rim + (i + 0.5) * bridgePlankDepth
     const deck = i < locked ? woodDark : woodColor
 
     addBox(target, bridgeCenterX, bridgeDeckY, z, halfWidth * 2, 0.12, bridgePlankDepth * 0.86, deck, 0)
@@ -35,23 +71,21 @@ export function buildBridgeVertices(planks: number, locked: number): Vertex[] {
     addBox(target, bridgeCenterX + halfWidth, bridgeDeckY + 0.42, z, 0.08, 0.08, bridgePlankDepth, ropeColor, 0)
   }
 
-  for (const z of postSeams(planks)) {
+  for (const z of postSeams(rim, planks)) {
     addBox(target, bridgeCenterX - halfWidth, bridgeDeckY + 0.5, z, 0.12, 1, 0.12, woodPost, 0)
     addBox(target, bridgeCenterX + halfWidth, bridgeDeckY + 0.5, z, 0.12, 1, 0.12, woodPost, 0)
   }
-
-  return target
 }
 
 // Anchor posts at the rim, at each locked milestone seam, and at the working tip.
-function postSeams(planks: number): number[] {
-  const seams = [bridgeRimZ]
+function postSeams(rim: number, planks: number): number[] {
+  const seams = [rim]
 
   for (let m = bridgeMilestone; m <= planks; m += bridgeMilestone) {
-    seams.push(bridgeRimZ + m * bridgePlankDepth)
+    seams.push(rim + m * bridgePlankDepth)
   }
   if (planks > 0) {
-    const tip = bridgeRimZ + planks * bridgePlankDepth
+    const tip = rim + planks * bridgePlankDepth
 
     if (!seams.includes(tip)) {
       seams.push(tip)
@@ -59,6 +93,18 @@ function postSeams(planks: number): number[] {
   }
 
   return seams
+}
+
+// The column of light on each island: cyan when it is the current goal, gold once
+// won, dim before you reach it.
+function addBeacon(target: Vertex[], cx: number, cz: number, state: 'won' | 'active' | 'future') {
+  const color = state === 'won' ? beaconWon : state === 'active' ? beaconActive : beaconFuture
+  const crown = state === 'won' ? beaconWonCrown : state === 'active' ? beaconActiveCrown : beaconFuture
+  const glow = state === 'future' ? 1.2 : 3.6
+  const height = 6
+
+  addBox(target, cx, characterFloor + height / 2, cz, 0.6, height, 0.6, color, glow)
+  addBox(target, cx, characterFloor + height + 0.4, cz, 1.1, 0.6, 1.1, crown, glow)
 }
 
 export type BridgeEnemy = {

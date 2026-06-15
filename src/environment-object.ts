@@ -13,8 +13,8 @@ import { backDoor, bartenderBar, bartenderStools, djBooth, djSpeakers, insideSid
   tentPole, tentVideoAngle, tentVideoWall, type TShirtStand, upstairsBar, upstairsBarCounterRail,
   upstairsBarDrinkCounter, upstairsBarStools, upstairsCouches, upstairsDjBooth, upstairsDjSpeakers, upstairsDoor,
   upstairsVideoWall, upstairsWallHeight } from './scene-data.ts'
-import { bridgeChasmHalfWidth, bridgeFarBackZ, bridgeFarFrontZ, bridgeMistBottomY, bridgeRimZ, farIslandLeftX,
-  farIslandRightX } from './scene-data.ts'
+import { bridgeChasmHalfWidth, bridgeChasmWidth, bridgeMistBottomY, bridgeRimZ, farIslandLeftX, farIslandRightX,
+  islandStride, maxBridgeLevels, worldFrontZ } from './scene-data.ts'
 import { strobeTarget } from './strobe-object.ts'
 import type { Bounds, StrobeLight, Vec3, Vertex, VideoZone } from './types.ts'
 
@@ -210,27 +210,28 @@ function addBelowTheRim(target: Vertex[], floor: number) {
   const right = bridgeChasmHalfWidth
 
   addCliffFace(target, left, right, bridgeRimZ, 'z', floor, bridgeMistBottomY, rockTop, rockMist)
-  addFarIsland(target, floor, rockTop, rockMist)
+  for (let stride = 0; stride < maxBridgeLevels; stride++) {
+    const back = bridgeRimZ + stride * islandStride + bridgeChasmWidth
+    const front = bridgeRimZ + (stride + 1) * islandStride
+
+    addIslandPlateau(target, back, front, floor, rockTop, rockMist)
+  }
   addChasmMist(target, left, right, mist)
 }
 
-function addFarIsland(target: Vertex[], floor: number, rockTop: Vec3, rockMist: Vec3) {
+// One flat island in the chain: grass top plus cliffs on all sides fading into
+// the mist. Beacons are drawn dynamically (their colour tracks game progress).
+function addIslandPlateau(target: Vertex[], back: number, front: number, floor: number, rockTop: Vec3,
+  rockMist: Vec3)
+{
   const left = farIslandLeftX
   const right = farIslandRightX
-  const back = bridgeFarBackZ
-  const front = bridgeFarFrontZ
 
   addGrassQuad(target, [left, floor, front], [right, floor, front], [right, floor, back], [left, floor, back])
   addCliffFace(target, left, right, back, 'z', floor, bridgeMistBottomY, rockTop, rockMist)
   addCliffFace(target, left, right, front, 'z', floor, bridgeMistBottomY, rockTop, rockMist)
   addCliffFace(target, back, front, left, 'x', floor, bridgeMistBottomY, rockTop, rockMist)
   addCliffFace(target, back, front, right, 'x', floor, bridgeMistBottomY, rockTop, rockMist)
-
-  const beaconX = (left + right) / 2
-  const beaconZ = (back + front) / 2
-
-  addBox(target, beaconX, floor + 2, beaconZ, 0.5, 4, 0.5, [0.04, 0.7, 0.95], 3.4)
-  addBox(target, beaconX, floor + 4.25, beaconZ, 1, 0.5, 1, [1, 0.2, 0.7], 3.4)
 }
 
 // A cliff drawn as stacked horizontal bands so the rock colour fades into the mist
@@ -273,7 +274,7 @@ function addCliffFace(
 // cliffs sink into. Negative strobe is the engine's per-vertex alpha channel.
 function addChasmMist(target: Vertex[], left: number, right: number, mist: Vec3) {
   const back = bridgeRimZ - 1
-  const front = bridgeFarFrontZ + 6
+  const front = worldFrontZ + 6
   const layers = [
     { y: characterFloor - 1.4, alpha: 0.14 },
     { y: characterFloor - 4, alpha: 0.22 },

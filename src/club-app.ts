@@ -24,8 +24,8 @@ import {
 import type { DuckPose } from './duck-position.ts'
 import { addRoom, addRoomSmoke, addWallStrips } from './environment-object.ts'
 import { createFoamSystem, writeFoamGeometry } from './foam.ts'
-import { buildBridgeVertices, createBridgeEnemies, writeBridgeEnemiesGeometry } from './bridge.ts'
-import { bridgeLocked, bridgePlanks, setBridgeState } from './bridge-state.ts'
+import { buildBridgeWorldVertices, createBridgeEnemies, writeBridgeEnemiesGeometry } from './bridge.ts'
+import { bridgeLevel, bridgeLocked, bridgePlanks, setBridgeState } from './bridge-state.ts'
 import {
   addGraffitiWallGeometry,
   createGraffitiCanvas,
@@ -83,6 +83,7 @@ import {
   upstairsDoor,
   bridgePlankDepth,
   bridgeRimZ,
+  islandStride,
   maxBridgePlanks,
 } from './scene-data.ts'
 import {
@@ -2747,7 +2748,7 @@ function connectMultiplayer(spaceSlug?: string) {
       applyDuckPose(pose, false, false)
     },
     onBridgeState: state => {
-      setBridgeState(state.planks, state.locked)
+      setBridgeState(state.level, state.planks, state.locked)
       bridgeDirty = true
     },
     onGraffiti: packet => {
@@ -4785,19 +4786,19 @@ function updateBridgeBuffer() {
   }
 
   bridgeDirty = false
-  const planks = bridgePlanks()
+  const verts = buildBridgeWorldVertices(bridgeLevel(), bridgePlanks(), bridgeLocked())
 
-  if (planks === 0) {
+  if (verts.length === 0) {
     bridgePoints = emptyPoints
     return
   }
 
-  bridgePoints = new Float32Array(buildBridgeVertices(planks, bridgeLocked()).flat())
+  bridgePoints = new Float32Array(verts.flat())
   uploadFloatBuffer(gl, bridgeBuffer, bridgePoints)
 }
 
 function updateBridgeEnemyBuffer() {
-  const frontZ = bridgeRimZ + bridgePlanks() * bridgePlankDepth
+  const frontZ = bridgeRimZ + bridgeLevel() * islandStride + bridgePlanks() * bridgePlankDepth
 
   bridgeEnemyPoints = updateDynamicGeometry(bridgeEnemies.enemies.length > 0, bridgeEnemyWriter, bridgeEnemyBuffer,
     bridgeEnemyBufferCache, () => writeBridgeEnemiesGeometry(bridgeEnemyWriter, bridgeEnemies.enemies, frontZ))

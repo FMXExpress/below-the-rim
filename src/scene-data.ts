@@ -464,5 +464,17 @@ export const bridgeMistBottomY = characterFloor - 28
 export const bridgeAttackIntervalMs = 7000
 export const bridgeDefendRadius = 3.6
 
-export const outsideBounds = { left: -24, right: 40, back: -32, front: bridgeFarFrontZ }
+// The game is a chain of islands: each chasm crossed wins an island and a new
+// one waits beyond it. Islands repeat at a fixed stride out along +z.
+export const bridgeChasmWidth = maxBridgePlanks * bridgePlankDepth
+export const farIslandDepth = bridgeFarFrontZ - bridgeFarBackZ
+export const islandStride = bridgeChasmWidth + farIslandDepth
+export const maxBridgeLevels = 4
+export const worldFrontZ = bridgeRimZ + maxBridgeLevels * islandStride
+
+export function bridgeRimForLevel(level: number) {
+  return bridgeRimZ + level * islandStride
+}
+
+export const outsideBounds = { left: -24, right: 40, back: -32, front: worldFrontZ + 2 }
 export const landscapeBounds = { left: -72, right: 72, back: -84, front: 88 }
