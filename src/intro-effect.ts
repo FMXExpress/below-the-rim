@@ -245,9 +245,9 @@ export function createIntroEffect(canvas: HTMLCanvasElement) {
     const gradient = textContext.createLinearGradient(0, centerY - titleSize * 0.62, 0, centerY + titleSize * 0.38)
 
     textContext.font = `${titleSize}px "Black and White Picture", sans-serif`
-    titleSize *= Math.min(1, titleMaxWidth / textContext.measureText('hallucinate').width)
+    titleSize *= Math.min(1, titleMaxWidth / textContext.measureText('Below The Rim').width)
     textContext.font = `${subSize}px "Black and White Picture", sans-serif`
-    subSize *= Math.min(1, subMaxWidth / textContext.measureText('Massively Multiplayer Online Rave').width)
+    subSize *= Math.min(1, subMaxWidth / textContext.measureText('Build the bridge. Cross the chasm.').width)
 
     gradient.addColorStop(0, 'rgb(6,16,145)')
     gradient.addColorStop(0.4, 'rgb(0,142,235)')
@@ -257,12 +257,12 @@ export function createIntroEffect(canvas: HTMLCanvasElement) {
     textContext.shadowColor = 'rgba(255,0,40,0.58)'
     textContext.fillStyle = gradient
     textContext.font = `${titleSize}px "Black and White Picture", sans-serif`
-    textContext.fillText('hallucinate', centerX, centerY - titleSize * 0.26)
+    textContext.fillText('Below The Rim', centerX, centerY - titleSize * 0.26)
     textContext.shadowBlur = 16 * scale
     textContext.shadowColor = 'rgba(0,230,255,0.42)'
     textContext.fillStyle = 'rgba(255,255,255,0.82)'
     textContext.font = `${subSize}px "Black and White Picture", sans-serif`
-    textContext.fillText('Massively Multiplayer Online Rave', centerX, centerY + titleSize * 0.36)
+    textContext.fillText('Build the bridge. Cross the chasm.', centerX, centerY + titleSize * 0.36)
 
     gl.bindTexture(gl.TEXTURE_2D, textTexture)
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
