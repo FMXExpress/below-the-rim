@@ -461,6 +461,8 @@ export const farIslandRightX = 40
 export const bridgeDeckY = characterFloor + 0.06
 export const bridgeMistTopY = characterFloor - 0.35
 export const bridgeMistBottomY = characterFloor - 28
+export const bridgeAbyssY = characterFloor - 60
+export const bridgeFallY = characterFloor - 16
 export const bridgeAttackIntervalMs = 7000
 export const bridgeDefendRadius = 3.6
 

@@ -22,6 +22,7 @@ const woodColor: Vec3 = [0.36, 0.22, 0.1]
 const woodDark: Vec3 = [0.24, 0.14, 0.06]
 const woodPost: Vec3 = [0.28, 0.17, 0.07]
 const ropeColor: Vec3 = [0.5, 0.42, 0.24]
+const climbRope: Vec3 = [0.3, 0.25, 0.15]
 const beaconWon: Vec3 = [1, 0.78, 0.12]
 const beaconWonCrown: Vec3 = [1, 0.95, 0.5]
 const beaconActive: Vec3 = [0.1, 0.85, 1]
@@ -47,6 +48,10 @@ export function buildBridgeWorldVertices(level: number, planks: number, locked: 
     addBridgeSpan(target, rim, spanPlanks, spanLocked)
   }
 
+  if (level < maxBridgeLevels) {
+    addClimbRopes(target, bridgeRimZ + level * islandStride + planks * bridgePlankDepth)
+  }
+
   for (let stride = 0; stride < maxBridgeLevels; stride++) {
     const islandBack = bridgeRimZ + stride * islandStride + bridgeChasmWidth
     const islandFront = bridgeRimZ + (stride + 1) * islandStride
@@ -57,6 +62,18 @@ export function buildBridgeWorldVertices(level: number, planks: number, locked: 
   }
 
   return target
+}
+
+// Ropes dangle from the working tip down into the mist; the cliff-dwellers climb
+// up these to reach the bridge.
+function addClimbRopes(target: Vertex[], z: number) {
+  const climbBottom = bridgeDeckY - enemyClimbDepth
+  const ropeHeight = bridgeDeckY - climbBottom
+
+  for (const side of [-1, 1]) {
+    addBox(target, bridgeCenterX + side * bridgeHalfWidth, climbBottom + ropeHeight / 2, z, 0.07, ropeHeight, 0.07,
+      climbRope, 0)
+  }
 }
 
 function addBridgeSpan(target: Vertex[], rim: number, planks: number, locked: number) {
@@ -121,9 +138,9 @@ export type BridgeEnemy = {
 export function createBridgeEnemies() {
   const enemies: BridgeEnemy[] = []
 
-  function update(delta: number, planks: number, locked: number) {
-    const vulnerable = planks > locked && planks < maxBridgePlanks
-    const wanted = vulnerable ? Math.min(planks - locked, 4) : 0
+  function update(delta: number, level: number, planks: number, locked: number) {
+    const building = level < maxBridgeLevels && planks < maxBridgePlanks
+    const wanted = building ? Math.min(1 + Math.max(0, planks - locked), 4) : 0
 
     while (enemies.length < wanted) {
       enemies.push({
@@ -153,13 +170,13 @@ export function writeBridgeEnemiesGeometry(target: VertexWriter, enemies: Bridge
   const climbBottom = bridgeDeckY - enemyClimbDepth
 
   for (const enemy of enemies) {
-    const z = frontZ - 0.25 + enemy.offset
-    const x = bridgeCenterX + enemy.side * (bridgeHalfWidth + 0.12)
+    const z = frontZ + enemy.offset
+    const x = bridgeCenterX + enemy.side * bridgeHalfWidth
     const y = climbBottom + (bridgeDeckY - climbBottom) * enemy.rise
-    const shake = enemy.rise >= 1 ? Math.sin(enemy.gnaw) * 0.05 : 0
+    const shake = enemy.rise >= 1 ? Math.sin(enemy.gnaw) * 0.06 : 0
 
-    writeBox(target, x, y + 0.3 + shake, z, 0.34, 0.5, 0.34, enemyBody, 0)
-    writeBox(target, x - enemy.side * 0.1, y + 0.46 + shake, z, 0.16, 0.08, 0.2, enemyEye, 3)
+    writeBox(target, x, y + 0.4 + shake, z, 0.46, 0.7, 0.42, enemyBody, 0)
+    writeBox(target, x - enemy.side * 0.14, y + 0.64 + shake, z, 0.22, 0.12, 0.26, enemyEye, 3)
   }
 }
 

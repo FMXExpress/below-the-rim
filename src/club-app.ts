@@ -4402,7 +4402,7 @@ const draw = (stamp: number) => {
   bubbleSystem.update(delta)
   foamSystem.update(delta, inLoft ? loftFloorAt : mainFloorAt)
   smokeSystem.update(delta)
-  bridgeEnemies.update(delta, bridgePlanks(), bridgeLocked())
+  bridgeEnemies.update(delta, bridgeLevel(), bridgePlanks(), bridgeLocked())
   const hits = inLoft ? [] : hitBeachBalls(beachBalls, characterPosition)
   !inLoft && pushDuckByCharacter(stamp)
 

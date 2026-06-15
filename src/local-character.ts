@@ -4,8 +4,9 @@ import {
   normalizeInto,
   smoothAngle,
 } from './math.ts'
-import { outsideRooftop, upstairsWallHeight } from './scene-data.ts'
+import { bridgeFallY, outsideRooftop, upstairsWallHeight } from './scene-data.ts'
 import {
+  bridgeRespawnPosition,
   collideLoftRoom,
   collideRoom,
   inLake,
@@ -496,6 +497,16 @@ export function createLocalCharacter(keys: Set<string>) {
       }
       else {
         collideRoom(position, outsideTree, isOutside(position), previousPosition, collisionOptions)
+      }
+
+      if (!loft && position[1] < bridgeFallY) {
+        const respawn = bridgeRespawnPosition()
+
+        position[0] = respawn[0]
+        position[1] = respawn[1]
+        position[2] = respawn[2]
+        velocityY = 0
+        jumpTime = 0
       }
     },
   }
